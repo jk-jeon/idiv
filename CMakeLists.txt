@@ -1,0 +1,49 @@
+cmake_minimum_required(VERSION 3.14)
+
+include(cmake/prelude.cmake)
+
+project(
+    idiv
+    VERSION 0.1.0
+    DESCRIPTION "A library for manually converting integer divisions by constants into multiplications"
+    HOMEPAGE_URL "https://example.com/"
+    LANGUAGES NONE
+)
+
+docs_early_return()
+
+include(cmake/project-is-top-level.cmake)
+include(cmake/variables.cmake)
+
+# ---- Declare library ----
+
+add_library(idiv_idiv INTERFACE)
+add_library(idiv::idiv ALIAS idiv_idiv)
+
+set_property(
+    TARGET idiv_idiv PROPERTY
+    EXPORT_NAME idiv
+)
+
+target_include_directories(
+    idiv_idiv ${warning_guard}
+    INTERFACE
+    "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>"
+)
+
+target_compile_features(idiv_idiv INTERFACE cxx_std_20)
+
+# ---- Install rules ----
+
+if(NOT CMAKE_SKIP_INSTALL_RULES)
+  include(cmake/install-rules.cmake)
+endif()
+
+# ---- Examples ----
+
+if(PROJECT_IS_TOP_LEVEL)
+  option(BUILD_EXAMPLES "Build examples tree.")
+  if(BUILD_EXAMPLES)
+    add_subdirectory(example)
+  endif()
+endif()
