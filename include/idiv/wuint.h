@@ -53,7 +53,7 @@ namespace jkj {
             constexpr std::uint64_t low() const noexcept { return low_; }
 
             constexpr uint128& operator+=(std::uint64_t n) & noexcept {
-                const auto generic_impl = [&] {
+                [[maybe_unused]] auto const generic_impl = [&] {
                     auto sum = low_ + n;
                     high_ += (sum < low_ ? 1 : 0);
                     low_ = sum;
@@ -63,11 +63,11 @@ namespace jkj {
                     return *this;
                 }
 #if JKJ_HAS_BUILTIN(__builtin_addcll)
-                unsigned long long carry;
+                unsigned long long carry{};
                 low_ = __builtin_addcll(low_, n, 0, &carry);
                 high_ = __builtin_addcll(high_, 0, carry, &carry);
 #elif JKJ_HAS_BUILTIN(__builtin_ia32_addcarryx_u64)
-                unsigned long long result;
+                unsigned long long result{};
                 auto carry = __builtin_ia32_addcarryx_u64(0, low_, n, &result);
                 low_ = result;
                 __builtin_ia32_addcarryx_u64(carry, high_, 0, &result);
