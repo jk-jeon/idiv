@@ -22,6 +22,7 @@
 #include <cassert>
 #include <cstddef>
 #include <type_traits>
+#include <utility>
 
 #if defined(__cpp_if_consteval) && __cpp_is_consteval >= 202106L
     #define JKJ_IF_CONSTEVAL if consteval
@@ -109,16 +110,17 @@ namespace jkj {
             template <class Functor, class Array, std::size_t... indices>
             constexpr decltype(auto) apply_impl(Functor&& f, Array&& arr,
                                                 std::index_sequence<indices...>) noexcept {
-                return std::forward<Functor>(f)(arr[indices]...);
+                return static_cast<Functor&&>(f)(arr[indices]...);
             }
         }
         template <class Functor, class T, std::size_t N>
         constexpr decltype(auto) apply(Functor&& f, array<T, N> const& arr) noexcept {
-            return detail::apply_impl(std::forward<Functor>(f), arr, std::make_index_sequence<N>{});
+            return detail::apply_impl(static_cast<Functor&&>(f), arr,
+                                      std::make_index_sequence<N>{});
         }
         template <class Functor, class T>
         constexpr decltype(auto) apply(Functor&& f, array<T, 0> const&) noexcept {
-            return std::forward<Functor>(f)();
+            return static_cast<Functor&&>(f)();
         }
 
         // A minimal implementation of std::span.
