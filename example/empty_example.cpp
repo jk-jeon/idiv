@@ -25,7 +25,7 @@ std::ostream& operator<<(std::ostream& out, jkj::big_uint::var const& n) {
         out << std::format("{}", *itr);
 
         for (++itr; itr != nineteen_digits.crend(); ++itr) {
-            out << std::format("{:19}", *itr);
+            out << std::format("{:019d}", *itr);
         }
     }
 
