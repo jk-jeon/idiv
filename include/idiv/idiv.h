@@ -50,7 +50,7 @@ namespace jkj {
                         .above.denominator;
 
                 // v = floor((nmax - b) / q) * q + b.
-                auto v = ((nmax - mod_inv) / x.denominator) * x.denominator;
+                v = ((nmax - mod_inv) / x.denominator) * x.denominator;
                 v += mod_inv;
             }
             else {
