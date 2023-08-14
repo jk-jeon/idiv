@@ -187,7 +187,6 @@ namespace jkj {
                     ufrac{floor_n_U0_x_p1 * zeta_min.denominator - zeta_min.numerator,
                           n_U0 * zeta_min.denominator};
 
-                std::size_t k0;
                 {
                     auto delta = ufrac{right_end.numerator * left_end.denominator,
                                        left_end.denominator * right_end.denominator};
@@ -199,19 +198,24 @@ namespace jkj {
                     }
 
                     delta.numerator -= numerator_diff;
-                    k0 = trunc_floor_log2_div(delta.denominator, delta.numerator);
+                    util::constexpr_assert<util::error_msgs::no_error_msg>(delta.denominator >=
+                                                                           delta.numerator);
+                    ret_value.shift_amount =
+                        trunc_floor_log2_div(delta.denominator, delta.numerator);
                 }
 
-                ret_value.multiplier = ((left_end.numerator << k0) / left_end.denominator) + 1;
+                ret_value.multiplier =
+                    ((left_end.numerator << ret_value.shift_amount) / left_end.denominator) + 1;
 
                 // If t goes out of the interval, then increase k0.
-                if (ret_value.multiplier * right_end.denominator >= (right_end.numerator << k0)) {
-                    ++k0;
-                    ret_value.multiplier = ((left_end.numerator << k0) / left_end.denominator) + 1;
-                    ret_value.shift_amount = k0;
+                if (ret_value.multiplier * right_end.denominator >=
+                    (right_end.numerator << ret_value.shift_amount)) {
+                    ++ret_value.shift_amount;
+                    ret_value.multiplier =
+                        ((left_end.numerator << ret_value.shift_amount) / left_end.denominator) + 1;
                 }
                 else {
-                    ret_value.shift_amount = k0 - ret_value.multiplier.factor_out_power_of_2();
+                    ret_value.shift_amount -= ret_value.multiplier.factor_out_power_of_2();
                 }
 
                 // Truncate zeta0 from 0 to avoid underflow.
@@ -227,13 +231,11 @@ namespace jkj {
                     }
                 }
 
-                bool initial_k0 = true;
                 while (ret_value.multiplier * nmax + zeta0.numerator <= max_allowed_value) {
-                    // Loop over all odd numerators in the interval.
+                    // Loop over all numerators in the interval.
                     while (true) {
                         // These branches do not touch ret_value.multiplier and
-                        // ret_value.shift_amount (unless it returns), but may modify
-                        // ret_value.adder.
+                        // ret_value.shift_amount, but may modify ret_value.adder.
                         if (zeta0 >= zeta_min) {
                             ret_value.adder = zeta0.numerator;
 
@@ -246,85 +248,53 @@ namespace jkj {
                         }
                         else {
                             auto const delta_zeta = zeta_min - zeta0;
-                            auto zeta0_numerator_shifted = zeta0.numerator;
-                            auto m = ret_value.multiplier;
-                            auto k = ret_value.shift_amount;
-                            do {
-                                ret_value.adder =
-                                    zeta0_numerator_shifted +
-                                    div_ceil((delta_zeta.numerator << k), delta_zeta.denominator);
+                            ret_value.adder =
+                                zeta0.numerator +
+                                div_ceil((delta_zeta.numerator << ret_value.shift_amount),
+                                         delta_zeta.denominator);
 
-                                // Check zeta < zeta_max.
-                                if (ret_value.adder * zeta_max.denominator <
-                                    (zeta_max.numerator << k)) {
-                                    // Check the max_allowed_value constraint.
-                                    if (m * nmax + ret_value.adder <= max_allowed_value) {
-                                        // Check admissibility of xi with respect to zeta.
-                                        if (m * n_U0 + ret_value.adder < (floor_n_U0_x_p1 << k)) {
-                                            // Found.
-                                            ret_value.multiplier = static_cast<big_uint::var&&>(m);
-                                            ret_value.shift_amount = k;
-                                            return ret_value;
-                                        }
+                            // Check zeta < zeta_max.
+                            if (ret_value.adder * zeta_max.denominator <
+                                (zeta_max.numerator << ret_value.shift_amount)) {
+                                // Check the max_allowed_value constraint.
+                                if (ret_value.multiplier * nmax + ret_value.adder <=
+                                    max_allowed_value) {
+                                    // Check admissibility of xi with respect to zeta.
+                                    if (ret_value.multiplier * n_U0 + ret_value.adder <
+                                        (floor_n_U0_x_p1 << ret_value.shift_amount)) {
+                                        // Found.
+                                        return ret_value;
                                     }
                                 }
-
-                                ++k;
-                                m <<= 1;
-                                zeta0_numerator_shifted <<= 1;
-
-                                // Stop the iteration if the max_allowed_value constraint can no
-                                // longer be satisfied.
-                            } while (m * nmax + zeta0_numerator_shifted <= max_allowed_value);
+                            }
                         }
 
-                        // The first interval is guaranteed to have only one candidate.
-                        if (initial_k0) {
-                            initial_k0 = false;
-                            break;
-                        }
-
-                        // Try the next odd number.
-                        ret_value.multiplier += 2;
+                        // Try the next numerator.
+                        ++ret_value.multiplier;
                         if (ret_value.multiplier * right_end.denominator >=
-                            (right_end.numerator << k0)) {
+                            (right_end.numerator << ret_value.shift_amount)) {
                             break;
                         }
 
-                        auto const numerator_diff = (n_L0 << 1);
-                        if (zeta0.numerator > numerator_diff) {
-                            zeta0.numerator -= numerator_diff;
+                        if (zeta0.numerator > n_L0) {
+                            zeta0.numerator -= n_L0;
                         }
                         else {
                             zeta0.numerator = 0;
                         }
-                    }
 
-                    // Increase k0 and recompute t, zeta0.
-                    ++k0;
-                    ret_value.multiplier = ((left_end.numerator << k0) / left_end.denominator) + 1;
-                    // If there are only even integers in the interval, double the interval and try
-                    // again until we find an odd integer.
-                    if (ret_value.multiplier.is_even()) {
-                        ++ret_value.multiplier;
-                        while (ret_value.multiplier * right_end.denominator >=
-                               (right_end.numerator << k0)) {
-                            ++k0;
-                            ret_value.multiplier =
-                                ((left_end.numerator << k0) / left_end.denominator) + 1;
-
-                            if (ret_value.multiplier.is_even()) {
-                                ++ret_value.multiplier;
-                            }
-                            else {
-                                break;
-                            }
+                        if (ret_value.multiplier * nmax + zeta0.numerator > max_allowed_value) {
+                            break;
                         }
                     }
 
-                    ret_value.shift_amount = k0;
-                    zeta0 = {(floor_n_L0_x << ret_value.shift_amount),
-                             big_uint::var::power_of_2(ret_value.shift_amount)};
+                    // Increase k0 and recompute t, zeta0.
+                    ++ret_value.shift_amount;
+                    ret_value.multiplier =
+                        ((left_end.numerator << ret_value.shift_amount) / left_end.denominator) + 1;
+
+                    zeta0.numerator = (floor_n_L0_x << ret_value.shift_amount);
+                    zeta0.denominator <<= 1;
                     {
                         auto numerator_diff = n_L0 * ret_value.multiplier;
                         if (zeta0.numerator > numerator_diff) {
