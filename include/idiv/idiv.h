@@ -41,15 +41,21 @@ namespace jkj {
 
             multiply_shift_info ret_value{};
 
-            // Compute the modular inverse of -x.numerator.
-            auto const mod_inv =
-                find_best_rational_approx<rational_continued_fractions<big_uint::var>>(
-                    x, x.denominator - 1)
-                    .above.denominator;
+            big_uint::var v;
+            if (x.denominator != 1) {
+                // Compute the modular inverse of -x.numerator.
+                auto const mod_inv =
+                    find_best_rational_approx<rational_continued_fractions<big_uint::var>>(
+                        x, x.denominator - 1)
+                        .above.denominator;
 
-            // v = floor((nmax - b) / q) * q + b.
-            auto v = ((nmax - mod_inv) / x.denominator) * x.denominator;
-            v += mod_inv;
+                // v = floor((nmax - b) / q) * q + b.
+                auto v = ((nmax - mod_inv) / x.denominator) * x.denominator;
+                v += mod_inv;
+            }
+            else {
+                v = nmax;
+            }            
 
             auto const reciprocal_interval_length = v * x.denominator;
 
@@ -111,7 +117,7 @@ namespace jkj {
             }
             else {
                 n_L0 = nmax;
-                n_U0 = 1;
+                n_U0 = nmax;
             }
 
             using ufrac = frac<big_uint::var, big_uint::var>;
