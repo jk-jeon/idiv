@@ -35,18 +35,27 @@ std::ostream& operator<<(std::ostream& out, jkj::big_uint::var const& n) {
 int main() {
     jkj::big_uint::var numerator{7};
     jkj::big_uint::var denominator{18};
+    std::cout << "      Number = " << numerator << " / " << denominator;
+
     jkj::big_uint::var nmax = 0xffff'ffff;
+    std::cout << "\n       n_max = " << nmax;
 
     auto info1 =
         jkj::idiv::convert_to_multiply_shift_effectively_rational({numerator, denominator}, nmax);
 
-    auto info2 = jkj::idiv::convert_to_multiply_add_shift_effectively_rational(
-        {numerator, denominator}, nmax,
-        jkj::big_uint::var{0xffff'ffff'ffff'ffff, 0xffff'ffff'ffff'ffff});
+    std::cout << "\n\n[Multiply-and-shift method]\n"
+              << "  Multiplier = " << info1.multiplier << "\n       Shift = " << info1.shift_amount;
 
-    std::cout << "     Number = " << numerator << " / " << denominator
-              << "\n\n Multiplier = " << info1.multiplier
-              << "\n      Shift = " << info1.shift_amount
-              << "\n\n Multiplier = " << info2->multiplier << "\n      Adder = " << info2->adder
-              << "\n      Shift = " << info2->shift_amount << "\n";
+    jkj::big_uint::var max_allowed = jkj::big_uint::var{0xffff'ffff'ffff'ffff};
+    auto info2 = jkj::idiv::convert_to_multiply_add_shift_effectively_rational(
+        {numerator, denominator}, nmax, max_allowed);
+
+    std::cout << "\n\n[Multiply-add-and-shift method (with max_allowed = " << max_allowed << ")]\n";
+    if (info2) {
+        std::cout << "  Multiplier = " << info2->multiplier << "\n       Adder = " << info2->adder
+                  << "\n       Shift = " << info2->shift_amount << "\n";
+    }
+    else {
+        std::cout << "Failed to find any solution.\n";
+    }
 }
