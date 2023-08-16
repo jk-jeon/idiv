@@ -22,7 +22,6 @@
 #include "big_uint.h"
 #include "rational_continued_fractions.h"
 #include "best_rational_approx.h"
-#include <optional>
 
 namespace jkj {
     namespace idiv {
@@ -55,7 +54,7 @@ namespace jkj {
             }
             else {
                 v = nmax;
-            }            
+            }
 
             auto const reciprocal_interval_length = v * x.denominator;
 
@@ -85,20 +84,20 @@ namespace jkj {
         }
 
         struct multiply_add_shift_info {
-            big_uint::var multiplier;
-            big_uint::var adder;
-            unsigned int shift_amount;
+            bool succeeded = false;
+            big_uint::var multiplier = {};
+            big_uint::var adder = {};
+            unsigned int shift_amount = 0;
         };
 
-        constexpr inline std::optional<multiply_add_shift_info>
-        convert_to_multiply_add_shift_effectively_rational(
+        constexpr inline multiply_add_shift_info convert_to_multiply_add_shift_effectively_rational(
             frac<big_uint::var, big_uint::var> const& x, big_uint::var const& nmax,
             big_uint::var const& max_allowed_value) {
 
             util::constexpr_assert<util::error_msgs::divide_by_zero>(x.denominator != 0);
             util::constexpr_assert<util::error_msgs::no_error_msg>(x.denominator <= nmax);
 
-            multiply_add_shift_info ret_value{};
+            multiply_add_shift_info ret_value;
 
             big_uint::var n_L0, n_U0;
             if (x.denominator != 1) {
@@ -127,6 +126,8 @@ namespace jkj {
             big_uint::var floor_n_L0_x, floor_n_U0_x_p1;
 
             while (zeta_max.numerator != zeta_max.denominator) {
+                multiply_add_shift_info candidate;
+
                 // Update zeta_Lmax if necessary.
                 if (zeta_max == zeta_Lmax) {
                     n_L0 += n_L1;
@@ -206,29 +207,29 @@ namespace jkj {
                     delta.numerator -= numerator_diff;
                     util::constexpr_assert<util::error_msgs::no_error_msg>(delta.denominator >=
                                                                            delta.numerator);
-                    ret_value.shift_amount =
+                    candidate.shift_amount =
                         trunc_floor_log2_div(delta.denominator, delta.numerator);
                 }
 
-                ret_value.multiplier =
-                    ((left_end.numerator << ret_value.shift_amount) / left_end.denominator) + 1;
+                candidate.multiplier =
+                    ((left_end.numerator << candidate.shift_amount) / left_end.denominator) + 1;
 
                 // If t goes out of the interval, then increase k0.
-                if (ret_value.multiplier * right_end.denominator >=
-                    (right_end.numerator << ret_value.shift_amount)) {
-                    ++ret_value.shift_amount;
-                    ret_value.multiplier =
-                        ((left_end.numerator << ret_value.shift_amount) / left_end.denominator) + 1;
+                if (candidate.multiplier * right_end.denominator >=
+                    (right_end.numerator << candidate.shift_amount)) {
+                    ++candidate.shift_amount;
+                    candidate.multiplier =
+                        ((left_end.numerator << candidate.shift_amount) / left_end.denominator) + 1;
                 }
                 else {
-                    ret_value.shift_amount -= ret_value.multiplier.factor_out_power_of_2();
+                    candidate.shift_amount -= candidate.multiplier.factor_out_power_of_2();
                 }
 
                 // Truncate zeta0 from 0 to avoid underflow.
-                auto zeta0 = ufrac{(floor_n_L0_x << ret_value.shift_amount),
-                                   big_uint::var::power_of_2(ret_value.shift_amount)};
+                auto zeta0 = ufrac{(floor_n_L0_x << candidate.shift_amount),
+                                   big_uint::var::power_of_2(candidate.shift_amount)};
                 {
-                    auto numerator_diff = n_L0 * ret_value.multiplier;
+                    auto numerator_diff = n_L0 * candidate.multiplier;
                     if (zeta0.numerator > numerator_diff) {
                         zeta0.numerator -= numerator_diff;
                     }
@@ -237,48 +238,50 @@ namespace jkj {
                     }
                 }
 
-                while (ret_value.multiplier * nmax + zeta0.numerator <= max_allowed_value) {
+                while (candidate.multiplier * nmax + zeta0.numerator <= max_allowed_value) {
                     // Loop over all numerators in the interval.
                     while (true) {
-                        // These branches do not touch ret_value.multiplier and
-                        // ret_value.shift_amount, but may modify ret_value.adder.
+                        // These branches do not touch candidate.multiplier and
+                        // candidate.shift_amount, but may modify candidate.adder.
                         if (zeta0 >= zeta_min) {
-                            ret_value.adder = zeta0.numerator;
+                            candidate.adder = zeta0.numerator;
 
                             // Check admissibility of xi with respect to zeta.
-                            if (ret_value.multiplier * n_U0 + ret_value.adder <
-                                (floor_n_U0_x_p1 << ret_value.shift_amount)) {
+                            if (candidate.multiplier * n_U0 + candidate.adder <
+                                (floor_n_U0_x_p1 << candidate.shift_amount)) {
                                 // Found.
-                                return ret_value;
+                                candidate.succeeded = true;
+                                break;
                             }
                         }
                         else {
                             auto const delta_zeta = zeta_min - zeta0;
-                            ret_value.adder =
+                            candidate.adder =
                                 zeta0.numerator +
-                                div_ceil((delta_zeta.numerator << ret_value.shift_amount),
+                                div_ceil((delta_zeta.numerator << candidate.shift_amount),
                                          delta_zeta.denominator);
 
                             // Check zeta < zeta_max.
-                            if (ret_value.adder * zeta_max.denominator <
-                                (zeta_max.numerator << ret_value.shift_amount)) {
+                            if (candidate.adder * zeta_max.denominator <
+                                (zeta_max.numerator << candidate.shift_amount)) {
                                 // Check the max_allowed_value constraint.
-                                if (ret_value.multiplier * nmax + ret_value.adder <=
+                                if (candidate.multiplier * nmax + candidate.adder <=
                                     max_allowed_value) {
                                     // Check admissibility of xi with respect to zeta.
-                                    if (ret_value.multiplier * n_U0 + ret_value.adder <
-                                        (floor_n_U0_x_p1 << ret_value.shift_amount)) {
+                                    if (candidate.multiplier * n_U0 + candidate.adder <
+                                        (floor_n_U0_x_p1 << candidate.shift_amount)) {
                                         // Found.
-                                        return ret_value;
+                                        candidate.succeeded = true;
+                                        break;
                                     }
                                 }
                             }
                         }
 
                         // Try the next numerator.
-                        ++ret_value.multiplier;
-                        if (ret_value.multiplier * right_end.denominator >=
-                            (right_end.numerator << ret_value.shift_amount)) {
+                        ++candidate.multiplier;
+                        if (candidate.multiplier * right_end.denominator >=
+                            (right_end.numerator << candidate.shift_amount)) {
                             break;
                         }
 
@@ -289,20 +292,47 @@ namespace jkj {
                             zeta0.numerator = 0;
                         }
 
-                        if (ret_value.multiplier * nmax + zeta0.numerator > max_allowed_value) {
+                        if (candidate.multiplier * nmax + zeta0.numerator > max_allowed_value) {
                             break;
                         }
                     }
 
-                    // Increase k0 and recompute t, zeta0.
-                    ++ret_value.shift_amount;
-                    ret_value.multiplier =
-                        ((left_end.numerator << ret_value.shift_amount) / left_end.denominator) + 1;
+                    if (candidate.succeeded) {
+                        // If this is the first success, record it and move to the next
+                        // subinterval.
+                        if (!ret_value.succeeded) {
+                            ret_value = candidate;
+                        }
+                        // Otherwise, compare it with the previous best one and replace if
+                        // appropriate.
+                        else {
+                            if (ret_value.shift_amount > candidate.shift_amount) {
+                                ret_value = candidate;
+                            }
+                            else if (ret_value.shift_amount == candidate.shift_amount) {
+                                if (ret_value.multiplier > candidate.multiplier) {
+                                    ret_value = candidate;
+                                }
+                                else if (ret_value.multiplier == candidate.multiplier) {
+                                    if (ret_value.adder > candidate.adder) {
+                                        ret_value = candidate;
+                                    }
+                                }
+                            }
+                        }
 
-                    zeta0.numerator = (floor_n_L0_x << ret_value.shift_amount);
+                        break;
+                    }
+
+                    // Increase k0 and recompute t, zeta0.
+                    ++candidate.shift_amount;
+                    candidate.multiplier =
+                        ((left_end.numerator << candidate.shift_amount) / left_end.denominator) + 1;
+
+                    zeta0.numerator = (floor_n_L0_x << candidate.shift_amount);
                     zeta0.denominator <<= 1;
                     {
-                        auto numerator_diff = n_L0 * ret_value.multiplier;
+                        auto numerator_diff = n_L0 * candidate.multiplier;
                         if (zeta0.numerator > numerator_diff) {
                             zeta0.numerator -= numerator_diff;
                         }
@@ -313,8 +343,7 @@ namespace jkj {
                 }
             }
 
-            // FAIL.
-            return {};
+            return ret_value;
         }
     }
 }

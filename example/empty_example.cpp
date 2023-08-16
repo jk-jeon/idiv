@@ -51,9 +51,9 @@ int main() {
         {numerator, denominator}, nmax, max_allowed);
 
     std::cout << "\n\n[Multiply-add-and-shift method (with max_allowed = " << max_allowed << ")]\n";
-    if (info2) {
-        std::cout << "  Multiplier = " << info2->multiplier << "\n       Adder = " << info2->adder
-                  << "\n       Shift = " << info2->shift_amount << "\n";
+    if (info2.succeeded) {
+        std::cout << "  Multiplier = " << info2.multiplier << "\n       Adder = " << info2.adder
+                  << "\n       Shift = " << info2.shift_amount << "\n";
     }
     else {
         std::cout << "Failed to find any solution.\n";
