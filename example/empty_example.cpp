@@ -28,9 +28,29 @@ std::ostream& operator<<(std::ostream& out, jkj::bigint::int_var const& n) {
 }
 
 int main() {
-    jkj::bigint::decimal_uint_const_t<3, 7, 11> x;
-    auto y = to_negative(x) % jkj::bigint::uint_const_v<6, 11>;
-    auto q = to_negative(x) / jkj::bigint::uint_const_v<6, 11>;
-    jkj::bigint::uint_var yy{y};
-    std::cout << yy << "\n" << jkj::bigint::int_var{q};
+    jkj::bigint::uint_var numerator{7};
+    jkj::bigint::uint_var denominator{18};
+    std::cout << "      Number = " << numerator << " / " << denominator;
+
+    jkj::bigint::uint_var nmax = 0xffff'ffff;
+    std::cout << "\n       n_max = " << nmax;
+
+    auto info1 =
+        jkj::idiv::convert_to_multiply_shift_effectively_rational({numerator, denominator}, nmax);
+
+    std::cout << "\n\n[Multiply-and-shift method]\n"
+              << "  Multiplier = " << info1.multiplier << "\n       Shift = " << info1.shift_amount;
+
+    jkj::bigint::uint_var max_allowed = jkj::bigint::uint_var{0xffff'ffff'ffff'ffff};
+    auto info2 = jkj::idiv::convert_to_multiply_add_shift_effectively_rational(
+        {numerator, denominator}, nmax, max_allowed);
+
+    std::cout << "\n\n[Multiply-add-and-shift method (with max_allowed = " << max_allowed << ")]\n";
+    if (info2.succeeded) {
+        std::cout << "  Multiplier = " << info2.multiplier << "\n       Adder = " << info2.adder
+                  << "\n       Shift = " << info2.shift_amount << "\n";
+    }
+    else {
+        std::cout << "Failed to find any solution.\n";
+    }
 }
