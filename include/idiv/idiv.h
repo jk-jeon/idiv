@@ -93,8 +93,7 @@ namespace jkj {
         constexpr inline multiply_add_shift_info convert_to_multiply_add_shift_effectively_rational(
             frac<bigint::uint_var, bigint::uint_var> const& x, bigint::uint_var const& nmax,
             bigint::uint_var const& max_allowed_value) {
-
-            util::constexpr_assert<util::error_msgs::divide_by_zero>(x.denominator != 0);
+            util::constexpr_assert<util::error_msgs::divide_by_zero>(!x.denominator.is_zero());
             util::constexpr_assert<util::error_msgs::no_error_msg>(x.denominator <= nmax);
 
             multiply_add_shift_info ret_value;
