@@ -721,7 +721,7 @@ namespace jkj {
             return false;
         }
         constexpr bool operator==(uint_view x, convertible_to_block_type auto y) noexcept {
-            if (x.is_zero() == 0) {
+            if (x.is_zero()) {
                 return y == 0;
             }
             else if (x.number_of_blocks() == 1) {
