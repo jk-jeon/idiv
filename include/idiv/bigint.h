@@ -2204,19 +2204,27 @@ namespace jkj {
 
         constexpr int_view to_view(int_var const& x) noexcept { return int_view(x); }
 
-        // Conversion from unsigned entities into signed entities
+        // Conversion between unsigned entities and signed entities.
         constexpr int_view to_signed(uint_view n) noexcept {
             return int_view{sign_t::positive, n.blocks()};
         };
         constexpr int_view to_negative(uint_view n) noexcept {
             return int_view{n.is_zero() ? sign_t::positive : sign_t::negative, n.blocks()};
         };
+        constexpr uint_view abs(int_view n) noexcept { return n.abs(); }
+
+        constexpr int_var to_signed(uint_var const& n) { return int_var{sign_t::positive, n}; }
+        constexpr int_var to_negative(uint_var const& n) { return int_var{sign_t::negative, n}; }
+        constexpr uint_var abs(int_var const& n) { return n.abs(); }
+
         constexpr int_var to_signed(uint_var&& n) noexcept {
             return int_var{sign_t::positive, static_cast<uint_var&&>(n)};
         }
         constexpr int_var to_negative(uint_var&& n) noexcept {
             return int_var{sign_t::negative, static_cast<uint_var&&>(n)};
         }
+        constexpr uint_var abs(int_var&& n) noexcept { return static_cast<int_var&&>(n).abs(); }
+
         namespace detail {
             template <std::size_t N, static_block_holder<N> arr>
             constexpr int_const_impl<sign_t::positive, arr>
@@ -2228,9 +2236,119 @@ namespace jkj {
             to_negative(uint_const_impl<arr>) noexcept {
                 return {};
             }
+            template <sign_t sign, std::size_t N, static_block_holder<N> arr>
+            constexpr uint_const_impl<arr> abs(int_const_impl<sign, arr>) noexcept {
+                return {};
+            }
         }
         using detail::to_signed;
         using detail::to_negative;
+        using detail::abs;
+
+        // Some inspection functions.
+        constexpr bool is_zero(uint_view n) noexcept { return n.is_zero(); }
+        constexpr bool is_even(uint_view n) noexcept { return n.is_even(); }
+        constexpr bool is_strictly_positive(uint_view n) noexcept { return !n.is_zero(); }
+        constexpr bool is_strictly_negative(uint_view n) noexcept { return false; }
+        constexpr bool is_nonnegative(uint_view) noexcept { return true; }
+        constexpr bool is_nonpositive(uint_view n) noexcept { return n.is_zero(); }
+        constexpr sign_t sign(uint_view n) noexcept { return sign_t::positive; }
+
+        constexpr bool is_zero(int_view n) noexcept { return n.is_zero(); }
+        constexpr bool is_even(int_view n) noexcept { return n.is_even(); }
+        constexpr bool is_strictly_positive(int_view n) noexcept {
+            return n.is_strictly_positive();
+        }
+        constexpr bool is_strictly_negative(int_view n) noexcept {
+            return n.is_strictly_negative();
+        }
+        constexpr bool is_nonnegative(int_view n) noexcept { return n.is_nonnegative(); }
+        constexpr bool is_nonpositive(int_view n) noexcept { return n.is_nonpositive(); }
+        constexpr sign_t sign(int_view n) noexcept { return n.sign(); }
+
+        namespace detail {
+            template <std::size_t N, static_block_holder<N> arr>
+            constexpr bool is_zero(uint_const_impl<arr> n) noexcept {
+                return n.is_zero();
+            }
+            template <std::size_t N, static_block_holder<N> arr>
+            constexpr bool is_even(uint_const_impl<arr> n) noexcept {
+                return n.is_even();
+            }
+            template <std::size_t N, static_block_holder<N> arr>
+            constexpr bool is_strictly_positive(uint_const_impl<arr> n) noexcept {
+                return !n.is_zero();
+            }
+            template <std::size_t N, static_block_holder<N> arr>
+            constexpr bool is_strictly_negative(uint_const_impl<arr> n) noexcept {
+                return false;
+            }
+            template <std::size_t N, static_block_holder<N> arr>
+            constexpr bool is_nonnegative(uint_const_impl<arr>) noexcept {
+                return true;
+            }
+            template <std::size_t N, static_block_holder<N> arr>
+            constexpr bool is_nonpositive(uint_const_impl<arr> n) noexcept {
+                return n.is_zero();
+            }
+            template <std::size_t N, static_block_holder<N> arr>
+            constexpr sign_t sign(uint_const_impl<arr>) noexcept {
+                return sign_t::positive;
+            }
+
+            template <sign_t sign, std::size_t N, static_block_holder<N> arr>
+            constexpr bool is_zero(int_const_impl<sign, arr> n) noexcept {
+                return n.is_zero();
+            }
+            template <sign_t sign, std::size_t N, static_block_holder<N> arr>
+            constexpr bool is_even(int_const_impl<sign, arr> n) noexcept {
+                return n.is_even();
+            }
+            template <sign_t sign, std::size_t N, static_block_holder<N> arr>
+            constexpr bool is_strictly_positive(int_const_impl<sign, arr> n) noexcept {
+                return n.is_strictly_positive();
+            }
+            template <sign_t sign, std::size_t N, static_block_holder<N> arr>
+            constexpr bool is_strictly_negative(int_const_impl<sign, arr> n) noexcept {
+                return n.is_strictly_negative();
+            }
+            template <sign_t sign, std::size_t N, static_block_holder<N> arr>
+            constexpr bool is_nonnegative(int_const_impl<sign, arr> n) noexcept {
+                return n.is_nonnegative();
+            }
+            template <sign_t sign, std::size_t N, static_block_holder<N> arr>
+            constexpr bool is_nonpositive(int_const_impl<sign, arr> n) noexcept {
+                return n.is_nonpositive();
+            }
+            template <sign_t sign_, std::size_t N, static_block_holder<N> arr>
+            constexpr sign_t sign(int_const_impl<sign_, arr> n) noexcept {
+                return n.sign();
+            }
+        }
+        using detail::is_zero;
+        using detail::is_even;
+        using detail::is_strictly_positive;
+        using detail::is_strictly_negative;
+        using detail::is_nonnegative;
+        using detail::is_nonpositive;
+        using detail::sign;
+
+        // Sign inversion functions.
+        constexpr int_var invert_sign(int_view n) {
+            return int_var(::jkj::bigint::invert_sign(n.sign()), uint_var(n.abs()));
+        }
+        constexpr int_var invert_sign(int_var&& n) {
+            return int_var(::jkj::bigint::invert_sign(n.sign()), static_cast<int_var&&>(n).abs());
+        }
+        namespace detail {
+            template <sign_t sign, std::size_t N, static_block_holder<N> arr>
+            constexpr int_const_impl<N == 0 ? sign_t::positive : ::jkj::bigint::invert_sign(sign),
+                                     arr>
+            invert_sign(int_const_impl<sign, arr>) noexcept {
+                return {};
+            }
+        }
+        using detail::invert_sign;
 
 
         constexpr int_var operator+(uint_view x, int_view y) {

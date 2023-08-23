@@ -21,6 +21,8 @@
 #include <compare>
 
 namespace jkj {
+    // Num: supposed to be jkj::bigint::int_var/int_const_t.
+    // Den: supposed to be jkj::bigint::uint_var/uint_const_t.
     template <class Num, class Den>
     struct frac {
         Num numerator;
@@ -35,8 +37,10 @@ namespace jkj {
         return x.numerator * y.denominator == y.numerator * x.denominator;
     }
 
+    // Relying on the assumption that the denominator is positive.
     template <class Num1, class Den1, class Num2, class Den2>
-    constexpr std::strong_ordering operator<=>(frac<Num1, Den1> const& x, frac<Num2, Den2> const& y) {
+    constexpr std::strong_ordering operator<=>(frac<Num1, Den1> const& x,
+                                               frac<Num2, Den2> const& y) {
         return x.numerator * y.denominator <=> y.numerator * x.denominator;
     }
 
@@ -44,14 +48,14 @@ namespace jkj {
     template <class Num1, class Den1, class Num2, class Den2>
     constexpr auto operator+(frac<Num1, Den1> const& x, frac<Num2, Den2> const& y) {
         return frac{x.numerator * y.denominator + y.numerator * x.denominator,
-                        x.denominator * y.denominator};
+                    x.denominator * y.denominator};
     }
 
     // Performs no reduction.
     template <class Num1, class Den1, class Num2, class Den2>
     constexpr auto operator-(frac<Num1, Den1> const& x, frac<Num2, Den2> const& y) {
         return frac{x.numerator * y.denominator - y.numerator * x.denominator,
-                        x.denominator * y.denominator};
+                    x.denominator * y.denominator};
     }
 
     // Performs no reduction.
@@ -63,7 +67,15 @@ namespace jkj {
     // Performs no reduction.
     template <class Num1, class Den1, class Num2, class Den2>
     constexpr auto operator/(frac<Num1, Den1> const& x, frac<Num2, Den2> const& y) {
-        return frac{x.numerator * y.denominator, x.denominator * y.numerator};
+        auto num = x.numerator * y.denominator;
+        auto den = x.denominator * y.numerator;
+        if (is_strictly_negative(den)) {
+            return frac{invert_sign(static_cast<decltype(num)&&>(num)),
+                        abs(static_cast<decltype(den)&&>(den))};
+        }
+        else {
+            return frac{static_cast<decltype(num)&&>(num), abs(static_cast<decltype(den)&&>(den))};
+        }
     }
 }
 
