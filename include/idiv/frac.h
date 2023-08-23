@@ -21,7 +21,7 @@
 #include <compare>
 
 namespace jkj {
-    // Num: supposed to be jkj::bigint::int_var/int_const_t.
+    // Num: supposed to be jkj::bigint::uint_var/uint_const_t/int_var/int_const_t.
     // Den: supposed to be jkj::bigint::uint_var/uint_const_t.
     template <class Num, class Den>
     struct frac {

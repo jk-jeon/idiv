@@ -33,9 +33,8 @@ namespace jkj {
         };
 
         // Precondition: x is in its reduced form.
-        constexpr inline multiply_shift_info
-        convert_to_multiply_shift_effectively_rational(frac<bigint::uint_var, bigint::uint_var> const& x,
-                                                       bigint::uint_var const& nmax) {
+        constexpr inline multiply_shift_info convert_to_multiply_shift_effectively_rational(
+            frac<bigint::uint_var, bigint::uint_var> const& x, bigint::uint_var const& nmax) {
             util::constexpr_assert<util::error_msgs::no_error_msg>(x.denominator <= nmax);
 
             multiply_shift_info ret_value{};
@@ -44,7 +43,8 @@ namespace jkj {
             if (x.denominator != 1u) {
                 // Compute the modular inverse of -x.numerator.
                 auto const mod_inv =
-                    find_best_rational_approx<rational_continued_fractions<bigint::uint_var>>(
+                    find_best_rational_approx<
+                        rational_continued_fractions<bigint::uint_var, bigint::uint_var>>(
                         x, x.denominator - 1u)
                         .above.denominator;
 
@@ -106,7 +106,8 @@ namespace jkj {
 
                 // Compute the modular inverse of -x.numerator.
                 auto const mod_inv =
-                    find_best_rational_approx<rational_continued_fractions<bigint::uint_var>>(
+                    find_best_rational_approx<
+                        rational_continued_fractions<bigint::uint_var, bigint::uint_var>>(
                         x, x.denominator - 1u)
                         .above.denominator;
 
@@ -139,7 +140,8 @@ namespace jkj {
                     else {
                         auto const new_nmax = nmax - n_L0;
                         auto const best_approx =
-                            find_best_rational_approx<rational_continued_fractions<bigint::uint_var>>(
+                            find_best_rational_approx<
+                                rational_continued_fractions<bigint::uint_var, bigint::uint_var>>(
                                 x, new_nmax)
                                 .below;
                         auto const largest_multiplier = new_nmax / best_approx.denominator;
@@ -167,7 +169,8 @@ namespace jkj {
                     else {
                         auto const new_nmax = n_U0 - 1u;
                         auto const best_approx =
-                            find_best_rational_approx<rational_continued_fractions<bigint::uint_var>>(
+                            find_best_rational_approx<
+                                rational_continued_fractions<bigint::uint_var, bigint::uint_var>>(
                                 x, new_nmax)
                                 .below;
                         auto const largest_multiplier = new_nmax / best_approx.denominator;
@@ -219,7 +222,8 @@ namespace jkj {
                     (right_end.numerator << candidate.shift_amount)) {
                     ++candidate.shift_amount;
                     candidate.multiplier =
-                        ((left_end.numerator << candidate.shift_amount) / left_end.denominator) + 1u;
+                        ((left_end.numerator << candidate.shift_amount) / left_end.denominator) +
+                        1u;
                 }
                 else {
                     candidate.shift_amount -= candidate.multiplier.factor_out_power_of_2();
@@ -327,7 +331,8 @@ namespace jkj {
                     // Increase k0 and recompute t, zeta0.
                     ++candidate.shift_amount;
                     candidate.multiplier =
-                        ((left_end.numerator << candidate.shift_amount) / left_end.denominator) + 1u;
+                        ((left_end.numerator << candidate.shift_amount) / left_end.denominator) +
+                        1u;
 
                     zeta0.numerator = (floor_n_L0_x << candidate.shift_amount);
                     zeta0.denominator <<= 1;

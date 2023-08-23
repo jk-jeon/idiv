@@ -1816,12 +1816,14 @@ namespace jkj {
             friend class uint_var;
 
             int_var() = default;
-            constexpr int_var(sign_t sign, uint_var abs)
+            explicit constexpr int_var(sign_t sign, uint_var abs)
                 : abs_(static_cast<uint_var&&>(abs)), sign_(sign) {
                 if (abs_.is_zero()) {
                     sign_ = sign_t::positive;
                 }
             }
+
+            explicit constexpr int_var(uint_var abs) : int_var(sign_t::positive, abs) {}
 
             constexpr int_var(signed_block_type n) {
                 // Signed-to-unsigned conversion is well-defined.
@@ -2211,18 +2213,21 @@ namespace jkj {
         constexpr int_view to_negative(uint_view n) noexcept {
             return int_view{n.is_zero() ? sign_t::positive : sign_t::negative, n.blocks()};
         };
+        constexpr uint_view abs(uint_view n) noexcept { return n; }
         constexpr uint_view abs(int_view n) noexcept { return n.abs(); }
 
-        constexpr int_var to_signed(uint_var const& n) { return int_var{sign_t::positive, n}; }
-        constexpr int_var to_negative(uint_var const& n) { return int_var{sign_t::negative, n}; }
+        constexpr int_var to_signed(uint_var const& n) { return int_var(n); }
+        constexpr int_var to_negative(uint_var const& n) { return int_var(sign_t::negative, n); }
+        constexpr uint_var abs(uint_var const& n) { return n; }
         constexpr uint_var abs(int_var const& n) { return n.abs(); }
 
         constexpr int_var to_signed(uint_var&& n) noexcept {
-            return int_var{sign_t::positive, static_cast<uint_var&&>(n)};
+            return int_var(static_cast<uint_var&&>(n));
         }
         constexpr int_var to_negative(uint_var&& n) noexcept {
             return int_var{sign_t::negative, static_cast<uint_var&&>(n)};
         }
+        constexpr uint_var abs(uint_var&& n) noexcept { return static_cast<uint_var&&>(n); }
         constexpr uint_var abs(int_var&& n) noexcept { return static_cast<int_var&&>(n).abs(); }
 
         namespace detail {
@@ -2364,9 +2369,7 @@ namespace jkj {
             r += x;
             return r;
         }
-        constexpr int_var operator+(uint_view x, int_const_t<>) {
-            return int_var(sign_t::positive, uint_var(x));
-        }
+        constexpr int_var operator+(uint_view x, int_const_t<>) { return int_var(uint_var(x)); }
 
         constexpr int_var operator+(uint_var&& x, int_view y) {
             auto r = to_signed(static_cast<uint_var&&>(x));
@@ -2458,9 +2461,7 @@ namespace jkj {
             return static_cast<int_var&&>(y);
         }
 
-        constexpr int_var operator+(int_const_t<>, uint_view y) {
-            return int_var(sign_t::positive, uint_var(y));
-        }
+        constexpr int_var operator+(int_const_t<>, uint_view y) { return int_var(uint_var(y)); }
         constexpr int_var operator+(int_const_t<>, uint_var&& y) {
             return to_signed(static_cast<uint_var&&>(y));
         }
@@ -2470,7 +2471,7 @@ namespace jkj {
         }
 
         constexpr int_var operator-(uint_view x, int_view y) {
-            auto r = int_var(sign_t::positive, uint_var(x));
+            auto r = int_var(uint_var(x));
             r -= y;
             return r;
         }
@@ -2480,13 +2481,11 @@ namespace jkj {
             return static_cast<int_var&&>(y);
         }
         constexpr int_var operator-(uint_view x, convertible_to_signed_block_type auto y) {
-            auto r = int_var(sign_t::positive, uint_var(x));
+            auto r = int_var(uint_var(x));
             r -= y;
             return r;
         }
-        constexpr int_var operator-(uint_view x, int_const_t<>) {
-            return int_var(sign_t::positive, uint_var(x));
-        }
+        constexpr int_var operator-(uint_view x, int_const_t<>) { return int_var(uint_var(x)); }
 
         constexpr int_var operator-(uint_var&& x, int_view y) {
             auto r = to_signed(static_cast<uint_var&&>(x));

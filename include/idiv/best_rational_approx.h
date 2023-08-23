@@ -18,35 +18,37 @@
 #ifndef JKJ_HEADER_BEST_RATIONAL_APPROX
 #define JKJ_HEADER_BEST_RATIONAL_APPROX
 
-#include "core.h"
 #include "continued_fractions.h"
 #include <cassert>
 #include <cstdlib>
 
 namespace jkj {
-    template <class UInt>
+    template <class Int, class UInt>
     struct best_rational_approx_output {
-        frac<UInt, UInt> below;
-        frac<UInt, UInt> above;
+        frac<Int, UInt> below;
+        frac<Int, UInt> above;
     };
 
     // Find the best rational approximations from below and from above of denominators no more than
     // denominator_upper_bound for the given number x.
-    template <class ContinuedFractionsImpl, class UInt, class PositiveNumber>
-    constexpr best_rational_approx_output<typename ContinuedFractionsImpl::uint_type>
-    find_best_rational_approx(PositiveNumber const& x, UInt const& denominator_upper_bound) {
-        util::constexpr_assert<util::error_msgs::no_error_msg>(denominator_upper_bound > 0u);
+    template <class ContinuedFractionsImpl, class UInt, class RealNumber>
+    constexpr best_rational_approx_output<typename ContinuedFractionsImpl::int_type,
+                                          typename ContinuedFractionsImpl::uint_type>
+    find_best_rational_approx(RealNumber const& x, UInt const& denominator_upper_bound) {
+        util::constexpr_assert<util::error_msgs::no_error_msg>(
+            is_strictly_positive(denominator_upper_bound));
 
+        using int_type = typename ContinuedFractionsImpl::int_type;
         using uint_type = typename ContinuedFractionsImpl::uint_type;
-        best_rational_approx_output<uint_type> ret_value;
+        best_rational_approx_output<int_type, uint_type> ret_value;
 
         // Initialize a continued fractions calculator.
         ContinuedFractionsImpl cf{x};
 
         // First, find the last convergent whose denominator is bounded above by the given upper
         // bound.
-        frac<uint_type, uint_type> previous_convergent;
-        frac<uint_type, uint_type> current_convergent;
+        frac<int_type, uint_type> previous_convergent;
+        frac<int_type, uint_type> current_convergent;
         do {
             previous_convergent = cf.previous_convergent();
             current_convergent = cf.current_convergent();

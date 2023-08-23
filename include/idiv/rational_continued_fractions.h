@@ -23,33 +23,35 @@
 #include <cstdlib>
 
 namespace jkj {
-    template <class UInt>
+    template <class Int, class UInt>
     class rational_continued_fractions
-        : public continued_fractions<rational_continued_fractions<UInt>, UInt> {
-        using crtp_base = continued_fractions<rational_continued_fractions<UInt>, UInt>;
+        : public continued_fractions<rational_continued_fractions<Int, UInt>, Int, UInt> {
+        using crtp_base = continued_fractions<rational_continued_fractions<Int, UInt>, Int, UInt>;
         friend crtp_base;
 
-        UInt prev_error_;
-        UInt curr_error_;
+        Int prev_error_;
+        Int curr_error_;
 
-        constexpr UInt compute_next_coefficient() {
+        constexpr Int compute_next_coefficient() {
+            util::constexpr_assert<util::error_msgs::divide_by_zero>(!is_zero(curr_error_));
+
             using std::div;
-            auto div_result = div(prev_error_, curr_error_);
-            prev_error_ = static_cast<UInt&&>(curr_error_);
-            curr_error_ = static_cast<UInt&&>(div_result.rem);
+            auto div_result = div(prev_error_, abs(curr_error_));
+            prev_error_ = static_cast<Int&&>(curr_error_);
+            curr_error_ = Int(static_cast<UInt&&>(div_result.rem));
 
-            if (curr_error_ == 0) {
+            if (is_zero(curr_error_)) {
                 crtp_base::set_terminate_flag();
             }
 
-            return static_cast<UInt&&>(div_result.quot);
+            return static_cast<Int&&>(div_result.quot);
         }
 
     public:
-        constexpr rational_continued_fractions(frac<UInt, UInt> r)
-            : prev_error_{static_cast<UInt&&>(r.numerator)}, curr_error_{static_cast<UInt&&>(
-                                                                 r.denominator)} {
-            util::constexpr_assert<util::error_msgs::divide_by_zero>(curr_error_ != 0u);
+        constexpr rational_continued_fractions(frac<Int, UInt> r)
+            : prev_error_{static_cast<Int&&>(r.numerator)},
+              curr_error_{static_cast<UInt&&>(r.denominator)} {
+            util::constexpr_assert<util::error_msgs::divide_by_zero>(!is_zero(curr_error_));
         }
     };
 }

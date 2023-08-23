@@ -19,15 +19,16 @@
 #define JKJ_HEADER_CONTINUED_FRACTIONS
 
 #include "frac.h"
+#include "util.h"
 
 namespace jkj {
     // Continued fractions calculator for positive numbers.
-    template <class Impl, class UInt>
+    template <class Impl, class Int, class UInt>
     class continued_fractions {
         // The (-1)st coefficient is assumed to be 0.
-        UInt current_coefficient_{0};
-        frac<UInt, UInt> current_convergent_{1, 0};
-        frac<UInt, UInt> previous_convergent_{0, 1};
+        Int current_coefficient_{0};
+        frac<Int, UInt> current_convergent_{1, 0u};
+        frac<Int, UInt> previous_convergent_{0, 1u};
         int current_index_ = -1;
         bool terminated_ = false;
 
@@ -35,17 +36,18 @@ namespace jkj {
         constexpr void set_terminate_flag() noexcept { terminated_ = true; }
 
     public:
+        using int_type = Int;
         using uint_type = UInt;
 
         constexpr int current_index() const noexcept { return current_index_; }
 
-        constexpr UInt const& current_coefficient() const noexcept { return current_coefficient_; }
+        constexpr Int const& current_coefficient() const noexcept { return current_coefficient_; }
 
-        constexpr frac<UInt, UInt> const& current_convergent() const noexcept {
+        constexpr frac<Int, UInt> const& current_convergent() const noexcept {
             return current_convergent_;
         }
 
-        constexpr UInt const& current_numerator() const noexcept {
+        constexpr Int const& current_numerator() const noexcept {
             return current_convergent().numerator;
         }
 
@@ -53,11 +55,11 @@ namespace jkj {
             return current_convergent().denominator;
         }
 
-        constexpr frac<UInt, UInt> const& previous_convergent() const noexcept {
+        constexpr frac<Int, UInt> const& previous_convergent() const noexcept {
             return previous_convergent_;
         }
 
-        constexpr UInt const& previous_numerator() const noexcept {
+        constexpr Int const& previous_numerator() const noexcept {
             return previous_convergent().numerator;
         }
 
@@ -72,14 +74,19 @@ namespace jkj {
         // and returns false if the procedure is already terminated.
         constexpr bool update() {
             if (!is_terminated()) {
-                frac<UInt, UInt> new_output;
+                frac<Int, UInt> new_output;
                 current_coefficient_ = static_cast<Impl&>(*this).compute_next_coefficient();
 
-                frac<UInt, UInt> new_convergent{
-                    previous_numerator() + current_coefficient_ * current_numerator(),
-                    previous_denominator() + current_coefficient_ * current_denominator()};
-                previous_convergent_ = static_cast<frac<UInt, UInt>&&>(current_convergent_);
-                current_convergent_ = static_cast<frac<UInt, UInt>&&>(new_convergent);
+                auto new_numerator =
+                    previous_numerator() + current_coefficient_ * current_numerator();
+                auto new_denominator =
+                    previous_denominator() + current_coefficient_ * current_denominator();
+
+                util::constexpr_assert<util::error_msgs::no_error_msg>(is_nonnegative(new_denominator));
+
+                previous_convergent_ = static_cast<frac<Int, UInt>&&>(current_convergent_);
+                current_convergent_.numerator = static_cast<Int&&>(new_numerator);
+                current_convergent_.denominator = abs(static_cast<Int&&>(new_denominator));
 
                 ++current_index_;
 
