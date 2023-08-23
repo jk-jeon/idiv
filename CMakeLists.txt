@@ -1,12 +1,11 @@
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.19)
 
 include(cmake/prelude.cmake)
 
 project(
     idiv
     VERSION 0.1.0
-    DESCRIPTION "A library for manually converting integer divisions by constants into multiplications"
-    HOMEPAGE_URL "https://example.com/"
+    DESCRIPTION "A library for constant integer division and related tools"
     LANGUAGES NONE
 )
 
@@ -17,7 +16,15 @@ include(cmake/variables.cmake)
 
 # ---- Declare library ----
 
-add_library(idiv_idiv INTERFACE)
+add_library(idiv_idiv INTERFACE
+	include/idiv/best_rational_approx.h
+	include/idiv/big_int.h
+	include/idiv/continued_fractions.h
+	include/idiv/core.h
+	include/idiv/frac.h
+	include/idiv/idiv.h
+	include/idiv/rational_continued_fractions.h
+	include/idiv/wuint.h)
 add_library(idiv::idiv ALIAS idiv_idiv)
 
 set_property(
