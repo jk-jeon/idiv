@@ -27,7 +27,7 @@
 #include <vector>
 
 namespace jkj {
-    namespace big_int {
+    namespace bigint {
         // Big integers will be represented as a list of 64-bit blocks.
         // std::uint_least64_t is used to represent each block.
         // Even if std::uint_least64_t is not exactly of 64-bit, we implictly assume that many of
@@ -51,13 +51,12 @@ namespace jkj {
         // satisfy this concept. However, this saves a lot of headaches so let us just do it like
         // this.
         template <class T>
-        concept convertible_to_block_type = std::unsigned_integral<T> &&
-                                            (std::numeric_limits<T>::digits <=
-                                             number_of_bits_in_block);
+        concept convertible_to_block_type =
+            std::unsigned_integral<T> &&
+            (std::numeric_limits<T>::digits <= number_of_bits_in_block);
         template <class T>
-        concept convertible_to_signed_block_type = std::signed_integral<T> &&
-                                                   (std::numeric_limits<T>::digits <=
-                                                    number_of_bits_in_block);
+        concept convertible_to_signed_block_type =
+            std::signed_integral<T> && (std::numeric_limits<T>::digits <= number_of_bits_in_block);
 
         // Implementations of arithemetic operations.
         namespace detail {
@@ -454,7 +453,7 @@ namespace jkj {
             constexpr uint_view abs() const noexcept { return uint_view{blocks_}; }
         };
 
-        // Implememtation details for big_int::uint_const: big unsigned integer constants whose
+        // Implememtation details for bigint::uint_const: big unsigned integer constants whose
         // values are encoded in their types.
         namespace detail {
             // Take the first N blocks and discard the remaining.
@@ -592,7 +591,7 @@ namespace jkj {
         concept uint_const = detail::is_uint_const_impl<T>::value;
 
 
-        // Implememtation details for big_int::int_const: big signed integer constants whose
+        // Implememtation details for bigint::int_const: big signed integer constants whose
         // values are encoded in their types.
         namespace detail {
             template <sign_t sign, auto arr>
@@ -1876,7 +1875,7 @@ namespace jkj {
 
             constexpr void invert_sign() noexcept {
                 if (!is_zero()) {
-                    sign_ = ::jkj::big_int::invert_sign(sign_);
+                    sign_ = ::jkj::bigint::invert_sign(sign_);
                 }
             }
 
@@ -1885,7 +1884,7 @@ namespace jkj {
                     return {};
                 }
                 else {
-                    return int_var(::jkj::big_int::invert_sign(sign_), abs_);
+                    return int_var(::jkj::bigint::invert_sign(sign_), abs_);
                 }
             }
 
@@ -1894,7 +1893,7 @@ namespace jkj {
                     return {};
                 }
                 else {
-                    return int_var(::jkj::big_int::invert_sign(sign_),
+                    return int_var(::jkj::bigint::invert_sign(sign_),
                                    static_cast<uint_var&&>(abs_));
                 }
             }
@@ -1923,7 +1922,7 @@ namespace jkj {
 
                     if (comp < 0) {
                         abs_ = n.abs() - abs_;
-                        sign_ = ::jkj::big_int::invert_sign(sign_);
+                        sign_ = ::jkj::bigint::invert_sign(sign_);
                     }
                     else if (comp > 0) {
                         abs_ -= n.abs();
@@ -1977,7 +1976,7 @@ namespace jkj {
                         else {
                             abs_.blocks_[0] = n_abs - abs_.blocks_[0];
                         }
-                        sign_ = ::jkj::big_int::invert_sign(sign_);
+                        sign_ = ::jkj::bigint::invert_sign(sign_);
                     }
                 }
                 return *this;
@@ -2019,7 +2018,7 @@ namespace jkj {
                 if (n.is_zero()) {
                     return *this;
                 }
-                return *this += int_view{::jkj::big_int::invert_sign(n.sign()), n.blocks_};
+                return *this += int_view{::jkj::bigint::invert_sign(n.sign()), n.blocks_};
             }
             constexpr int_var& operator-=(convertible_to_block_type auto n) {
                 if (is_strictly_negative()) {
@@ -2064,7 +2063,7 @@ namespace jkj {
                         else {
                             abs_.blocks_[0] = n_abs - abs_.blocks_[0];
                         }
-                        sign_ = ::jkj::big_int::invert_sign(sign_);
+                        sign_ = ::jkj::bigint::invert_sign(sign_);
                     }
                 }
                 return *this;
@@ -2105,7 +2104,7 @@ namespace jkj {
                 }
                 else {
                     abs_ *= (block_type(0) - static_cast<block_type>(n));
-                    sign_ = ::jkj::big_int::invert_sign(sign_);
+                    sign_ = ::jkj::bigint::invert_sign(sign_);
                 }
 
                 if (abs_.is_zero()) {

@@ -2,7 +2,7 @@
 #include <format>
 #include <iostream>
 
-std::ostream& operator<<(std::ostream& out, jkj::big_int::uint_var const& n) {
+std::ostream& operator<<(std::ostream& out, jkj::bigint::uint_var const& n) {
     auto digits = n.to_decimal();
     if (digits.empty()) {
         out << "0";
@@ -19,7 +19,7 @@ std::ostream& operator<<(std::ostream& out, jkj::big_int::uint_var const& n) {
     return out;
 }
 
-std::ostream& operator<<(std::ostream& out, jkj::big_int::int_var const& n) {
+std::ostream& operator<<(std::ostream& out, jkj::bigint::int_var const& n) {
     if (n.is_strictly_negative()) {
         out << "-";
     }
@@ -28,9 +28,9 @@ std::ostream& operator<<(std::ostream& out, jkj::big_int::int_var const& n) {
 }
 
 int main() {
-    jkj::big_int::decimal_uint_const_t<3, 7, 11> x;
-    auto y = to_negative(x) % jkj::big_int::uint_const_v<6, 11>;
-    auto q = to_negative(x) / jkj::big_int::uint_const_v<6, 11>;
-    jkj::big_int::uint_var yy{y};
-    std::cout << yy << "\n" << jkj::big_int::int_var{q};
+    jkj::bigint::decimal_uint_const_t<3, 7, 11> x;
+    auto y = to_negative(x) % jkj::bigint::uint_const_v<6, 11>;
+    auto q = to_negative(x) / jkj::bigint::uint_const_v<6, 11>;
+    jkj::bigint::uint_var yy{y};
+    std::cout << yy << "\n" << jkj::bigint::int_var{q};
 }
