@@ -19,7 +19,7 @@
 #ifndef JKJ_HEADER_IDIV_WUINT
 #define JKJ_HEADER_IDIV_WUINT
 
-#include "core.h"
+#include "util.h"
 #include <cstdint>
 #include <limits>
 

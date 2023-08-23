@@ -22,8 +22,6 @@
 #include <cassert>
 #include <cstdlib>
 
-#include "core.h"
-
 namespace jkj {
     template <class UInt>
     class rational_continued_fractions
