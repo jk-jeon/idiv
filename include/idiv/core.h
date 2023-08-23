@@ -67,10 +67,21 @@ namespace jkj {
         }
 
         namespace error_msgs {
-            static constexpr char no_error_msg[] = "no error message";
-            static constexpr char index_out_of_range[] = "index out of range";
-            static constexpr char underflow[] = "underflow";
-            static constexpr char divide_by_zero[] = "divide by zero";
+            inline constexpr char no_error_msg[] = "no error message";
+            inline constexpr char index_out_of_range[] = "index out of range";
+            inline constexpr char overflow[] = "overflow";
+            inline constexpr char underflow[] = "underflow";
+            inline constexpr char divide_by_zero[] = "divide by zero";
+        }
+
+        template <class T>
+        constexpr T const& min(T const& x, T const& y) {
+            return x >= y ? y : x;
+        }
+
+        template <class T>
+        constexpr T const& max(T const& x, T const& y) {
+            return x >= y ? x : y;
         }
 
         // A minimal implementation of std::array.
@@ -78,24 +89,35 @@ namespace jkj {
         struct array {
             using value_type = T;
 
-            constexpr value_type& front() & noexcept { return data[0]; }
-            constexpr value_type const& front() const& noexcept { return data[0]; }
+            constexpr value_type* data() noexcept { return data_; }
+            constexpr value_type const* data() const noexcept { return data_; }
 
-            constexpr value_type& back() & noexcept { return data[N - 1]; }
-            constexpr value_type const& back() const& noexcept { return data[N - 1]; }
+            constexpr value_type& front() noexcept { return data_[0]; }
+            constexpr value_type const& front() const noexcept { return data_[0]; }
+
+            constexpr value_type& back() noexcept { return data_[N - 1]; }
+            constexpr value_type const& back() const noexcept { return data_[N - 1]; }
+
+            constexpr value_type* begin() noexcept { return data_; }
+            constexpr value_type const* begin() const noexcept { return data_; }
+            constexpr value_type const* cbegin() const noexcept { return data_; }
+
+            constexpr value_type* end() noexcept { return data_ + N; }
+            constexpr value_type const* end() const noexcept { return data_ + N; }
+            constexpr value_type const* cend() const noexcept { return data_ + N; }
 
             constexpr value_type& operator[](std::size_t idx) & noexcept {
                 constexpr_assert<error_msgs::index_out_of_range>(idx < N);
-                return data[idx];
+                return data_[idx];
             }
             constexpr value_type const& operator[](std::size_t idx) const& noexcept {
                 constexpr_assert<error_msgs::index_out_of_range>(idx < N);
-                return data[idx];
+                return data_[idx];
             }
 
             static constexpr std::size_t size() noexcept { return N; }
 
-            value_type data[N];
+            value_type data_[N];
         };
 
         // Zero-sized arrays.
@@ -131,34 +153,31 @@ namespace jkj {
 
             constexpr span(value_type* ptr, std::size_t size) noexcept : ptr_{ptr}, size_{size} {}
 
-            constexpr value_type& front() & noexcept {
-                constexpr_assert<error_msgs::index_out_of_range>(size_ != 0);
-                return ptr_[0];
-            }
-            constexpr value_type const& front() const& noexcept {
+            constexpr value_type* data() const noexcept { return ptr_; }
+
+            constexpr value_type& front() const noexcept {
                 constexpr_assert<error_msgs::index_out_of_range>(size_ != 0);
                 return ptr_[0];
             }
 
-            constexpr value_type& back() & noexcept {
-                constexpr_assert<error_msgs::index_out_of_range>(size_ != 0);
-                return ptr_[size_ - 1];
-            }
-            constexpr value_type const& back() const& noexcept {
+            constexpr value_type& back() const noexcept {
                 constexpr_assert<error_msgs::index_out_of_range>(size_ != 0);
                 return ptr_[size_ - 1];
             }
 
-            constexpr value_type& operator[](std::size_t idx) & noexcept {
-                constexpr_assert<error_msgs::index_out_of_range>(idx < size_);
-                return ptr_[idx];
-            }
-            constexpr value_type const& operator[](std::size_t idx) const& noexcept {
+            constexpr value_type const* begin() const noexcept { return ptr_; }
+            constexpr value_type const* cbegin() const noexcept { return ptr_; }
+
+            constexpr value_type const* end() const noexcept { return ptr_ + size_; }
+            constexpr value_type const* cend() const noexcept { return ptr_ + size_; }
+
+            constexpr value_type& operator[](std::size_t idx) const noexcept {
                 constexpr_assert<error_msgs::index_out_of_range>(idx < size_);
                 return ptr_[idx];
             }
 
-            constexpr std::size_t size() noexcept { return size_; }
+            constexpr std::size_t size() const noexcept { return size_; }
+            constexpr bool empty() const noexcept { return size_ == 0; }
 
         private:
             value_type* ptr_;

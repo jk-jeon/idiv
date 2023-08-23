@@ -19,7 +19,7 @@
 #ifndef JKJ_HEADER_IDIV
 #define JKJ_HEADER_IDIV
 
-#include "big_uint.h"
+#include "big_int.h"
 #include "rational_continued_fractions.h"
 #include "best_rational_approx.h"
 
@@ -28,24 +28,24 @@ namespace jkj {
         enum class strategy { multiply_shift, multiply_shift_large, multiply_add_shift };
 
         struct multiply_shift_info {
-            big_uint::var multiplier;
+            big_int::uint_var multiplier;
             std::size_t shift_amount;
         };
 
         // Precondition: x is in its reduced form.
         constexpr inline multiply_shift_info
-        convert_to_multiply_shift_effectively_rational(frac<big_uint::var, big_uint::var> const& x,
-                                                       big_uint::var const& nmax) {
+        convert_to_multiply_shift_effectively_rational(frac<big_int::uint_var, big_int::uint_var> const& x,
+                                                       big_int::uint_var const& nmax) {
             util::constexpr_assert<util::error_msgs::no_error_msg>(x.denominator <= nmax);
 
             multiply_shift_info ret_value{};
 
-            big_uint::var v;
-            if (x.denominator != 1) {
+            big_int::uint_var v;
+            if (x.denominator != 1u) {
                 // Compute the modular inverse of -x.numerator.
                 auto const mod_inv =
-                    find_best_rational_approx<rational_continued_fractions<big_uint::var>>(
-                        x, x.denominator - 1)
+                    find_best_rational_approx<rational_continued_fractions<big_int::uint_var>>(
+                        x, x.denominator - 1u)
                         .above.denominator;
 
                 // v = floor((nmax - b) / q) * q + b.
@@ -71,11 +71,11 @@ namespace jkj {
                 ret_value.shift_amount -= ret_value.multiplier.factor_out_power_of_2();
             }
             else {
-                auto left_end_plus_1 = ret_value.multiplier + 1;
+                auto left_end_plus_1 = ret_value.multiplier + 1u;
 
                 // If the left_end_plus_1 is still in the interval, take that instead.
-                if (left_end_plus_1 * v < (((v * x.numerator + 1) / x.denominator) << k0)) {
-                    ret_value.multiplier = static_cast<big_uint::var&&>(left_end_plus_1);
+                if (left_end_plus_1 * v < (((v * x.numerator + 1u) / x.denominator) << k0)) {
+                    ret_value.multiplier = static_cast<big_int::uint_var&&>(left_end_plus_1);
                     ret_value.shift_amount -= ret_value.multiplier.factor_out_power_of_2();
                 }
             }
@@ -85,29 +85,29 @@ namespace jkj {
 
         struct multiply_add_shift_info {
             bool succeeded = false;
-            big_uint::var multiplier = {};
-            big_uint::var adder = {};
+            big_int::uint_var multiplier = {};
+            big_int::uint_var adder = {};
             unsigned int shift_amount = 0;
         };
 
         constexpr inline multiply_add_shift_info convert_to_multiply_add_shift_effectively_rational(
-            frac<big_uint::var, big_uint::var> const& x, big_uint::var const& nmax,
-            big_uint::var const& max_allowed_value) {
+            frac<big_int::uint_var, big_int::uint_var> const& x, big_int::uint_var const& nmax,
+            big_int::uint_var const& max_allowed_value) {
 
             util::constexpr_assert<util::error_msgs::divide_by_zero>(x.denominator != 0);
             util::constexpr_assert<util::error_msgs::no_error_msg>(x.denominator <= nmax);
 
             multiply_add_shift_info ret_value;
 
-            big_uint::var n_L0, n_U0;
-            if (x.denominator != 1) {
+            big_int::uint_var n_L0, n_U0;
+            if (x.denominator != 1u) {
                 // Find the largest multiple of x.denominator <= nmax.
                 n_L0 = (nmax / x.denominator) * x.denominator;
 
                 // Compute the modular inverse of -x.numerator.
                 auto const mod_inv =
-                    find_best_rational_approx<rational_continued_fractions<big_uint::var>>(
-                        x, x.denominator - 1)
+                    find_best_rational_approx<rational_continued_fractions<big_int::uint_var>>(
+                        x, x.denominator - 1u)
                         .above.denominator;
 
                 // v = floor((nmax - b) / q) * q + b.
@@ -119,11 +119,11 @@ namespace jkj {
                 n_U0 = nmax;
             }
 
-            using ufrac = frac<big_uint::var, big_uint::var>;
+            using ufrac = frac<big_int::uint_var, big_int::uint_var>;
 
             ufrac zeta_max{0, 1}, zeta_Lmax{0, 1}, zeta_Umax{0, 1}, zeta_min;
-            big_uint::var n_L1 = 0, n_U1 = 0;
-            big_uint::var floor_n_L0_x, floor_n_U0_x_p1;
+            big_int::uint_var n_L1 = 0, n_U1 = 0;
+            big_int::uint_var floor_n_L0_x, floor_n_U0_x_p1;
 
             while (zeta_max.numerator != zeta_max.denominator) {
                 multiply_add_shift_info candidate;
@@ -139,7 +139,7 @@ namespace jkj {
                     else {
                         auto const new_nmax = nmax - n_L0;
                         auto const best_approx =
-                            find_best_rational_approx<rational_continued_fractions<big_uint::var>>(
+                            find_best_rational_approx<rational_continued_fractions<big_int::uint_var>>(
                                 x, new_nmax)
                                 .below;
                         auto const largest_multiplier = new_nmax / best_approx.denominator;
@@ -159,15 +159,15 @@ namespace jkj {
                 // Update zeta_Umax if necessary.
                 if (zeta_max == zeta_Umax) {
                     n_U0 -= n_U1;
-                    floor_n_U0_x_p1 = ((n_U0 * x.numerator) / x.denominator) + 1;
+                    floor_n_U0_x_p1 = ((n_U0 * x.numerator) / x.denominator) + 1u;
 
                     if (n_U0 == 1) {
                         zeta_Umax = {1, 1};
                     }
                     else {
-                        auto const new_nmax = n_U0 - 1;
+                        auto const new_nmax = n_U0 - 1u;
                         auto const best_approx =
-                            find_best_rational_approx<rational_continued_fractions<big_uint::var>>(
+                            find_best_rational_approx<rational_continued_fractions<big_int::uint_var>>(
                                 x, new_nmax)
                                 .below;
                         auto const largest_multiplier = new_nmax / best_approx.denominator;
@@ -212,14 +212,14 @@ namespace jkj {
                 }
 
                 candidate.multiplier =
-                    ((left_end.numerator << candidate.shift_amount) / left_end.denominator) + 1;
+                    ((left_end.numerator << candidate.shift_amount) / left_end.denominator) + 1u;
 
                 // If t goes out of the interval, then increase k0.
                 if (candidate.multiplier * right_end.denominator >=
                     (right_end.numerator << candidate.shift_amount)) {
                     ++candidate.shift_amount;
                     candidate.multiplier =
-                        ((left_end.numerator << candidate.shift_amount) / left_end.denominator) + 1;
+                        ((left_end.numerator << candidate.shift_amount) / left_end.denominator) + 1u;
                 }
                 else {
                     candidate.shift_amount -= candidate.multiplier.factor_out_power_of_2();
@@ -227,7 +227,7 @@ namespace jkj {
 
                 // Truncate zeta0 from 0 to avoid underflow.
                 auto zeta0 = ufrac{(floor_n_L0_x << candidate.shift_amount),
-                                   big_uint::var::power_of_2(candidate.shift_amount)};
+                                   big_int::uint_var::power_of_2(candidate.shift_amount)};
                 {
                     auto numerator_diff = n_L0 * candidate.multiplier;
                     if (zeta0.numerator > numerator_diff) {
@@ -327,7 +327,7 @@ namespace jkj {
                     // Increase k0 and recompute t, zeta0.
                     ++candidate.shift_amount;
                     candidate.multiplier =
-                        ((left_end.numerator << candidate.shift_amount) / left_end.denominator) + 1;
+                        ((left_end.numerator << candidate.shift_amount) / left_end.denominator) + 1u;
 
                     zeta0.numerator = (floor_n_L0_x << candidate.shift_amount);
                     zeta0.denominator <<= 1;

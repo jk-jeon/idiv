@@ -51,7 +51,7 @@ namespace jkj {
         constexpr rational_continued_fractions(frac<UInt, UInt> r)
             : prev_error_{static_cast<UInt&&>(r.numerator)}, curr_error_{static_cast<UInt&&>(
                                                                  r.denominator)} {
-            util::constexpr_assert<util::error_msgs::divide_by_zero>(curr_error_ != 0);
+            util::constexpr_assert<util::error_msgs::divide_by_zero>(curr_error_ != 0u);
         }
     };
 }
