@@ -121,7 +121,7 @@ namespace jkj {
             }
         }
 
-        // Go back to the initial state/
+        // Go back to the initial state.
         constexpr void rewind() noexcept { current_index_ = -1; }
     };
 }

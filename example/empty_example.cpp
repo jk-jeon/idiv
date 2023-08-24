@@ -32,7 +32,10 @@ int main() {
     frac x{7, 18};
     std::cout << "      Number = " << x.numerator << " / " << x.denominator;
 
-    jkj::rational_continued_fractions<jkj::bigint::int_var, jkj::bigint::uint_var> cf{x};
+    using continued_fractions_calc_type = jkj::caching_continued_fractions<
+        jkj::rational_continued_fractions<jkj::bigint::int_var, jkj::bigint::uint_var>,
+        std::vector>;
+    continued_fractions_calc_type cf{x};
 
     jkj::bigint::uint_var nmax = 0xffff'ffff;
     std::cout << "\n       n_max = " << nmax;

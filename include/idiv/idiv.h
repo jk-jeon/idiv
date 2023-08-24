@@ -22,34 +22,25 @@
 #include "best_rational_approx.h"
 #include "bigint.h"
 #include "caching_continued_fractions.h"
+#include "interval.h"
 #include "rational_continued_fractions.h"
 
 namespace jkj {
     namespace idiv {
-        struct multiply_shift_info {
-            bigint::int_var multiplier;
-            std::size_t shift_amount;
-        };
+        using bigint_frac = frac<bigint::int_var, bigint::uint_var>;
 
-        // For a given real number x and a positive integer nmax, find the smallest nonnegative
-        // integer k such that there exists an integer m satisfying
-        // floor(nx) = floor(nm/2^k) for all n = 1, ... , nmax.
+        // For a given real number x and a positive integer nmax, find the interval
+        // [max_n floor(nx)/n, min_n (floor(nx)+1)/n), where n ranges from {1, ... , nmax}.
         // The number x is given in terms of its continued fractions. The first parameter cf is the
         // continued fractions calculator for x. It must be initialized, i.e., it should start with
         // the first convergent when evaluated.
-        template <class ContinuedFractionsImpl>
-        constexpr multiply_shift_info convert_to_multiply_shift(ContinuedFractionsImpl& cf,
-                                                                bigint::uint_var const& nmax) {
-            using continued_fractions_calculator_type =
-                caching_continued_fractions<ContinuedFractionsImpl&, std::vector>;
-
-            multiply_shift_info ret_value{};
-            continued_fractions_calculator_type continued_fractions_calculator{cf};
-
+        template <class RewindableContinuedFractionsCalc>
+        constexpr interval<bigint_frac, interval_type_t::bounded_left_closed_right_open>
+        find_floor_quotient_range(RewindableContinuedFractionsCalc& cf,
+                                  bigint::uint_var const& nmax) {
             // Evaluate the lower bound and the upper bound.
             // First, compute the best rational approximations of x from below and above.
-            auto [lower_bound, upper_bound] =
-                find_best_rational_approx(continued_fractions_calculator, nmax);
+            auto [lower_bound, upper_bound] = find_best_rational_approx(cf, nmax);
 
             // If lower_bound == upper_bound, then x is rational and its denominator is at most
             // nmax. In this case, we have to find the largest positive integer v <= nmax such that
@@ -64,11 +55,10 @@ namespace jkj {
                 // Otherwise, the upper bound is ((vp+1)/q) / v.
                 else {
                     // Find the modular inverse b of -p, which must be given as follows.
-                    continued_fractions_calculator.rewind();
-                    upper_bound.denominator =
-                        find_best_rational_approx(continued_fractions_calculator,
-                                                  lower_bound.denominator - 1u)
-                            .above.denominator;
+                    cf.rewind();
+                    upper_bound.denominator = static_cast<bigint::uint_var&&>(
+                        find_best_rational_approx(cf, lower_bound.denominator - 1u)
+                            .above.denominator);
                     // Then v = floor((nmax - b) / q) * q + b.
                     upper_bound.denominator +=
                         ((nmax - upper_bound.denominator) / lower_bound.denominator) *
@@ -80,16 +70,40 @@ namespace jkj {
                 }
             }
 
+            return {static_cast<decltype(lower_bound)&&>(lower_bound),
+                    static_cast<decltype(upper_bound)&&>(upper_bound)};
+        }
+
+
+        struct multiply_shift_info {
+            bigint::int_var multiplier;
+            std::size_t shift_amount;
+        };
+
+        // For a given real number x and a positive integer nmax, find the smallest nonnegative
+        // integer k such that there exists an integer m satisfying
+        // floor(nx) = floor(nm/2^k) for all n = 1, ... , nmax.
+        // The number x is given in terms of its continued fractions. The first parameter cf is the
+        // continued fractions calculator for x. It must be initialized, i.e., it should start with
+        // the first convergent when evaluated.
+        template <class RewindableContinuedFractionsCalc>
+        constexpr multiply_shift_info
+        convert_to_multiply_shift(RewindableContinuedFractionsCalc& cf,
+                                  bigint::uint_var const& nmax) {
+            multiply_shift_info ret_value{};
+            auto range = find_floor_quotient_range(cf, nmax);
+
             // k0 = ceil(log2(1/Delta)).
             auto k0 = [&] {
-                auto const delta = upper_bound - lower_bound;
+                auto const delta = range.upper_bound() - range.lower_bound();
                 util::constexpr_assert<util::error_msgs::no_error_msg>(
                     is_strictly_positive(delta.numerator));
 
                 return trunc_ceil_log2_div(delta.denominator, abs(delta.numerator));
             }();
 
-            ret_value.multiplier = div_ceil((lower_bound.numerator << k0), lower_bound.denominator);
+            ret_value.multiplier =
+                div_ceil((range.lower_bound().numerator << k0), range.lower_bound().denominator);
             ret_value.shift_amount = k0;
 
             if (ret_value.multiplier.is_even()) {
@@ -99,7 +113,8 @@ namespace jkj {
                 auto left_end_plus_1 = ret_value.multiplier + 1u;
 
                 // If the left_end_plus_1 is still in the interval, take that instead.
-                if (left_end_plus_1 * upper_bound.denominator < (upper_bound.numerator << k0)) {
+                if (left_end_plus_1 * range.upper_bound().denominator <
+                    (range.upper_bound().numerator << k0)) {
                     ret_value.multiplier =
                         static_cast<decltype(left_end_plus_1)&&>(left_end_plus_1);
                     ret_value.shift_amount -= ret_value.multiplier.factor_out_power_of_2();
