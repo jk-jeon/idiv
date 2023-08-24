@@ -27,8 +27,8 @@ namespace jkj {
     template <class Impl, template <class ValueType, class...> class Container>
     class caching_continued_fractions {
     public:
-        using int_type = typename Impl::int_type;
-        using uint_type = typename Impl::uint_type;
+        using int_type = typename std::remove_cvref_t<Impl>::int_type;
+        using uint_type = typename std::remove_cvref_t<Impl>::uint_type;
 
         // Perfect forward everything to the implementation.
         template <class... Args>
