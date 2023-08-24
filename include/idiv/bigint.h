@@ -2733,6 +2733,10 @@ namespace jkj {
         }
 
         constexpr int_var operator*(int_view x, uint_view y) { return y * x; }
+        constexpr int_var operator*(int_view x, int_view y) {
+            return int_var(x.sign() == y.sign() ? sign_t::positive : sign_t::negative,
+                           x.abs() * y.abs());
+        }
         constexpr int_var operator*(int_view x, convertible_to_block_type auto y) {
             auto r = int_var(x);
             r *= y;
@@ -2774,6 +2778,17 @@ namespace jkj {
         constexpr int_var operator*(uint_const_t<>, int_view) { return {}; }
 
         constexpr int_var operator*(int_const_t<>, int_view) { return {}; }
+
+        constexpr int_var& operator*=(int_var& x, uint_view y) {
+            auto r = x * y;
+            x = static_cast<int_var&&>(r);
+            return x;
+        }
+        constexpr int_var& operator*=(int_var& x, int_view y) {
+            auto r = x * y;
+            x = static_cast<int_var&&>(r);
+            return x;
+        }
 
         // We do not define division by signed integers, since it has ambiguous semantics.
 
