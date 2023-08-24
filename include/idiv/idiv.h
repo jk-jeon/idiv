@@ -119,10 +119,9 @@ namespace jkj {
         // The number x is given in terms of its continued fractions. The first parameter cf is the
         // continued fractions calculator for x. It must be initialized, i.e., it should start with
         // the first convergent when evaluated.
-        template <class RewindableContinuedFractionsCalc>
-        constexpr multiply_shift_info
-        convert_to_multiply_shift(RewindableContinuedFractionsCalc& cf,
-                                  bigint::uint_var const& nmax) {
+        template <class ContinuedFractionsCalc>
+        constexpr multiply_shift_info convert_to_multiply_shift(ContinuedFractionsCalc& cf,
+                                                                bigint::uint_var const& nmax) {
             multiply_shift_info ret_value{};
             auto range = find_floor_quotient_range(cf, nmax);
 
