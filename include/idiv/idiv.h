@@ -27,51 +27,84 @@
 
 namespace jkj {
     namespace idiv {
-        using bigint_frac = frac<bigint::int_var, bigint::uint_var>;
-
         // For a given real number x and a positive integer nmax, find the interval
         // [max_n floor(nx)/n, min_n (floor(nx)+1)/n), where n ranges from {1, ... , nmax}.
         // The number x is given in terms of its continued fractions. The first parameter cf is the
         // continued fractions calculator for x. It must be initialized, i.e., it should start with
         // the first convergent when evaluated.
-        template <class RewindableContinuedFractionsCalc>
-        constexpr interval<bigint_frac, interval_type_t::bounded_left_closed_right_open>
-        find_floor_quotient_range(RewindableContinuedFractionsCalc& cf,
-                                  bigint::uint_var const& nmax) {
-            // Evaluate the lower bound and the upper bound.
-            // First, compute the best rational approximations of x from below and above.
-            auto [lower_bound, upper_bound] = find_best_rational_approx(cf, nmax);
+        template <class ContinuedFractionsCalc, class UInt>
+        constexpr interval<frac<typename ContinuedFractionsCalc::int_type,
+                                typename ContinuedFractionsCalc::uint_type>,
+                           interval_type_t::bounded_left_closed_right_open>
+        find_floor_quotient_range(ContinuedFractionsCalc& cf, UInt const& nmax) {
+            util::constexpr_assert<util::error_msgs::no_error_msg>(is_strictly_positive(nmax));
 
-            // If lower_bound == upper_bound, then x is rational and its denominator is at most
-            // nmax. In this case, we have to find the largest positive integer v <= nmax such that
-            // vp == -1 (mod q), where x = p/q.
-            if (lower_bound == upper_bound) {
-                // If q = 1, then v = nmax and the upper bound is (nmax * p + 1) / nmax.
-                if (lower_bound.denominator == 1u) {
-                    upper_bound.numerator *= nmax;
-                    ++upper_bound.numerator;
-                    upper_bound.denominator = nmax;
-                }
-                // Otherwise, the upper bound is ((vp+1)/q) / v.
-                else {
-                    // Find the modular inverse b of -p, which must be given as follows.
-                    cf.rewind();
-                    upper_bound.denominator = static_cast<bigint::uint_var&&>(
-                        find_best_rational_approx(cf, lower_bound.denominator - 1u)
-                            .above.denominator);
-                    // Then v = floor((nmax - b) / q) * q + b.
-                    upper_bound.denominator +=
-                        ((nmax - upper_bound.denominator) / lower_bound.denominator) *
-                        lower_bound.denominator;
+            using frac_t = frac<typename ContinuedFractionsCalc::int_type,
+                                typename ContinuedFractionsCalc::uint_type>;
 
-                    upper_bound.numerator *= upper_bound.denominator;
-                    ++upper_bound.numerator;
-                    upper_bound.numerator /= lower_bound.denominator;
+            // First, find the last convergent and the last semiconvergent whose denominator is
+            // bounded above by nmax.
+            frac_t previous_previous_convergent;
+
+            // This lambda replaces previous_previous_convergent to the last semiconvergent, and
+            // return it as an rvalue reference.
+            auto get_last_semiconvergent = [&]() -> decltype(auto) {
+                auto semiconvergent_coeff =
+                    (nmax - previous_previous_convergent.denominator) / cf.previous_denominator();
+
+                previous_previous_convergent.numerator +=
+                    semiconvergent_coeff * cf.previous_numerator();
+                previous_previous_convergent.denominator +=
+                    semiconvergent_coeff * cf.previous_denominator();
+
+                return static_cast<frac_t&&>(previous_previous_convergent);
+            };
+
+            while (cf.current_denominator() <= nmax) {
+                // Obtain the next convergent.
+                previous_previous_convergent = cf.previous_convergent();
+                cf.update();
+
+                // If we reach to the perfect approximation, then we have to find the largest
+                // positive integer v <= nmax such that vp == -1 (mod q), where x = p/q. Then the
+                // lower bound is p/q, while the upper bound is ((vp+1)/q) / v.
+                if (cf.is_terminated()) {
+                    // To compute v, we find the modular inverse b of -p. This can be done by
+                    // observing that the best rational approximation from above whose denominator
+                    // is strictly less than q must be precisely ((bp+1)/q) / b. Then
+                    //        v = b + floor((nmax - b)/q)q and
+                    // (vp+1)/q = (bp+1)/q + floor((nmax - b)/q)p.
+
+                    // If we ended at an even convergent, the last convergent is the best rational
+                    // approximation from above. Otherwise, the last semiconvergent is the best
+                    // rational approximation from above.
+                    auto upper_bound = cf.current_index() % 2 == 0 ? cf.previous_convergent()
+                                                                   : get_last_semiconvergent();
+
+                    // At this point, upper_bound is ((bp+1)/q) / b, so we adjust the numerator and
+                    // the denominator by floor((nmax - b)/q).
+                    auto max_quotient =
+                        (nmax - upper_bound.denominator) / cf.current_convergent().denominator;
+                    upper_bound.numerator += max_quotient * cf.current_convergent().numerator;
+                    upper_bound.denominator += max_quotient * cf.current_convergent().denominator;
+
+                    return {cf.current_convergent(), static_cast<frac_t&&>(upper_bound)};
                 }
             }
 
-            return {static_cast<decltype(lower_bound)&&>(lower_bound),
-                    static_cast<decltype(upper_bound)&&>(upper_bound)};
+            // If there the last convergent is still not a perfect approximation, then we return
+            // the last semiconvergent and the convergent as the bounds. Which one is the lower
+            // bound and which one is the upper bound is determined by the parity of
+            // cf.current_index(). Note that cf.current_index() is the index of the first
+            // convergent with the denominator strictly larger than nmax, so if this index is
+            // even, then the semiconvergent is the lower bound and the convergent is the upepr
+            // bound, and if the index is odd, then the other way around.
+            if (cf.current_index() % 2 == 0) {
+                return {get_last_semiconvergent(), cf.previous_convergent()};
+            }
+            else {
+                return {cf.previous_convergent(), get_last_semiconvergent()};
+            }
         }
 
 
