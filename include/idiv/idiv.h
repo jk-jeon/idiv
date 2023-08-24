@@ -19,9 +19,10 @@
 #ifndef JKJ_HEADER_IDIV
 #define JKJ_HEADER_IDIV
 
+#include "best_rational_approx.h"
 #include "bigint.h"
 #include "rational_continued_fractions.h"
-#include "best_rational_approx.h"
+#include "rewindable_continued_fractions.h"
 
 namespace jkj {
     namespace idiv {
@@ -37,15 +38,17 @@ namespace jkj {
             frac<bigint::uint_var, bigint::uint_var> const& x, bigint::uint_var const& nmax) {
             util::constexpr_assert<util::error_msgs::no_error_msg>(x.denominator <= nmax);
 
+            using continued_fractions_calculator_type =
+                rational_continued_fractions<bigint::uint_var, bigint::uint_var>;
+
             multiply_shift_info ret_value{};
+            continued_fractions_calculator_type continued_fractions_calculator{x};
 
             bigint::uint_var v;
             if (x.denominator != 1u) {
                 // Compute the modular inverse of -x.numerator.
                 auto const mod_inv =
-                    find_best_rational_approx<
-                        rational_continued_fractions<bigint::uint_var, bigint::uint_var>>(
-                        x, x.denominator - 1u)
+                    find_best_rational_approx(continued_fractions_calculator, x.denominator - 1u)
                         .above.denominator;
 
                 // v = floor((nmax - b) / q) * q + b.
@@ -96,7 +99,11 @@ namespace jkj {
             util::constexpr_assert<util::error_msgs::divide_by_zero>(!x.denominator.is_zero());
             util::constexpr_assert<util::error_msgs::no_error_msg>(x.denominator <= nmax);
 
+            using continued_fractions_calculator_type = rewindable_continued_fractions<
+                rational_continued_fractions<bigint::uint_var, bigint::uint_var>, std::vector>;
+
             multiply_add_shift_info ret_value;
+            continued_fractions_calculator_type continued_fractions_calculator{x};
 
             bigint::uint_var n_L0, n_U0;
             if (x.denominator != 1u) {
@@ -105,9 +112,7 @@ namespace jkj {
 
                 // Compute the modular inverse of -x.numerator.
                 auto const mod_inv =
-                    find_best_rational_approx<
-                        rational_continued_fractions<bigint::uint_var, bigint::uint_var>>(
-                        x, x.denominator - 1u)
+                    find_best_rational_approx(continued_fractions_calculator, x.denominator - 1u)
                         .above.denominator;
 
                 // v = floor((nmax - b) / q) * q + b.
@@ -138,10 +143,9 @@ namespace jkj {
                     }
                     else {
                         auto const new_nmax = nmax - n_L0;
+                        continued_fractions_calculator.rewind();
                         auto const best_approx =
-                            find_best_rational_approx<
-                                rational_continued_fractions<bigint::uint_var, bigint::uint_var>>(
-                                x, new_nmax)
+                            find_best_rational_approx(continued_fractions_calculator, new_nmax)
                                 .below;
                         auto const largest_multiplier = new_nmax / best_approx.denominator;
                         n_L1 = largest_multiplier * best_approx.denominator;
@@ -167,10 +171,9 @@ namespace jkj {
                     }
                     else {
                         auto const new_nmax = n_U0 - 1u;
+                        continued_fractions_calculator.rewind();
                         auto const best_approx =
-                            find_best_rational_approx<
-                                rational_continued_fractions<bigint::uint_var, bigint::uint_var>>(
-                                x, new_nmax)
+                            find_best_rational_approx(continued_fractions_calculator, new_nmax)
                                 .below;
                         auto const largest_multiplier = new_nmax / best_approx.denominator;
                         n_U1 = largest_multiplier * best_approx.denominator;

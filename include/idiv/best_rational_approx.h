@@ -33,7 +33,7 @@ namespace jkj {
     // denominator_upper_bound for the given number x. The number x is given in terms of its
     // continued fractions. The continued fractions calculator cf is assumed to be initialized,
     // i.e., it starts from the first convergent when evaluated.
-    template <class ContinuedFractionsImpl, class UInt, class RealNumber>
+    template <class ContinuedFractionsImpl, class UInt>
     constexpr best_rational_approx_output<typename ContinuedFractionsImpl::int_type,
                                           typename ContinuedFractionsImpl::uint_type>
     find_best_rational_approx(ContinuedFractionsImpl& cf, UInt const& denominator_upper_bound) {

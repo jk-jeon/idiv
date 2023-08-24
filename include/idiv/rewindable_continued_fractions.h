@@ -24,7 +24,7 @@
 namespace jkj {
     // Memorizes all previous convergents and coefficients in a container, and reuse them when
     // rewinded.
-    template <class Impl, template <class ValueType> class Container>
+    template <class Impl, template <class ValueType, class...> class Container>
     class rewindable_continued_fractions {
     public:
         using int_type = typename Impl::int_type;
