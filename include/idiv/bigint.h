@@ -2292,6 +2292,12 @@ namespace jkj {
                 r <<= k;
                 return r;
             }
+
+            // Find the largest power of 2 dividing *this, divide *this by that power, and return
+            // the exponent.
+            constexpr std::size_t factor_out_power_of_2() noexcept {
+                return abs_.factor_out_power_of_2();
+            }
         };
 
         constexpr int_view to_view(int_var const& x) noexcept { return int_view(x); }
