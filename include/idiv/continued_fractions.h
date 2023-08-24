@@ -22,7 +22,7 @@
 #include "util.h"
 
 namespace jkj {
-    // Continued fractions calculator for positive numbers.
+    // Continued fractions calculator for real numbers.
     template <class Impl, class Int, class UInt>
     class continued_fractions {
         // The (-1)st coefficient is assumed to be 0.

@@ -30,20 +30,19 @@ namespace jkj {
     };
 
     // Find the best rational approximations from below and from above of denominators no more than
-    // denominator_upper_bound for the given number x.
+    // denominator_upper_bound for the given number x. The number x is given in terms of its
+    // continued fractions. The continued fractions calculator cf is assumed to be initialized,
+    // i.e., it starts from the first convergent when evaluated.
     template <class ContinuedFractionsImpl, class UInt, class RealNumber>
     constexpr best_rational_approx_output<typename ContinuedFractionsImpl::int_type,
                                           typename ContinuedFractionsImpl::uint_type>
-    find_best_rational_approx(RealNumber const& x, UInt const& denominator_upper_bound) {
+    find_best_rational_approx(ContinuedFractionsImpl& cf, UInt const& denominator_upper_bound) {
         util::constexpr_assert<util::error_msgs::no_error_msg>(
             is_strictly_positive(denominator_upper_bound));
 
         using int_type = typename ContinuedFractionsImpl::int_type;
         using uint_type = typename ContinuedFractionsImpl::uint_type;
         best_rational_approx_output<int_type, uint_type> ret_value;
-
-        // Initialize a continued fractions calculator.
-        ContinuedFractionsImpl cf{x};
 
         // First, find the last convergent whose denominator is bounded above by the given upper
         // bound.
