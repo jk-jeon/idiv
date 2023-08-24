@@ -23,7 +23,7 @@ add_library(idiv_idiv INTERFACE
 	include/idiv/frac.h
 	include/idiv/idiv.h
 	include/idiv/rational_continued_fractions.h
-	include/idiv/rewindable_continued_fractions.h
+	include/idiv/caching_continued_fractions.h
 	include/idiv/util.h
 	include/idiv/wuint.h)
 add_library(idiv::idiv ALIAS idiv_idiv)

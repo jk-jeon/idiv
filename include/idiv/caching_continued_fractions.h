@@ -15,8 +15,8 @@
 // is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 // KIND, either express or implied.
 
-#ifndef JKJ_HEADER_REWINDABLE_CONTINUED_FRACTIONS
-#define JKJ_HEADER_REWINDABLE_CONTINUED_FRACTIONS
+#ifndef JKJ_HEADER_CACHING_CONTINUED_FRACTIONS
+#define JKJ_HEADER_CACHING_CONTINUED_FRACTIONS
 
 #include "continued_fractions.h"
 #include <type_traits>
@@ -25,23 +25,22 @@ namespace jkj {
     // Memorizes all previous convergents and coefficients in a container, and reuse them when
     // rewinded.
     template <class Impl, template <class ValueType, class...> class Container>
-    class rewindable_continued_fractions {
+    class caching_continued_fractions {
     public:
         using int_type = typename Impl::int_type;
         using uint_type = typename Impl::uint_type;
 
         // Perfect forward everything to the implementation.
         template <class... Args>
-        explicit constexpr rewindable_continued_fractions(Args&&... args)
+        explicit constexpr caching_continued_fractions(Args&&... args)
             : impl_(static_cast<Args&&>(args)...) {
             initialize_record();
         }
         template <class Arg>
             requires(std::is_convertible_v<Arg &&, Impl> &&
-                     !std::is_base_of_v<rewindable_continued_fractions, std::decay_t<Arg>> &&
-                     !std::is_same_v<rewindable_continued_fractions, std::decay_t<Arg>>)
-        explicit constexpr rewindable_continued_fractions(Arg&& arg)
-            : impl_(static_cast<Arg&&>(arg)) {
+                     !std::is_base_of_v<caching_continued_fractions, std::decay_t<Arg>> &&
+                     !std::is_same_v<caching_continued_fractions, std::decay_t<Arg>>)
+        explicit constexpr caching_continued_fractions(Arg&& arg) : impl_(static_cast<Arg&&>(arg)) {
             initialize_record();
         }
 
