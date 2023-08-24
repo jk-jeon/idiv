@@ -1401,7 +1401,7 @@ namespace jkj {
                 for (std::size_t idx = 0; idx < digits.size() / 2; ++idx) {
                     auto const temp = digits[idx];
                     digits[idx] = digits[digits.size() - idx - 1];
-                    digits[blocks_.size() - idx - 1] = temp;
+                    digits[digits.size() - idx - 1] = temp;
                 }
 
                 return digits;
