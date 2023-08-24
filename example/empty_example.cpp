@@ -28,22 +28,24 @@ std::ostream& operator<<(std::ostream& out, jkj::bigint::int_var const& n) {
 }
 
 int main() {
-    jkj::bigint::uint_var numerator{7};
-    jkj::bigint::uint_var denominator{18};
-    std::cout << "      Number = " << numerator << " / " << denominator;
+    using frac = jkj::frac<jkj::bigint::int_var, jkj::bigint::uint_var>;
+    frac x{7, 18};
+    std::cout << "      Number = " << x.numerator << " / " << x.denominator;
+
+    jkj::rational_continued_fractions<jkj::bigint::int_var, jkj::bigint::uint_var> cf{x};
 
     jkj::bigint::uint_var nmax = 0xffff'ffff;
     std::cout << "\n       n_max = " << nmax;
 
-    auto info1 =
-        jkj::idiv::convert_to_multiply_shift_effectively_rational({numerator, denominator}, nmax);
+    auto info1 = jkj::idiv::convert_to_multiply_shift(cf, nmax);
 
     std::cout << "\n\n[Multiply-and-shift method]\n"
               << "  Multiplier = " << info1.multiplier << "\n       Shift = " << info1.shift_amount;
 
+    
     jkj::bigint::uint_var max_allowed = jkj::bigint::uint_var{0xffff'ffff'ffff'ffff};
     auto info2 = jkj::idiv::convert_to_multiply_add_shift_effectively_rational(
-        {numerator, denominator}, nmax, max_allowed);
+        {x.numerator.abs(), x.denominator}, nmax, max_allowed);
 
     std::cout << "\n\n[Multiply-add-and-shift method (with max_allowed = " << max_allowed << ")]\n";
     if (info2.succeeded) {
@@ -53,4 +55,5 @@ int main() {
     else {
         std::cout << "Failed to find any solution.\n";
     }
+    
 }
