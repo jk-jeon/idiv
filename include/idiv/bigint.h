@@ -1983,22 +1983,11 @@ namespace jkj {
             }
 
             constexpr int_var operator-() const& {
-                if (is_zero()) {
-                    return {};
-                }
-                else {
-                    return int_var(::jkj::bigint::invert_sign(sign_), abs_);
-                }
+                return int_var(::jkj::bigint::invert_sign(sign_), abs_);
             }
 
             constexpr int_var operator-() && {
-                if (is_zero()) {
-                    return {};
-                }
-                else {
-                    return int_var(::jkj::bigint::invert_sign(sign_),
-                                   static_cast<uint_var&&>(abs_));
-                }
+                return int_var(::jkj::bigint::invert_sign(sign_), static_cast<uint_var&&>(abs_));
             }
 
             constexpr int_var& operator+=(uint_view n) {
