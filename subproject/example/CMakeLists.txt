@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.19)
 
 project(idivExamples CXX)
 
-include(../cmake/project-is-top-level.cmake)
-include(../cmake/folders.cmake)
+include(../../cmake/project-is-top-level.cmake)
+include(../../cmake/folders.cmake)
 
 if(PROJECT_IS_TOP_LEVEL)
   find_package(idiv REQUIRED)
