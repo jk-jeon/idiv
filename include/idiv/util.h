@@ -84,6 +84,13 @@ namespace jkj {
             return x >= y ? x : y;
         }
 
+        template <class T>
+        constexpr void swap(T& x, T& y) {
+            auto temp = static_cast<T&&>(x);
+            x = static_cast<T&&>(y);
+            y = static_cast<T&&>(temp);
+        }
+
         // A minimal implementation of std::array.
         template <class T, std::size_t N>
         struct array {

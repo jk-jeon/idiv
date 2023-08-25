@@ -19,6 +19,7 @@
 #define JKJ_HEADER_FRAC
 
 #include <compare>
+#include <type_traits>
 
 namespace jkj {
     // Num: supposed to be jkj::bigint::uint_var/uint_const_t/int_var/int_const_t.
@@ -29,8 +30,7 @@ namespace jkj {
         Den denominator;
     };
     template <class Num, class Den>
-    frac(Num, Den) -> frac<Num, Den>;
-
+    frac(Num&&, Den&&) -> frac<std::remove_cvref_t<Num>, std::remove_cvref_t<Den>>;
 
     template <class Num1, class Den1, class Num2, class Den2>
     constexpr bool operator==(frac<Num1, Den1> const& x, frac<Num2, Den2> const& y) {

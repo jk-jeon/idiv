@@ -21,6 +21,7 @@ add_library(idiv_idiv INTERFACE
 	include/idiv/bigint.h
 	include/idiv/continued_fractions.h
 	include/idiv/frac.h
+	include/idiv/gosper_continued_fractions.h
 	include/idiv/idiv.h
 	include/idiv/interval.h
 	include/idiv/rational_continued_fractions.h
