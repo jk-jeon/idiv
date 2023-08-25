@@ -84,11 +84,25 @@ namespace jkj {
             x_cf_.update();
             coeff_.numerator.feed_x(x_cf_.current_coefficient());
             coeff_.denominator.feed_x(x_cf_.current_coefficient());
+
+            // If the current coefficient is the last one, we have to use a different update
+            // formula from now on.
+            if (x_cf_.is_terminated()) {
+                swap(coeff_.numerator.const_coeff, coeff_.numerator.x_coeff);
+                swap(coeff_.numerator.y_coeff, coeff_.numerator.xy_coeff);
+            }
         }
         constexpr void progress_y() {
             y_cf_.update();
             coeff_.numerator.feed_y(y_cf_.current_coefficient());
             coeff_.denominator.feed_y(y_cf_.current_coefficient());
+
+            // If the current coefficient is the last one, we have to use a different update
+            // formula from now on.
+            if (y_cf_.is_terminated()) {
+                swap(coeff_.numerator.const_coeff, coeff_.numerator.y_coeff);
+                swap(coeff_.numerator.x_coeff, coeff_.numerator.xy_coeff);
+            }
         }
 
         constexpr int_type compute_next_coefficient() {
