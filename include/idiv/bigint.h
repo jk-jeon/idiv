@@ -282,9 +282,12 @@ namespace jkj {
                     // Subtract the aligned y from x.
                     if (bit_shift != 0) {
                         // The last block of y.
-                        auto y_block = (y[0] << bit_shift);
-                        unsigned int borrow = x[block_shift] < y_block ? 1 : 0;
-                        x[block_shift] -= y_block;
+                        unsigned int borrow;
+                        {
+                            auto const y_block = (y[0] << bit_shift);
+                            borrow = x[block_shift] < y_block ? 1 : 0;
+                            x[block_shift] -= y_block;
+                        }
 
                         // Middle blocks of y.
                         for (std::size_t idx = 1; idx < y.size(); ++idx) {
@@ -292,8 +295,9 @@ namespace jkj {
                             unsigned int first_borrow =
                                 (with_borrow > x[idx + block_shift]) ? 1 : 0;
 
-                            y_block = (y[idx] << bit_shift) |
-                                      (y[idx - 1] >> (number_of_bits_in_block - bit_shift));
+                            auto const y_block =
+                                (y[idx] << bit_shift) |
+                                (y[idx - 1] >> (number_of_bits_in_block - bit_shift));
                             x[idx + block_shift] = with_borrow - y_block;
                             borrow = first_borrow | ((x[idx + block_shift] > with_borrow) ? 1 : 0);
                         }
@@ -1600,7 +1604,7 @@ namespace jkj {
         constexpr uint_var operator*(uint_var&& x, convertible_to_block_type auto y) {
             return static_cast<uint_var&&>(x *= y);
         }
-        constexpr uint_var operator*(uint_view x, uint_const_t<>) { return {}; }
+        constexpr uint_var operator*(uint_view, uint_const_t<>) { return {}; }
         constexpr uint_var operator*(convertible_to_block_type auto x, uint_view y) {
             auto r = uint_var(y);
             r *= x;
@@ -1609,7 +1613,7 @@ namespace jkj {
         constexpr uint_var operator*(convertible_to_block_type auto x, uint_var&& y) {
             return static_cast<uint_var&&>(y *= x);
         }
-        constexpr uint_var operator*(uint_const_t<>, uint_view y) { return {}; }
+        constexpr uint_var operator*(uint_const_t<>, uint_view) { return {}; }
 
         constexpr uint_var& operator*=(uint_var& x, uint_view y) {
             auto r = x * y;
@@ -2274,7 +2278,8 @@ namespace jkj {
                                 bits_to_check -= number_of_bits_in_block;
                             }
                             else {
-                                if (std::countr_zero(blocks()[idx]) < bits_to_check) {
+                                if (static_cast<std::size_t>(std::countr_zero(blocks()[idx])) <
+                                    bits_to_check) {
                                     return false;
                                 }
                                 return true;
@@ -2354,10 +2359,10 @@ namespace jkj {
         constexpr bool is_zero(uint_view n) noexcept { return n.is_zero(); }
         constexpr bool is_even(uint_view n) noexcept { return n.is_even(); }
         constexpr bool is_strictly_positive(uint_view n) noexcept { return !n.is_zero(); }
-        constexpr bool is_strictly_negative(uint_view n) noexcept { return false; }
+        constexpr bool is_strictly_negative(uint_view) noexcept { return false; }
         constexpr bool is_nonnegative(uint_view) noexcept { return true; }
         constexpr bool is_nonpositive(uint_view n) noexcept { return n.is_zero(); }
-        constexpr sign_t sign(uint_view n) noexcept { return sign_t::positive; }
+        constexpr sign_t sign(uint_view) noexcept { return sign_t::positive; }
 
         constexpr bool is_zero(int_view n) noexcept { return n.is_zero(); }
         constexpr bool is_even(int_view n) noexcept { return n.is_even(); }
@@ -2385,7 +2390,7 @@ namespace jkj {
                 return !n.is_zero();
             }
             template <std::size_t N, static_block_holder<N> arr>
-            constexpr bool is_strictly_negative(uint_const_impl<arr> n) noexcept {
+            constexpr bool is_strictly_negative(uint_const_impl<arr>) noexcept {
                 return false;
             }
             template <std::size_t N, static_block_holder<N> arr>
@@ -2728,7 +2733,7 @@ namespace jkj {
         constexpr int_var operator*(uint_view x, convertible_to_signed_block_type auto y) {
             return int_var(y >= 0 ? sign_t::positive : sign_t::negative, x * y);
         }
-        constexpr int_var operator*(uint_view x, int_const_t<>) { return {}; }
+        constexpr int_var operator*(uint_view, int_const_t<>) { return {}; }
 
         constexpr int_var operator*(uint_var&& x, convertible_to_signed_block_type auto y) {
             auto r = to_signed(static_cast<uint_var&&>(x));
@@ -2751,8 +2756,8 @@ namespace jkj {
             r *= y;
             return r;
         }
-        constexpr int_var operator*(int_view x, uint_const_t<>) { return {}; }
-        constexpr int_var operator*(int_view x, int_const_t<>) { return {}; }
+        constexpr int_var operator*(int_view, uint_const_t<>) { return {}; }
+        constexpr int_var operator*(int_view, int_const_t<>) { return {}; }
 
         constexpr int_var operator*(int_var&& x, convertible_to_block_type auto y) {
             return static_cast<int_var&&>(x *= y);
