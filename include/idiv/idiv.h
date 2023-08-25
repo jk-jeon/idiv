@@ -31,7 +31,7 @@ namespace jkj {
         // [max_n floor(nx)/n, min_n (floor(nx)+1)/n), where n ranges from {1, ... , nmax}.
         // The number x is given in terms of its continued fractions. The first parameter cf is the
         // continued fractions calculator for x. It must be initialized, i.e., it should start with
-        // the first convergent when evaluated.
+        // the "convergent" 1/0 when evaluated.
         template <class ContinuedFractionsCalc, class UInt>
         constexpr interval<frac<typename ContinuedFractionsCalc::int_type,
                                 typename ContinuedFractionsCalc::uint_type>,
@@ -118,7 +118,7 @@ namespace jkj {
         // floor(nx) = floor(nm/2^k) for all n = 1, ... , nmax.
         // The number x is given in terms of its continued fractions. The first parameter cf is the
         // continued fractions calculator for x. It must be initialized, i.e., it should start with
-        // the first convergent when evaluated.
+        // the "convergent" 1/0 when evaluated.
         template <class ContinuedFractionsCalc>
         constexpr multiply_shift_info convert_to_multiply_shift(ContinuedFractionsCalc& cf,
                                                                 bigint::uint_var const& nmax) {
