@@ -281,80 +281,106 @@ int main() {
                                                                UINT64_C(6'326'492'966'752'452'885)};
                 expect(x.to_decimal() == decimal);
                 expect(bigint::uint_var::from_decimal(decimal) == x);
+                expect(
+                    x ==
+                    bigint::decimal_uint_const_v<
+                        652, UINT64_C(2'154'646'679'190'934'311),
+                        UINT64_C(6'475'070'707'159'753'481), UINT64_C(9'644'072'700'111'562'292),
+                        UINT64_C(6'078'271'397'402'072'764), UINT64_C(7'177'842'004'041'080'699),
+                        UINT64_C(1'294'679'995'335'186'520), UINT64_C(3'227'147'820'766'060'402),
+                        UINT64_C(7'809'184'506'609'574'266), UINT64_C(6'140'449'254'819'569'255),
+                        UINT64_C(3'017'536'223'147'787'056), UINT64_C(8'218'105'215'718'557'812),
+                        UINT64_C(2'032'926'231'820'575), UINT64_C(6'519'632'540'758'027'403),
+                        UINT64_C(1'665'352'115'267'003'556), UINT64_C(6'326'492'966'752'452'885)>);
             }
         };
 
         should("unsigned binary operations") = [] {
-            auto x =
-                bigint::uint_var{UINT64_C(0x7777'7777'7777'7777), UINT64_C(0x7777'7777'7777'7777),
-                                 UINT64_C(0x7777'7777'7777'7777), UINT64_C(0x7777'7777'7777'7777)};
-            auto y =
-                bigint::uint_var{UINT64_C(0x4444'4444'4444'4444), UINT64_C(0x4444'4444'4444'4444),
-                                 UINT64_C(0x4444'4444'4444'4444), UINT64_C(0x4444'4444'4444'4444)};
-            auto sum =
-                bigint::uint_var{UINT64_C(0xbbbb'bbbb'bbbb'bbbb), UINT64_C(0xbbbb'bbbb'bbbb'bbbb),
-                                 UINT64_C(0xbbbb'bbbb'bbbb'bbbb), UINT64_C(0xbbbb'bbbb'bbbb'bbbb)};
-            auto diff =
-                bigint::uint_var{UINT64_C(0x3333'3333'3333'3333), UINT64_C(0x3333'3333'3333'3333),
-                                 UINT64_C(0x3333'3333'3333'3333), UINT64_C(0x3333'3333'3333'3333)};
-            auto sum1 =
-                bigint::uint_var{UINT64_C(0x7777'7777'7777'7777), UINT64_C(0x7777'7777'7777'7777),
-                                 UINT64_C(0x7777'7777'7777'7777), UINT64_C(0xbbbb'bbbb'bbbb'bbbb)};
-            auto diff1 =
-                bigint::uint_var{UINT64_C(0x7777'7777'7777'7777), UINT64_C(0x7777'7777'7777'7777),
-                                 UINT64_C(0x7777'7777'7777'7777), UINT64_C(0x3333'3333'3333'3333)};
-            auto prod =
-                bigint::uint_var{UINT64_C(0x1fdb'9753'0eca'8641), UINT64_C(0xfdb9'7530'eca8'641f),
-                                 UINT64_C(0xdb97'530e'ca86'41fd), UINT64_C(0xb975'30ec'a864'1fdb),
-                                 UINT64_C(0x579b'e024'68ac'f135), UINT64_C(0x79be'0246'8acf'1357),
-                                 UINT64_C(0x9be0'2468'acf1'3579), UINT64_C(0xbe02'468a'cf13'579c)};
-            auto prod1 =
-                bigint::uint_var{UINT64_C(0x1fdb'9753'0eca'8641), UINT64_C(0xdddd'dddd'dddd'dddd),
-                                 UINT64_C(0xdddd'dddd'dddd'dddd), UINT64_C(0xdddd'dddd'dddd'dddd),
-                                 UINT64_C(0xbe02'468a'cf13'579c)};
-            auto quot1 =
-                bigint::uint_var{1, UINT64_C(0xc000'0000'0000'0001),
-                                 UINT64_C(0xc000'0000'0000'0001), UINT64_C(0xc000'0000'0000'0001)};
+            {
+                auto x = bigint::uint_var{
+                    UINT64_C(0x7777'7777'7777'7777), UINT64_C(0x7777'7777'7777'7777),
+                    UINT64_C(0x7777'7777'7777'7777), UINT64_C(0x7777'7777'7777'7777)};
+                auto y = bigint::uint_var{
+                    UINT64_C(0x4444'4444'4444'4444), UINT64_C(0x4444'4444'4444'4444),
+                    UINT64_C(0x4444'4444'4444'4444), UINT64_C(0x4444'4444'4444'4444)};
+                auto sum = bigint::uint_var{
+                    UINT64_C(0xbbbb'bbbb'bbbb'bbbb), UINT64_C(0xbbbb'bbbb'bbbb'bbbb),
+                    UINT64_C(0xbbbb'bbbb'bbbb'bbbb), UINT64_C(0xbbbb'bbbb'bbbb'bbbb)};
+                auto diff = bigint::uint_var{
+                    UINT64_C(0x3333'3333'3333'3333), UINT64_C(0x3333'3333'3333'3333),
+                    UINT64_C(0x3333'3333'3333'3333), UINT64_C(0x3333'3333'3333'3333)};
+                auto sum1 = bigint::uint_var{
+                    UINT64_C(0x7777'7777'7777'7777), UINT64_C(0x7777'7777'7777'7777),
+                    UINT64_C(0x7777'7777'7777'7777), UINT64_C(0xbbbb'bbbb'bbbb'bbbb)};
+                auto diff1 = bigint::uint_var{
+                    UINT64_C(0x7777'7777'7777'7777), UINT64_C(0x7777'7777'7777'7777),
+                    UINT64_C(0x7777'7777'7777'7777), UINT64_C(0x3333'3333'3333'3333)};
+                auto prod = bigint::uint_var{
+                    UINT64_C(0x1fdb'9753'0eca'8641), UINT64_C(0xfdb9'7530'eca8'641f),
+                    UINT64_C(0xdb97'530e'ca86'41fd), UINT64_C(0xb975'30ec'a864'1fdb),
+                    UINT64_C(0x579b'e024'68ac'f135), UINT64_C(0x79be'0246'8acf'1357),
+                    UINT64_C(0x9be0'2468'acf1'3579), UINT64_C(0xbe02'468a'cf13'579c)};
+                auto prod1 = bigint::uint_var{
+                    UINT64_C(0x1fdb'9753'0eca'8641), UINT64_C(0xdddd'dddd'dddd'dddd),
+                    UINT64_C(0xdddd'dddd'dddd'dddd), UINT64_C(0xdddd'dddd'dddd'dddd),
+                    UINT64_C(0xbe02'468a'cf13'579c)};
+                auto quot1 = bigint::uint_var{1, UINT64_C(0xc000'0000'0000'0001),
+                                              UINT64_C(0xc000'0000'0000'0001),
+                                              UINT64_C(0xc000'0000'0000'0001)};
 
-            expect(x + y == sum);
-            expect(bigint::uint_var(x) + y == sum);
-            expect(x + bigint::uint_var(y) == sum);
-            expect(bigint::uint_var(x) + bigint::uint_var(y) == sum);
-            expect(x + UINT64_C(0x4444'4444'4444'4444) == sum1);
-            expect(bigint::uint_var(x) + UINT64_C(0x4444'4444'4444'4444) == sum1);
-            expect(UINT64_C(0x4444'4444'4444'4444) + x == sum1);
-            expect(UINT64_C(0x4444'4444'4444'4444) + bigint::uint_var(x) == sum1);
+                expect(x + y == sum);
+                expect(bigint::uint_var(x) + y == sum);
+                expect(x + bigint::uint_var(y) == sum);
+                expect(bigint::uint_var(x) + bigint::uint_var(y) == sum);
+                expect(x + UINT64_C(0x4444'4444'4444'4444) == sum1);
+                expect(bigint::uint_var(x) + UINT64_C(0x4444'4444'4444'4444) == sum1);
+                expect(UINT64_C(0x4444'4444'4444'4444) + x == sum1);
+                expect(UINT64_C(0x4444'4444'4444'4444) + bigint::uint_var(x) == sum1);
 
-            expect(x - y == diff);
-            expect(bigint::uint_var(x) - y == diff);
-            expect(x - bigint::uint_var(y) == diff);
-            expect(bigint::uint_var(x) - bigint::uint_var(y) == diff);
-            expect(x - UINT64_C(0x4444'4444'4444'4444) == diff1);
-            expect(bigint::uint_var(x) - UINT64_C(0x4444'4444'4444'4444) == diff1);
+                expect(x - y == diff);
+                expect(bigint::uint_var(x) - y == diff);
+                expect(x - bigint::uint_var(y) == diff);
+                expect(bigint::uint_var(x) - bigint::uint_var(y) == diff);
+                expect(x - UINT64_C(0x4444'4444'4444'4444) == diff1);
+                expect(bigint::uint_var(x) - UINT64_C(0x4444'4444'4444'4444) == diff1);
 
-            expect(x * y == prod);
-            expect(bigint::uint_var(x) * y == prod);
-            expect(x * bigint::uint_var(y) == prod);
-            expect(bigint::uint_var(x) * bigint::uint_var(y) == prod);
-            expect(x * UINT64_C(0x4444'4444'4444'4444) == prod1);
-            expect(bigint::uint_var(x) * UINT64_C(0x4444'4444'4444'4444) == prod1);
-            expect(UINT64_C(0x4444'4444'4444'4444) * x == prod1);
-            expect(UINT64_C(0x4444'4444'4444'4444) * bigint::uint_var(x) == prod1);
+                expect(x * y == prod);
+                expect(bigint::uint_var(x) * y == prod);
+                expect(x * bigint::uint_var(y) == prod);
+                expect(bigint::uint_var(x) * bigint::uint_var(y) == prod);
+                expect(x * UINT64_C(0x4444'4444'4444'4444) == prod1);
+                expect(bigint::uint_var(x) * UINT64_C(0x4444'4444'4444'4444) == prod1);
+                expect(UINT64_C(0x4444'4444'4444'4444) * x == prod1);
+                expect(UINT64_C(0x4444'4444'4444'4444) * bigint::uint_var(x) == prod1);
 
-            expect(x / y == 1u);
-            expect(bigint::uint_var(x) / y == 1u);
-            expect(x / bigint::uint_var(y) == 1u);
-            expect(bigint::uint_var(x) / bigint::uint_var(y) == 1u);
-            expect(x / UINT64_C(0x4444'4444'4444'4444) == quot1);
-            expect(bigint::uint_var(x) / UINT64_C(0x4444'4444'4444'4444) == quot1);
+                expect(x / y == 1u);
+                expect(bigint::uint_var(x) / y == 1u);
+                expect(x / bigint::uint_var(y) == 1u);
+                expect(bigint::uint_var(x) / bigint::uint_var(y) == 1u);
+                expect(x / UINT64_C(0x4444'4444'4444'4444) == quot1);
+                expect(bigint::uint_var(x) / UINT64_C(0x4444'4444'4444'4444) == quot1);
 
-            expect(x % y == diff);
-            expect(bigint::uint_var(x) % y == diff);
-            expect(x % bigint::uint_var(y) == diff);
-            expect(bigint::uint_var(x) % bigint::uint_var(y) == diff);
-            expect(x % UINT64_C(0x4444'4444'4444'4444) == UINT64_C(0x3333'3333'3333'3333));
-            expect(bigint::uint_var(x) % UINT64_C(0x4444'4444'4444'4444) ==
-                   UINT64_C(0x3333'3333'3333'3333));
+                expect(x % y == diff);
+                expect(bigint::uint_var(x) % y == diff);
+                expect(x % bigint::uint_var(y) == diff);
+                expect(bigint::uint_var(x) % bigint::uint_var(y) == diff);
+                expect(x % UINT64_C(0x4444'4444'4444'4444) == UINT64_C(0x3333'3333'3333'3333));
+                expect(bigint::uint_var(x) % UINT64_C(0x4444'4444'4444'4444) ==
+                       UINT64_C(0x3333'3333'3333'3333));
+            }
+            {
+                auto x = bigint::uint_var{UINT64_C(0x0010'dead'c0de'beef), 0, 0, 0, 0, 0};
+                auto y = bigint::uint_var{UINT64_C(0x0000'0060'0000'0000),
+                                          UINT64_C(0xdead'c0de'dead'c0de),
+                                          UINT64_C(0xdead'c0de'dead'c0de)};
+                auto z = bigint::uint_var{UINT64_C(0x0000'0043'7ab7'037a),
+                                          UINT64_C(0xfbbc'0000'0000'0000), 0};
+
+                expect(bigint::trunc_floor_log2_div(x, y) == 205);
+                expect(bigint::trunc_ceil_log2_div(x, y) == 206);
+                expect(bigint::trunc_floor_log2_div(x, z) == 206);
+                expect(bigint::trunc_ceil_log2_div(x, z) == 206);
+            }
         };
     };
 }
