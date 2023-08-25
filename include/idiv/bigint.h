@@ -112,14 +112,21 @@ namespace jkj {
 
                 if (carry != 0) {
                     std::size_t idx = y.size();
-                    while (x[idx] == wuint::uint64_mask) {
-                        x[idx] = 0;
+                    while (true) {
                         // Carry.
-                        if (++idx == x.size()) {
+                        if (idx == x.size()) {
                             return true;
                         }
+
+                        if (x[idx] == wuint::uint64_mask) {
+                            x[idx] = 0;
+                            ++idx;
+                        }
+                        else {
+                            ++x[idx];
+                            break;
+                        }
                     }
-                    ++x[idx];
                 }
                 return false;
             }
@@ -713,6 +720,15 @@ namespace jkj {
         template <class T>
         concept int_const = detail::is_int_const_impl<T>::value;
 
+        // std::bit_width counterpart for uint_view.
+        constexpr std::size_t bit_width(uint_view n) noexcept {
+            if (n.is_zero()) {
+                return 0;
+            }
+            return (n.blocks().size() - 1) * number_of_bits_in_block +
+                   std::size_t(std::bit_width(n.blocks().back()));
+        }
+
         // Comparison operators.
 
         constexpr bool operator==(uint_view x, uint_view y) noexcept {
@@ -1172,14 +1188,6 @@ namespace jkj {
             }
             constexpr uint_var& operator%=(uint_const_t<>) const = delete;
 
-            friend constexpr std::size_t bit_width(uint_var const& n) noexcept {
-                if (n.is_zero()) {
-                    return 0;
-                }
-                return (n.blocks().size() - 1) * number_of_bits_in_block +
-                       std::size_t(std::bit_width(n.blocks().back()));
-            }
-
             static constexpr uint_var power_of_2(std::size_t exp) {
                 uint_var ret_value;
                 ret_value.blocks_.resize((exp / number_of_bits_in_block) + 1, 0);
@@ -1329,148 +1337,6 @@ namespace jkj {
                 }
 
                 return trailing_zero_blocks * number_of_bits_in_block + trailing_zero_bits;
-            }
-
-            // Computes max(floor(log2(x / y)), 0).
-            // Precondition: x, y are not zero.
-            friend constexpr std::size_t trunc_floor_log2_div(uint_var const& x,
-                                                              uint_var const& y) noexcept {
-                util::constexpr_assert<util::error_msgs::divide_by_zero>(!x.is_zero() &&
-                                                                         !y.is_zero());
-
-                auto const x_leading_one_pos = bit_width(x);
-                auto const y_leading_one_pos = bit_width(y);
-
-                if (y_leading_one_pos >= x_leading_one_pos) {
-                    return 0;
-                }
-
-                auto const total_shift = x_leading_one_pos - y_leading_one_pos;
-                auto const block_shift = total_shift / number_of_bits_in_block;
-                auto const bit_shift = total_shift % number_of_bits_in_block;
-
-                if (bit_shift != 0) {
-                    // The first block of y.
-                    if (y.number_of_blocks() + block_shift < x.number_of_blocks()) {
-                        auto const x_block = x[y.number_of_blocks() + block_shift];
-                        auto const y_block =
-                            (y[y.number_of_blocks() - 1] >> (number_of_bits_in_block - bit_shift));
-
-                        if (x_block < y_block) {
-                            return total_shift - 1;
-                        }
-                        else if (x_block > y_block) {
-                            return total_shift;
-                        }
-                    }
-                    // Middle blocks of y.
-                    for (std::size_t idx = y.number_of_blocks() - 1; idx > 0; --idx) {
-                        auto const x_block = x[idx + block_shift];
-                        auto const y_block =
-                            ((y[idx] << bit_shift) |
-                             (y[idx - 1] >> (number_of_bits_in_block - bit_shift))) &
-                            wuint::uint64_mask;
-                        if (x_block < y_block) {
-                            return total_shift - 1;
-                        }
-                        else if (x_block < y_block) {
-                            return total_shift;
-                        }
-                    }
-                    // The last block of y.
-                    {
-                        auto const x_block = x[block_shift];
-                        auto const y_block = ((y[0] << bit_shift) & wuint::uint64_mask);
-
-                        if (x_block < y_block) {
-                            return total_shift - 1;
-                        }
-                    }
-                }
-                else {
-                    for (std::size_t idx_p1 = y.number_of_blocks(); idx_p1 > 0; --idx_p1) {
-                        auto const x_block = x[idx_p1 - 1 + block_shift];
-                        auto const y_block = y[idx_p1 - 1];
-                        if (x_block < y_block) {
-                            return total_shift - 1;
-                        }
-                        else if (x_block > y_block) {
-                            return total_shift;
-                        }
-                    }
-                }
-                return total_shift;
-            }
-
-            // Computes max(ceil(log2(x / y)), 0).
-            // Precondition: x, y are not zero.
-            friend constexpr std::size_t trunc_ceil_log2_div(uint_var const& x,
-                                                             uint_var const& y) noexcept {
-                util::constexpr_assert<util::error_msgs::divide_by_zero>(!x.is_zero() &&
-                                                                         !y.is_zero());
-
-                auto const x_leading_one_pos = bit_width(x);
-                auto const y_leading_one_pos = bit_width(y);
-
-                if (y_leading_one_pos >= x_leading_one_pos) {
-                    return 0;
-                }
-
-                auto const total_shift = x_leading_one_pos - y_leading_one_pos;
-                auto const block_shift = total_shift / number_of_bits_in_block;
-                auto const bit_shift = total_shift % number_of_bits_in_block;
-
-                if (bit_shift != 0) {
-                    // The first block of y.
-                    if (y.number_of_blocks() + block_shift < x.number_of_blocks()) {
-                        auto const x_block = x[y.number_of_blocks() + block_shift];
-                        auto const y_block =
-                            (y[y.number_of_blocks() - 1] >> (number_of_bits_in_block - bit_shift));
-
-                        if (x_block > y_block) {
-                            return total_shift + 1;
-                        }
-                        else if (x_block < y_block) {
-                            return total_shift;
-                        }
-                    }
-                    // Middle blocks of y.
-                    for (std::size_t idx = y.number_of_blocks() - 1; idx > 0; --idx) {
-                        auto const x_block = x[idx + block_shift];
-                        auto const y_block =
-                            ((y[idx] << bit_shift) |
-                             (y[idx - 1] >> (number_of_bits_in_block - bit_shift))) &
-                            wuint::uint64_mask;
-                        if (x_block > y_block) {
-                            return total_shift + 1;
-                        }
-                        else if (x_block < y_block) {
-                            return total_shift;
-                        }
-                    }
-                    // The last block of y.
-                    {
-                        auto const x_block = x[block_shift];
-                        auto const y_block = ((y[0] << bit_shift) & wuint::uint64_mask);
-
-                        if (x_block > y_block) {
-                            return total_shift + 1;
-                        }
-                    }
-                }
-                else {
-                    for (std::size_t idx_p1 = y.number_of_blocks(); idx_p1 > 0; --idx_p1) {
-                        auto const x_block = x[idx_p1 - 1 + block_shift];
-                        auto const y_block = y[idx_p1 - 1];
-                        if (x_block > y_block) {
-                            return total_shift + 1;
-                        }
-                        else if (x_block < y_block) {
-                            return total_shift;
-                        }
-                    }
-                }
-                return total_shift;
             }
 
             // Return a list consisting of blocks of decimal digits of the stored number.
@@ -1653,16 +1519,17 @@ namespace jkj {
             return r;
         }
         constexpr uint_var operator%(uint_var&& x, uint_view y) {
-            return static_cast<uint_var&&>(x.long_division(y));
+            x.long_division(y);
+            return static_cast<uint_var&&>(x);
         }
         constexpr uint_var operator%(uint_view x, convertible_to_block_type auto y) {
             auto r = uint_var(x);
-            r.long_division(y);
+            r.long_division(uint_view::make_view_from_single_block(y));
             return r;
         }
         constexpr uint_var operator%(uint_var&& x, convertible_to_block_type auto y) {
-            return static_cast<uint_var&&>(
-                x.long_division(uint_view::make_view_from_single_block(y)));
+            x.long_division(uint_view::make_view_from_single_block(y));
+            return static_cast<uint_var&&>(x);
         }
         constexpr uint_var operator%(uint_view x, uint_const_t<>) = delete;
 
@@ -1700,6 +1567,142 @@ namespace jkj {
                 ++quotient;
             }
             return quotient;
+        }
+
+        // Computes max(floor(log2(x / y)), 0).
+        // Precondition: x, y are not zero.
+        constexpr std::size_t trunc_floor_log2_div(uint_view x, uint_view y) noexcept {
+            util::constexpr_assert<util::error_msgs::divide_by_zero>(!x.is_zero() && !y.is_zero());
+
+            auto const x_leading_one_pos = bit_width(x);
+            auto const y_leading_one_pos = bit_width(y);
+
+            if (y_leading_one_pos >= x_leading_one_pos) {
+                return 0;
+            }
+
+            auto const total_shift = x_leading_one_pos - y_leading_one_pos;
+            auto const block_shift = total_shift / number_of_bits_in_block;
+            auto const bit_shift = total_shift % number_of_bits_in_block;
+
+            if (bit_shift != 0) {
+                // The first block of y.
+                if (y.number_of_blocks() + block_shift < x.number_of_blocks()) {
+                    auto const x_block = x[y.number_of_blocks() + block_shift];
+                    auto const y_block =
+                        (y[y.number_of_blocks() - 1] >> (number_of_bits_in_block - bit_shift));
+
+                    if (x_block < y_block) {
+                        return total_shift - 1;
+                    }
+                    else if (x_block > y_block) {
+                        return total_shift;
+                    }
+                }
+                // Middle blocks of y.
+                for (std::size_t idx = y.number_of_blocks() - 1; idx > 0; --idx) {
+                    auto const x_block = x[idx + block_shift];
+                    auto const y_block = ((y[idx] << bit_shift) |
+                                          (y[idx - 1] >> (number_of_bits_in_block - bit_shift))) &
+                                         wuint::uint64_mask;
+                    if (x_block < y_block) {
+                        return total_shift - 1;
+                    }
+                    else if (x_block < y_block) {
+                        return total_shift;
+                    }
+                }
+                // The last block of y.
+                {
+                    auto const x_block = x[block_shift];
+                    auto const y_block = ((y[0] << bit_shift) & wuint::uint64_mask);
+
+                    if (x_block < y_block) {
+                        return total_shift - 1;
+                    }
+                }
+            }
+            else {
+                for (std::size_t idx_p1 = y.number_of_blocks(); idx_p1 > 0; --idx_p1) {
+                    auto const x_block = x[idx_p1 - 1 + block_shift];
+                    auto const y_block = y[idx_p1 - 1];
+                    if (x_block < y_block) {
+                        return total_shift - 1;
+                    }
+                    else if (x_block > y_block) {
+                        return total_shift;
+                    }
+                }
+            }
+            return total_shift;
+        }
+
+        // Computes max(ceil(log2(x / y)), 0).
+        // Precondition: x, y are not zero.
+        constexpr std::size_t trunc_ceil_log2_div(uint_view x, uint_view y) noexcept {
+            util::constexpr_assert<util::error_msgs::divide_by_zero>(!x.is_zero() && !y.is_zero());
+
+            auto const x_leading_one_pos = bit_width(x);
+            auto const y_leading_one_pos = bit_width(y);
+
+            if (y_leading_one_pos >= x_leading_one_pos) {
+                return 0;
+            }
+
+            auto const total_shift = x_leading_one_pos - y_leading_one_pos;
+            auto const block_shift = total_shift / number_of_bits_in_block;
+            auto const bit_shift = total_shift % number_of_bits_in_block;
+
+            if (bit_shift != 0) {
+                // The first block of y.
+                if (y.number_of_blocks() + block_shift < x.number_of_blocks()) {
+                    auto const x_block = x[y.number_of_blocks() + block_shift];
+                    auto const y_block =
+                        (y[y.number_of_blocks() - 1] >> (number_of_bits_in_block - bit_shift));
+
+                    if (x_block > y_block) {
+                        return total_shift + 1;
+                    }
+                    else if (x_block < y_block) {
+                        return total_shift;
+                    }
+                }
+                // Middle blocks of y.
+                for (std::size_t idx = y.number_of_blocks() - 1; idx > 0; --idx) {
+                    auto const x_block = x[idx + block_shift];
+                    auto const y_block = ((y[idx] << bit_shift) |
+                                          (y[idx - 1] >> (number_of_bits_in_block - bit_shift))) &
+                                         wuint::uint64_mask;
+                    if (x_block > y_block) {
+                        return total_shift + 1;
+                    }
+                    else if (x_block < y_block) {
+                        return total_shift;
+                    }
+                }
+                // The last block of y.
+                {
+                    auto const x_block = x[block_shift];
+                    auto const y_block = ((y[0] << bit_shift) & wuint::uint64_mask);
+
+                    if (x_block > y_block) {
+                        return total_shift + 1;
+                    }
+                }
+            }
+            else {
+                for (std::size_t idx_p1 = y.number_of_blocks(); idx_p1 > 0; --idx_p1) {
+                    auto const x_block = x[idx_p1 - 1 + block_shift];
+                    auto const y_block = y[idx_p1 - 1];
+                    if (x_block > y_block) {
+                        return total_shift + 1;
+                    }
+                    else if (x_block < y_block) {
+                        return total_shift;
+                    }
+                }
+            }
+            return total_shift;
         }
 
 
