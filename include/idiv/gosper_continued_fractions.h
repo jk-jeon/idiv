@@ -19,6 +19,7 @@
 #define JKJ_HEADER_GOSPER_ALGORITHM
 
 #include "continued_fractions.h"
+#include <cstdlib>
 #include <type_traits>
 
 // Implements Gosper's algorithm.
@@ -88,8 +89,11 @@ namespace jkj {
             // If the current coefficient is the last one, we have to use a different update
             // formula from now on.
             if (x_cf_.is_terminated()) {
+                using util::swap;
                 swap(coeff_.numerator.const_coeff, coeff_.numerator.x_coeff);
                 swap(coeff_.numerator.y_coeff, coeff_.numerator.xy_coeff);
+                swap(coeff_.denominator.const_coeff, coeff_.denominator.x_coeff);
+                swap(coeff_.denominator.y_coeff, coeff_.denominator.xy_coeff);
             }
         }
         constexpr void progress_y() {
@@ -100,16 +104,37 @@ namespace jkj {
             // If the current coefficient is the last one, we have to use a different update
             // formula from now on.
             if (y_cf_.is_terminated()) {
+                using util::swap;
                 swap(coeff_.numerator.const_coeff, coeff_.numerator.y_coeff);
                 swap(coeff_.numerator.x_coeff, coeff_.numerator.xy_coeff);
+                swap(coeff_.denominator.const_coeff, coeff_.denominator.y_coeff);
+                swap(coeff_.denominator.x_coeff, coeff_.denominator.xy_coeff);
             }
         }
 
         constexpr int_type compute_next_coefficient() {
-            util::constexpr_assert<util::error_msgs::no_error_msg>(!x_cf_.is_terminated() ||
-                                                                   !y_cf_.is_terminated());
             while (true) {
-                if (x_cf_.is_terminated()) {
+                if (x_cf_.is_terminated() && y_cf_.is_terminated()) {
+                    // Proceed as in the case of usual rational continued fractions.
+                    util::constexpr_assert<util::error_msgs::divide_by_zero>(
+                        !is_zero(coeff_.denominator.const_coeff));
+                    util::constexpr_assert<util::error_msgs::divide_by_zero>(
+                        is_strictly_positive(coeff_.denominator.const_coeff));
+
+                    using std::div;
+                    auto div_result =
+                        div(coeff_.numerator.const_coeff, abs(coeff_.denominator.const_coeff));
+                    coeff_.numerator.const_coeff =
+                        static_cast<int_type&&>(coeff_.denominator.const_coeff);
+                    coeff_.denominator.const_coeff = int_type(static_cast<uint_type&&>(div_result.rem));
+
+                    if (is_zero(coeff_.denominator.const_coeff)) {
+                        crtp_base::set_terminate_flag();
+                    }
+
+                    return static_cast<int_type&&>(div_result.quot);
+                }
+                else if (x_cf_.is_terminated()) {
                     if (!is_zero(coeff_.denominator.const_coeff) &&
                         !is_zero(coeff_.denominator.y_coeff)) {
                         auto const const_output =
@@ -123,6 +148,7 @@ namespace jkj {
                                 const_output * coeff_.denominator.const_coeff;
                             coeff_.numerator.y_coeff -= const_output * coeff_.denominator.y_coeff;
 
+                            using util::swap;
                             swap(coeff_.numerator, coeff_.denominator);
 
                             // Terminate if all coefficients in the denominator has become zero.
@@ -152,6 +178,7 @@ namespace jkj {
                                 const_output * coeff_.denominator.const_coeff;
                             coeff_.numerator.x_coeff -= const_output * coeff_.denominator.x_coeff;
 
+                            using util::swap;
                             swap(coeff_.numerator, coeff_.denominator);
 
                             // Terminate if all coefficients in the denominator has become zero.
@@ -190,6 +217,7 @@ namespace jkj {
                             coeff_.numerator.y_coeff -= const_output * coeff_.denominator.y_coeff;
                             coeff_.numerator.xy_coeff -= const_output * coeff_.denominator.xy_coeff;
 
+                            using util::swap;
                             swap(coeff_.numerator, coeff_.denominator);
 
                             // Terminate if all coefficients in the denominator has become zero.
