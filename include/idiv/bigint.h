@@ -1679,6 +1679,9 @@ namespace jkj {
             return ret;
         }
 
+        constexpr uint_var div_floor(uint_view x, uint_view y) { return x / y; }
+        constexpr uint_var div_floor(uint_var&& x, uint_view y) { return x.long_division(y); }
+
         constexpr uint_var div_ceil(uint_view x, uint_view y) {
             auto dividend = uint_var(x);
             auto quotient = dividend.long_division(y);
@@ -1687,7 +1690,7 @@ namespace jkj {
             }
             return quotient;
         }
-        constexpr uint_var div_ceil(uint_var&& x, uint_var const& y) {
+        constexpr uint_var div_ceil(uint_var&& x, uint_view y) {
             auto quotient = x.long_division(y);
             if (!x.is_zero()) {
                 ++quotient;
@@ -1965,10 +1968,11 @@ namespace jkj {
             constexpr uint_var const& abs() const& noexcept { return abs_; }
             constexpr uint_var&& abs() && noexcept { return static_cast<uint_var&&>(abs_); }
 
-            constexpr void invert_sign() noexcept {
+            constexpr int_var& invert_sign() noexcept {
                 if (!is_zero()) {
                     sign_ = ::jkj::bigint::invert_sign(sign_);
                 }
+                return *this;
             }
 
             constexpr int_var operator-() const& {
@@ -2855,6 +2859,9 @@ namespace jkj {
             return ret;
         }
 
+        constexpr int_var div_floor(int_view x, uint_view y) { return x / y; }
+        constexpr int_var div_floor(int_var&& x, uint_view y) { return x.long_division(y); }
+
         constexpr int_var div_ceil(int_view x, uint_view y) {
             auto dividend = int_var(x);
             auto quotient = dividend.long_division(y);
@@ -2863,12 +2870,46 @@ namespace jkj {
             }
             return quotient;
         }
-        constexpr int_var div_ceil(int_var&& x, uint_var const& y) {
+        constexpr int_var div_ceil(int_var&& x, uint_view y) {
             auto quotient = x.long_division(y);
             if (!x.is_zero()) {
                 ++quotient;
             }
             return quotient;
+        }
+
+        constexpr int_var div_floor(int_view x, int_view y) {
+            if (is_nonnegative(y)) {
+                return div_floor(x, y.abs());
+            }
+            else {
+                return div_floor(invert_sign(x), y.abs());
+            }
+        }
+        constexpr int_var div_floor(int_var&& x, int_view y) {
+            if (is_nonnegative(y)) {
+                return div_floor(static_cast<int_var&&>(x), y.abs());
+            }
+            else {
+                return div_floor(static_cast<int_var&&>(x.invert_sign()), y.abs());
+            }
+        }
+
+        constexpr int_var div_ceil(int_view x, int_view y) {
+            if (is_nonnegative(y)) {
+                return div_ceil(x, y.abs());
+            }
+            else {
+                return div_ceil(invert_sign(x), y.abs());
+            }
+        }
+        constexpr int_var div_ceil(int_var&& x, int_view y) {
+            if (is_nonnegative(y)) {
+                return div_ceil(static_cast<int_var&&>(x), y.abs());
+            }
+            else {
+                return div_ceil(static_cast<int_var&&>(x.invert_sign()), y.abs());
+            }
         }
 
         // Operations on int_const.
