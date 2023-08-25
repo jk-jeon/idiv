@@ -16,8 +16,8 @@
 // KIND, either express or implied.
 
 
-#ifndef JKJ_HEADER_IDIV_CORE
-#define JKJ_HEADER_IDIV_CORE
+#ifndef JKJ_HEADER_IDIV_UTIL
+#define JKJ_HEADER_IDIV_UTIL
 
 #include <cassert>
 #include <cstddef>
