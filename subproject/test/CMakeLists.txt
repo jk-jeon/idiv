@@ -12,7 +12,6 @@ if (NOT TARGET ut)
           ut
           GIT_REPOSITORY https://github.com/boost-ext/ut.git
           GIT_TAG        v1.1.9
-          SOURCE_DIR     ${CMAKE_CURRENT_LIST_DIR}/../3rdparty/ut
   )
   FetchContent_MakeAvailable(ut)
 endif()
