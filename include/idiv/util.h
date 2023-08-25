@@ -85,7 +85,7 @@ namespace jkj {
         }
 
         template <class T>
-        constexpr void swap(T& x, T& y) {
+        constexpr void swap(T& x, T& y) noexcept {
             auto temp = static_cast<T&&>(x);
             x = static_cast<T&&>(y);
             y = static_cast<T&&>(temp);
