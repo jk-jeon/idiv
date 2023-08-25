@@ -3049,6 +3049,10 @@ namespace jkj {
                 }
             }
         }
+
+        // Specializations for swap.
+        constexpr void swap(uint_var& x, uint_var& y) noexcept { util::swap(x, y); }
+        constexpr void swap(int_var& x, int_var& y) noexcept { util::swap(x, y); }
     }
 }
 
