@@ -433,4 +433,34 @@ int main() {
             expect(cf.is_terminated() == true);
         }
     };
+
+    "[gosper_continued_fractions]"_test = [] {
+        using frac_t = frac<bigint::int_var, bigint::uint_var>;
+        using rational_continued_fractions_t =
+            rational_continued_fractions<bigint::int_var, bigint::uint_var>;
+        // Take x = 17/89, y = 31/125, and
+        // z = (8+4x+2y+xy)/(1+2x-3y) = 2655/182.
+        gosper_continued_fractions cf{rational_continued_fractions_t{{17, 89u}},
+                                      rational_continued_fractions_t{{31, 125u}},
+                                      {// numerator
+                                       {8, 4, 2, 1},
+                                       // denominator
+                                       {1, 2, -3, 0}}};
+
+        expect(cf.update() == true);
+        expect(cf.current_convergent() == frac_t{14, 1u});
+        expect(cf.update() == true);
+        expect(cf.current_convergent() == frac_t{15, 1u});
+        expect(cf.update() == true);
+        expect(cf.current_convergent() == frac_t{29, 2u});
+        expect(cf.update() == true);
+        expect(cf.current_convergent() == frac_t{73, 5u});
+        expect(cf.update() == true);
+        expect(cf.current_convergent() == frac_t{175, 12u});
+        expect(cf.update() == true);
+        expect(cf.current_convergent() == frac_t{248, 17u});
+        expect(cf.update() == true);
+        expect(cf.current_convergent() == frac_t{2655, 182u});
+        expect(cf.is_terminated() == true);
+    };
 }
