@@ -2522,6 +2522,9 @@ namespace jkj {
         constexpr int_var operator+(int_var&& x, int_view y) {
             return static_cast<int_var&&>(x += y);
         }
+        constexpr int_var operator+(int_var&& x, int_var&& y) {
+            return static_cast<int_var&&>(x += y);
+        }
         constexpr int_var operator+(int_var&& x, convertible_to_block_type auto y) {
             return static_cast<int_var&&>(x += y);
         }
