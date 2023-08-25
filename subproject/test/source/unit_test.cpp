@@ -1,5 +1,5 @@
-#include "idiv/wuint.h"
 #include "idiv/bigint.h"
+#include "idiv/gosper_continued_fractions.h"
 #include "idiv/rational_continued_fractions.h"
 #include <boost/ut.hpp>
 
@@ -382,5 +382,55 @@ int main() {
                 expect(bigint::trunc_ceil_log2_div(x, z) == 206);
             }
         };
+    };
+
+    "[rational_continued_fractions]"_test = [] {
+        using frac_t = frac<bigint::int_var, bigint::uint_var>;
+        {
+            rational_continued_fractions<bigint::int_var, bigint::uint_var> cf{{156, 179u}};
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{0, 1u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{1, 1u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{6, 7u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{7, 8u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{27, 31u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{34, 39u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{61, 70u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{156, 179u});
+            expect(cf.is_terminated() == true);
+        }
+        {
+            rational_continued_fractions<bigint::int_var, bigint::uint_var> cf{{-2767, 1982u}};
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{-2, 1u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{-1, 1u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{-3, 2u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{-4, 3u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{-7, 5u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{-67, 48u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{-74, 53u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{-141, 101u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{-497, 356u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{-1135, 813u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{-2767, 1982u});
+            expect(cf.is_terminated() == true);
+        }
     };
 }
