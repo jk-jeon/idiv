@@ -1473,7 +1473,11 @@ namespace jkj {
         constexpr uint_var operator*(uint_var&& x, convertible_to_block_type auto y) {
             return static_cast<uint_var&&>(x *= y);
         }
+        constexpr uint_var operator*(uint_view x, uint_const_t<1u>) { return uint_var(x); }
         constexpr uint_var operator*(uint_view, uint_const_t<>) { return {}; }
+        constexpr uint_var operator*(uint_var&& x, uint_const_t<1u>) {
+            return static_cast<uint_var&&>(x);
+        }
         constexpr uint_var operator*(convertible_to_block_type auto x, uint_view y) {
             auto r = uint_var(y);
             r *= x;
@@ -1481,6 +1485,10 @@ namespace jkj {
         }
         constexpr uint_var operator*(convertible_to_block_type auto x, uint_var&& y) {
             return static_cast<uint_var&&>(y *= x);
+        }
+        constexpr uint_var operator*(uint_const_t<1u>, uint_view y) { return uint_var(y); }
+        constexpr uint_var operator*(uint_const_t<1u>, uint_var&& y) {
+            return static_cast<uint_var&&>(y);
         }
         constexpr uint_var operator*(uint_const_t<>, uint_view) { return {}; }
 
@@ -1502,7 +1510,11 @@ namespace jkj {
         constexpr uint_var operator/(uint_var&& x, convertible_to_block_type auto y) {
             return x.long_division(uint_view::make_view_from_single_block(y));
         }
-        constexpr uint_var operator/(uint_view x, uint_const_t<>) = delete;
+        constexpr uint_var operator/(uint_view x, uint_const_t<1u>) { return uint_var(x); }
+        constexpr uint_var operator/(uint_var&& x, uint_const_t<1u>) {
+            return static_cast<uint_var&&>(x);
+        }
+        constexpr uint_var operator/(uint_view, uint_const_t<>) = delete;
 
         constexpr uint_var& operator/=(uint_var& x, uint_view y) {
             auto r = x / y;
@@ -1514,6 +1526,7 @@ namespace jkj {
             x = static_cast<uint_var&&>(r);
             return x;
         }
+        constexpr uint_var& operator/=(uint_var& x, uint_const_t<1u>) { return x; }
         constexpr uint_var& operator/=(uint_var& x, uint_const_t<>) = delete;
 
         constexpr uint_var operator%(uint_view x, uint_view y) {
@@ -1534,6 +1547,7 @@ namespace jkj {
             x.long_division(uint_view::make_view_from_single_block(y));
             return static_cast<uint_var&&>(x);
         }
+        constexpr uint_var operator%(uint_view x, uint_const_t<1u>) { return {}; }
         constexpr uint_var operator%(uint_view x, uint_const_t<>) = delete;
 
         struct uint_var_div_t {
@@ -1546,15 +1560,26 @@ namespace jkj {
             ret.quot = ret.rem.long_division(y);
             return ret;
         }
+        constexpr uint_var_div_t div(uint_view x, uint_const_t<1u>) { return {uint_var(x), {}}; }
+        constexpr uint_var_div_t div(uint_view x, uint_const_t<>) = delete;
         constexpr uint_var_div_t div(uint_var&& x, uint_view y) {
             uint_var_div_t ret;
             ret.quot = x.long_division(y);
             ret.rem = static_cast<uint_var&&>(x);
             return ret;
         }
+        constexpr uint_var_div_t div(uint_var&& x, uint_const_t<1u>) {
+            return {static_cast<uint_var&&>(x), {}};
+        }
 
         constexpr uint_var div_floor(uint_view x, uint_view y) { return x / y; }
+        constexpr uint_var div_floor(uint_view x, uint_const_t<1u>) { return uint_var(x); }
+        constexpr uint_var div_floor(uint_view x, uint_const_t<>) = delete;
         constexpr uint_var div_floor(uint_var&& x, uint_view y) { return x.long_division(y); }
+        constexpr uint_var div_floor(uint_var&& x, uint_const_t<1u>) {
+            return static_cast<uint_var&&>(x);
+        }
+        constexpr uint_var div_floor(uint_var&& x, uint_const_t<>) = delete;
 
         constexpr uint_var div_ceil(uint_view x, uint_view y) {
             auto dividend = uint_var(x);
@@ -1564,12 +1589,17 @@ namespace jkj {
             }
             return quotient;
         }
+        constexpr uint_var div_ceil(uint_view x, uint_const_t<1u>) { return uint_var(x); }
+        constexpr uint_var div_ceil(uint_view x, uint_const_t<>) = delete;
         constexpr uint_var div_ceil(uint_var&& x, uint_view y) {
             auto quotient = x.long_division(y);
             if (!x.is_zero()) {
                 ++quotient;
             }
             return quotient;
+        }
+        constexpr uint_var div_ceil(uint_var&& x, uint_const_t<1u>) {
+            return static_cast<uint_var&&>(x);
         }
 
         // Computes max(floor(log2(x / y)), 0).
@@ -1948,6 +1978,7 @@ namespace jkj {
                 sign_ = n.sign_;
                 abs_.blocks_.assign(n.blocks().cbegin(), n.blocks().cend());
             }
+            explicit constexpr int_var(uint_const_t<>) {}
             explicit constexpr int_var(int_const_t<>) {}
 
             // Obtain view.
@@ -2207,6 +2238,18 @@ namespace jkj {
                 }
                 return *this;
             }
+            constexpr int_var& operator*=(uint_const_t<1u>) { return *this; }
+            constexpr int_var& operator*=(int_const_t<sign_t::positive, 1u>) { return *this; }
+            constexpr int_var& operator*=(int_const_t<sign_t::negative, 1u>) {
+                invert_sign();
+                return *this;
+            }
+            constexpr int_var& operator*=(uint_const_t<>) {
+                abs_.blocks_.clear();
+                sign_ = sign_t::positive;
+                return *this;
+            }
+            constexpr int_var& operator*=(int_const_t<>) { return (*this) *= uint_const_t<>{}; }
 
             // Perform long division.
             // *this becomes the remainder, returns the quotient.
@@ -2239,6 +2282,13 @@ namespace jkj {
                     return int_var{sign_t::negative, static_cast<uint_var&&>(quotient)};
                 }
             }
+            constexpr int_var long_division(uint_const_t<1u> n) {
+                auto quotient = static_cast<int_var&&>(*this);
+                util::constexpr_assert(abs_.blocks_.empty());
+                sign_ = sign_t::positive;
+                return quotient;
+            }
+            constexpr int_var long_division(uint_const_t<>) = delete;
 
             constexpr int_var& operator<<=(std::size_t k) {
                 abs_ <<= k;
@@ -2731,6 +2781,12 @@ namespace jkj {
         constexpr int_var operator*(uint_view x, convertible_to_signed_block_type auto y) {
             return int_var(y >= 0 ? sign_t::positive : sign_t::negative, x * y);
         }
+        constexpr int_var operator*(uint_view x, int_const_t<sign_t::positive, 1u>) {
+            return int_var(sign_t::positive, uint_var(x));
+        }
+        constexpr int_var operator*(uint_view x, int_const_t<sign_t::negative, 1u>) {
+            return int_var(sign_t::negative, uint_var(x));
+        }
         constexpr int_var operator*(uint_view, int_const_t<>) { return {}; }
 
         constexpr int_var operator*(uint_var&& x, convertible_to_signed_block_type auto y) {
@@ -2738,6 +2794,13 @@ namespace jkj {
             r *= y;
             return r;
         }
+        constexpr int_var operator*(uint_var&& x, int_const_t<sign_t::positive, 1u>) {
+            return int_var(sign_t::positive, static_cast<uint_var&&>(x));
+        }
+        constexpr int_var operator*(uint_var&& x, int_const_t<sign_t::negative, 1u>) {
+            return int_var(sign_t::negative, static_cast<uint_var&&>(x));
+        }
+        constexpr int_var operator*(uint_var&& x, int_const_t<>) { return {}; }
 
         constexpr int_var operator*(int_view x, uint_view y) { return y * x; }
         constexpr int_var operator*(int_view x, int_view y) {
@@ -2754,6 +2817,13 @@ namespace jkj {
             r *= y;
             return r;
         }
+        constexpr int_var operator*(int_view x, uint_const_t<1u>) { return int_var(x); }
+        constexpr int_var operator*(int_view x, int_const_t<sign_t::positive, 1u>) {
+            return int_var(x);
+        }
+        constexpr int_var operator*(int_view x, int_const_t<sign_t::negative, 1u>) {
+            return int_var(x).invert_sign();
+        }
         constexpr int_var operator*(int_view, uint_const_t<>) { return {}; }
         constexpr int_var operator*(int_view, int_const_t<>) { return {}; }
 
@@ -2762,6 +2832,15 @@ namespace jkj {
         }
         constexpr int_var operator*(int_var&& x, convertible_to_signed_block_type auto y) {
             return static_cast<int_var&&>(x *= y);
+        }
+        constexpr int_var operator*(int_var&& x, uint_const_t<1u>) {
+            return static_cast<int_var&&>(x);
+        }
+        constexpr int_var operator*(int_var&& x, int_const_t<sign_t::positive, 1u>) {
+            return static_cast<int_var&&>(x);
+        }
+        constexpr int_var operator*(int_var&& x, int_const_t<sign_t::negative, 1u>) {
+            return static_cast<int_var&&>(x.invert_sign());
         }
 
         constexpr int_var operator*(convertible_to_block_type auto x, int_view y) { return y * x; }
@@ -2782,8 +2861,40 @@ namespace jkj {
             return static_cast<int_var&&>(y) * x;
         }
 
+        constexpr int_var operator*(uint_const_t<1u>, int_view y) { return int_var(y); }
+        constexpr int_var operator*(uint_const_t<1u>, int_var&& y) {
+            return static_cast<int_var&&>(y);
+        }
+
         constexpr int_var operator*(uint_const_t<>, int_view) { return {}; }
 
+        constexpr int_var operator*(int_const_t<sign_t::positive, 1u>, uint_view y) {
+            return int_var(sign_t::positive, uint_var(y));
+        }
+        constexpr int_var operator*(int_const_t<sign_t::positive, 1u>, uint_var&& y) {
+            return int_var(sign_t::positive, static_cast<uint_var&&>(y));
+        }
+        constexpr int_var operator*(int_const_t<sign_t::positive, 1u>, int_view y) {
+            return int_var(y);
+        }
+        constexpr int_var operator*(int_const_t<sign_t::positive, 1u>, int_var&& y) {
+            return static_cast<int_var&&>(y);
+        }
+
+        constexpr int_var operator*(int_const_t<sign_t::negative, 1u>, uint_view y) {
+            return int_var(sign_t::negative, uint_var(y));
+        }
+        constexpr int_var operator*(int_const_t<sign_t::negative, 1u>, uint_var&& y) {
+            return int_var(sign_t::negative, static_cast<uint_var&&>(y));
+        }
+        constexpr int_var operator*(int_const_t<sign_t::negative, 1u>, int_view y) {
+            return int_var(y).invert_sign();
+        }
+        constexpr int_var operator*(int_const_t<sign_t::negative, 1u>, int_var&& y) {
+            return static_cast<int_var&&>(y.invert_sign());
+        }
+
+        constexpr int_var operator*(int_const_t<>, uint_view) { return {}; }
         constexpr int_var operator*(int_const_t<>, int_view) { return {}; }
 
         constexpr int_var& operator*=(int_var& x, uint_view y) {
@@ -2811,6 +2922,10 @@ namespace jkj {
         constexpr int_var operator/(int_var&& x, convertible_to_block_type auto y) {
             return x.long_division(uint_view::make_view_from_single_block(y));
         }
+        constexpr int_var operator/(int_view x, uint_const_t<1u>) { return int_var(x); }
+        constexpr int_var operator/(int_var&& x, uint_const_t<1u>) {
+            return static_cast<int_var&&>(x);
+        }
         constexpr int_var operator/(int_view x, uint_const_t<>) = delete;
 
         constexpr int_var& operator/=(int_var& x, uint_view y) {
@@ -2823,6 +2938,7 @@ namespace jkj {
             x = static_cast<int_var&&>(r);
             return x;
         }
+        constexpr int_var& operator/=(int_var& x, uint_const_t<1u>) { return x; }
         constexpr int_var& operator/=(int_var& x, uint_const_t<>) = delete;
 
         constexpr int_var operator%(int_view x, uint_view y) {
@@ -2842,6 +2958,7 @@ namespace jkj {
             return static_cast<int_var&&>(
                 x.long_division(uint_view::make_view_from_single_block(y)));
         }
+        constexpr int_var operator%(int_view x, uint_const_t<1u>) { return {}; }
         constexpr int_var operator%(int_view x, uint_const_t<>) = delete;
 
         struct int_var_div_t {
@@ -2861,9 +2978,19 @@ namespace jkj {
             ret.rem = static_cast<int_var&&>(x).abs();
             return ret;
         }
+        constexpr int_var_div_t div(int_view x, uint_const_t<1u>) { return {int_var(x), {}}; }
+        constexpr int_var_div_t div(int_var&& x, uint_const_t<1u>) {
+            return {static_cast<int_var&&>(x), {}};
+        }
+        constexpr int_var_div_t div(int_view, uint_const_t<>) = delete;
 
         constexpr int_var div_floor(int_view x, uint_view y) { return x / y; }
         constexpr int_var div_floor(int_var&& x, uint_view y) { return x.long_division(y); }
+        constexpr int_var div_floor(int_view x, uint_const_t<1u>) { return int_var(x); }
+        constexpr int_var div_floor(int_var&& x, uint_const_t<1u>) {
+            return static_cast<int_var&&>(x);
+        }
+        constexpr int_var div_floor(int_view x, uint_const_t<>) = delete;
 
         constexpr int_var div_ceil(int_view x, uint_view y) {
             auto dividend = int_var(x);
@@ -2880,6 +3007,11 @@ namespace jkj {
             }
             return quotient;
         }
+        constexpr int_var div_ceil(int_view x, uint_const_t<1u>) { return int_var(x); }
+        constexpr int_var div_ceil(int_var&& x, uint_const_t<1u>) {
+            return static_cast<int_var&&>(x);
+        }
+        constexpr int_var div_ceil(int_view x, uint_const_t<>) = delete;
 
         constexpr int_var div_floor(int_view x, int_view y) {
             if (is_nonnegative(y)) {
@@ -2897,6 +3029,19 @@ namespace jkj {
                 return div_floor(static_cast<int_var&&>(x.invert_sign()), y.abs());
             }
         }
+        constexpr int_var div_floor(int_view x, int_const_t<sign_t::positive, 1u>) {
+            return int_var(x);
+        }
+        constexpr int_var div_floor(int_var&& x, int_const_t<sign_t::positive, 1u>) {
+            return static_cast<int_var&&>(x);
+        }
+        constexpr int_var div_floor(int_view x, int_const_t<sign_t::negative, 1u>) {
+            return int_var(x).invert_sign();
+        }
+        constexpr int_var div_floor(int_var&& x, int_const_t<sign_t::negative, 1u>) {
+            return static_cast<int_var&&>(x.invert_sign());
+        }
+        constexpr int_var div_floor(int_view x, int_const_t<>) = delete;
 
         constexpr int_var div_ceil(int_view x, int_view y) {
             if (is_nonnegative(y)) {
@@ -2914,6 +3059,19 @@ namespace jkj {
                 return div_ceil(static_cast<int_var&&>(x.invert_sign()), y.abs());
             }
         }
+        constexpr int_var div_ceil(int_view x, int_const_t<sign_t::positive, 1u>) {
+            return int_var(x);
+        }
+        constexpr int_var div_ceil(int_var&& x, int_const_t<sign_t::positive, 1u>) {
+            return static_cast<int_var&&>(x);
+        }
+        constexpr int_var div_ceil(int_view x, int_const_t<sign_t::negative, 1u>) {
+            return int_var(x).invert_sign();
+        }
+        constexpr int_var div_ceil(int_var&& x, int_const_t<sign_t::negative, 1u>) {
+            return static_cast<int_var&&>(x.invert_sign());
+        }
+        constexpr int_var div_ceil(int_view x, int_const_t<>) = delete;
 
         // Operations on int_const.
         namespace detail {
