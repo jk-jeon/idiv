@@ -1,7 +1,7 @@
 #include "idiv/bigint.h"
-#include "idiv/gosper_continued_fractions.h"
-#include "idiv/log_continued_fractions.h"
-#include "idiv/rational_continued_fractions.h"
+#include "idiv/gosper_continued_fraction.h"
+#include "idiv/log_continued_fraction.h"
+#include "idiv/rational_continued_fraction.h"
 #include <boost/ut.hpp>
 
 int main() {
@@ -385,10 +385,11 @@ int main() {
         };
     };
 
-    "[rational_continued_fractions]"_test = [] {
+    "[rational_continued_fraction]"_test = [] {
         using frac_t = frac<bigint::int_var, bigint::uint_var>;
         {
-            rational_continued_fractions<bigint::int_var, bigint::uint_var> cf{{156, 179u}};
+            convergent_generator cf{
+                rational_continued_fraction<bigint::int_var, bigint::uint_var>{{156, 179u}}};
             expect(cf.update() == true);
             expect(cf.current_convergent() == frac_t{0, 1u});
             expect(cf.update() == true);
@@ -403,12 +404,12 @@ int main() {
             expect(cf.current_convergent() == frac_t{34, 39u});
             expect(cf.update() == true);
             expect(cf.current_convergent() == frac_t{61, 70u});
-            expect(cf.update() == true);
+            expect(cf.update() == false);
             expect(cf.current_convergent() == frac_t{156, 179u});
-            expect(cf.is_terminated() == true);
         }
         {
-            rational_continued_fractions<bigint::int_var, bigint::uint_var> cf{{-2767, 1982u}};
+            convergent_generator cf{
+                rational_continued_fraction<bigint::int_var, bigint::uint_var>{{-2767, 1982u}}};
             expect(cf.update() == true);
             expect(cf.current_convergent() == frac_t{-2, 1u});
             expect(cf.update() == true);
@@ -429,24 +430,23 @@ int main() {
             expect(cf.current_convergent() == frac_t{-497, 356u});
             expect(cf.update() == true);
             expect(cf.current_convergent() == frac_t{-1135, 813u});
-            expect(cf.update() == true);
+            expect(cf.update() == false);
             expect(cf.current_convergent() == frac_t{-2767, 1982u});
-            expect(cf.is_terminated() == true);
         }
     };
 
-    "[gosper_continued_fractions]"_test = [] {
+    "[gosper_continued_fraction]"_test = [] {
         using frac_t = frac<bigint::int_var, bigint::uint_var>;
-        using rational_continued_fractions_t =
-            rational_continued_fractions<bigint::int_var, bigint::uint_var>;
+        using rational_continued_fraction_t =
+            rational_continued_fraction<bigint::int_var, bigint::uint_var>;
         // Take x = 17/89, y = 31/125, and
         // z = (8+4x+2y+xy)/(1+2x-3y) = 2655/182.
-        gosper_continued_fractions cf{rational_continued_fractions_t{{17, 89u}},
-                                      rational_continued_fractions_t{{31, 125u}},
-                                      {// numerator
-                                       {8, 4, 2, 1},
-                                       // denominator
-                                       {1, 2, -3, 0}}};
+        convergent_generator cf{gosper_continued_fraction{rational_continued_fraction_t{{17, 89u}},
+                                                          rational_continued_fraction_t{{31, 125u}},
+                                                          {// numerator
+                                                           {8, 4, 2, 1},
+                                                           // denominator
+                                                           {1, 2, -3, 0}}}};
 
         expect(cf.update() == true);
         expect(cf.current_convergent() == frac_t{14, 1u});
@@ -460,13 +460,11 @@ int main() {
         expect(cf.current_convergent() == frac_t{175, 12u});
         expect(cf.update() == true);
         expect(cf.current_convergent() == frac_t{248, 17u});
-        expect(cf.update() == true);
+        expect(cf.update() == false);
         expect(cf.current_convergent() == frac_t{2655, 182u});
-        expect(cf.is_terminated() == true);
     };
 
-    "[log_continued_fractions]"_test = [] {
-        using frac_t = frac<bigint::int_var, bigint::uint_var>;
+    "[log_continued_fraction]"_test = [] {
         using unsigned_frac_t = frac<bigint::uint_var, bigint::uint_var>;
 
         should("natural_log_calculator") = [] {

@@ -18,47 +18,47 @@
 #ifndef JKJ_HEADER_BEST_RATIONAL_APPROX
 #define JKJ_HEADER_BEST_RATIONAL_APPROX
 
-#include "continued_fractions.h"
+#include "continued_fraction.h"
 #include <cassert>
 #include <cstdlib>
 
 namespace jkj {
-    template <class Int, class UInt>
+    template <class ConvergentType>
     struct best_rational_approx_output {
-        frac<Int, UInt> below;
-        frac<Int, UInt> above;
+        ConvergentType below;
+        ConvergentType above;
     };
 
     // Find the best rational approximations from below and from above of denominators no more than
     // denominator_upper_bound for the given number x. The number x is given in terms of its
     // continued fractions. The continued fractions calculator cf is assumed to be initialized,
     // i.e., it starts from the first convergent when evaluated.
-    template <class ContinuedFractionsImpl, class UInt>
-    constexpr best_rational_approx_output<typename ContinuedFractionsImpl::int_type,
-                                          typename ContinuedFractionsImpl::uint_type>
-    find_best_rational_approx(ContinuedFractionsImpl& cf, UInt const& denominator_upper_bound) {
+    template <class ConvergentGenerator, class UInt>
+    constexpr best_rational_approx_output<typename ConvergentGenerator::convergent_type>
+    find_best_rational_approx(ConvergentGenerator& cf, UInt const& denominator_upper_bound) {
         util::constexpr_assert(is_strictly_positive(denominator_upper_bound));
 
-        using int_type = typename ContinuedFractionsImpl::int_type;
-        using uint_type = typename ContinuedFractionsImpl::uint_type;
-        best_rational_approx_output<int_type, uint_type> ret_value;
+        using convergent_type = typename ConvergentGenerator::convergent_type;
+        best_rational_approx_output<convergent_type> ret_value;
 
         // First, find the last convergent whose denominator is bounded above by the given upper
         // bound.
-        frac<int_type, uint_type> previous_convergent;
-        frac<int_type, uint_type> current_convergent;
+        convergent_type previous_convergent;
+        convergent_type current_convergent;
         do {
             previous_convergent = cf.previous_convergent();
             current_convergent = cf.current_convergent();
 
-            // Obtain the next convergent.
-            if (!cf.update()) {
+            if (cf.is_terminated()) {
                 // If there is no more convergents, we already obtained the perfect approximation.
                 ret_value.below = cf.current_convergent();
                 ret_value.above = cf.current_convergent();
                 return ret_value;
             }
-        } while (cf.current_denominator() <= denominator_upper_bound);
+
+            // Obtain the next convergent.
+            cf.update();
+        } while (cf.current_convergent_denominator() <= denominator_upper_bound);
 
         // If the current convergent is of even index,
         // then the current convergent is the best approximation from below,

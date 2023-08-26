@@ -15,10 +15,10 @@
 // is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 // KIND, either express or implied.
 
-#ifndef JKJ_HEADER_LOG_CONTINUED_FRACTIONS
-#define JKJ_HEADER_LOG_CONTINUED_FRACTIONS
+#ifndef JKJ_HEADER_LOG_CONTINUED_FRACTION
+#define JKJ_HEADER_LOG_CONTINUED_FRACTION
 
-#include "rational_continued_fractions.h"
+#include "rational_continued_fraction.h"
 #include "util.h"
 
 namespace jkj {
@@ -72,7 +72,7 @@ namespace jkj {
                                    coeff_prev_ * previous_convergent_.denominator;
 
             // Update the error bound = 2|p|^(2n-1)((n-1)!)^2 / (Q_(n-1)Q_n).
-            current_error_bound_.numerator *= (current_index_ * current_index_);
+            current_error_bound_.numerator *= (unsigned(current_index_) * unsigned(current_index_));
             current_error_bound_.denominator /= previous_convergent_.denominator;
             current_error_bound_.denominator *= new_denominator;
 
@@ -95,9 +95,9 @@ namespace jkj {
             // For given input x, we find the reduced form of z s.t. x = (1+z)/(1-z), i.e.,
             // z = (x-1)/(x+1). Note that z always lies in (-1,1) for x in (0,infty).
             frac<Int, UInt> z = [&] {
-                rational_continued_fractions<Int, UInt> cf{frac<Int, UInt>{
+                convergent_generator cf{rational_continued_fraction{frac<Int, UInt>{
                     to_signed(positive_rational.numerator) - positive_rational.denominator,
-                    positive_rational.numerator + positive_rational.denominator}};
+                    positive_rational.numerator + positive_rational.denominator}}};
 
                 while (!cf.is_terminated()) {
                     cf.update();

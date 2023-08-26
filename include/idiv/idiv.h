@@ -21,9 +21,9 @@
 
 #include "best_rational_approx.h"
 #include "bigint.h"
-#include "caching_continued_fractions.h"
+#include "caching_continued_fraction.h"
 #include "interval.h"
-#include "rational_continued_fractions.h"
+#include "rational_continued_fraction.h"
 
 namespace jkj {
     namespace idiv {
@@ -32,39 +32,33 @@ namespace jkj {
         // The number x is given in terms of its continued fractions. The first parameter cf is the
         // continued fractions calculator for x. It must be initialized, i.e., it should start with
         // the "convergent" 1/0 when evaluated.
-        template <class ContinuedFractionsCalc, class UInt>
-        constexpr interval<frac<typename ContinuedFractionsCalc::int_type,
-                                typename ContinuedFractionsCalc::uint_type>,
+        template <class ConvergentGenerator, class UInt>
+        constexpr interval<typename ConvergentGenerator::convergent_type,
                            interval_type_t::bounded_left_closed_right_open>
-        find_floor_quotient_range(ContinuedFractionsCalc& cf, UInt const& nmax) {
+        find_floor_quotient_range(ConvergentGenerator& cf, UInt const& nmax) {
             util::constexpr_assert(is_strictly_positive(nmax));
 
-            using frac_t = frac<typename ContinuedFractionsCalc::int_type,
-                                typename ContinuedFractionsCalc::uint_type>;
+            using convergent_type = typename ConvergentGenerator::convergent_type;
 
             // First, find the last convergent and the last semiconvergent whose denominator is
             // bounded above by nmax.
-            frac_t previous_previous_convergent;
+            convergent_type previous_previous_convergent;
 
             // This lambda replaces previous_previous_convergent to the last semiconvergent, and
             // return it as an rvalue reference.
             auto get_last_semiconvergent = [&]() -> decltype(auto) {
-                auto semiconvergent_coeff =
-                    (nmax - previous_previous_convergent.denominator) / cf.previous_denominator();
+                auto semiconvergent_coeff = (nmax - previous_previous_convergent.denominator) /
+                                            cf.previous_convergent_denominator();
 
                 previous_previous_convergent.numerator +=
-                    semiconvergent_coeff * cf.previous_numerator();
+                    semiconvergent_coeff * cf.previous_convergent_numerator();
                 previous_previous_convergent.denominator +=
-                    semiconvergent_coeff * cf.previous_denominator();
+                    semiconvergent_coeff * cf.previous_convergent_denominator();
 
-                return static_cast<frac_t&&>(previous_previous_convergent);
+                return static_cast<convergent_type&&>(previous_previous_convergent);
             };
 
-            while (cf.current_denominator() <= nmax) {
-                // Obtain the next convergent.
-                previous_previous_convergent = cf.previous_convergent();
-                cf.update();
-
+            while (cf.current_convergent_denominator() <= nmax) {
                 // If we reach to the perfect approximation, then we have to find the largest
                 // positive integer v <= nmax such that vp == -1 (mod q), where x = p/q. Then the
                 // lower bound is p/q, while the upper bound is ((vp+1)/q) / v.
@@ -88,8 +82,12 @@ namespace jkj {
                     upper_bound.numerator += max_quotient * cf.current_convergent().numerator;
                     upper_bound.denominator += max_quotient * cf.current_convergent().denominator;
 
-                    return {cf.current_convergent(), static_cast<frac_t&&>(upper_bound)};
+                    return {cf.current_convergent(), static_cast<convergent_type&&>(upper_bound)};
                 }
+
+                // Obtain the next convergent.
+                previous_previous_convergent = cf.previous_convergent();
+                cf.update();
             }
 
             // If there the last convergent is still not a perfect approximation, then we return
@@ -119,8 +117,8 @@ namespace jkj {
         // The number x is given in terms of its continued fractions. The first parameter cf is the
         // continued fractions calculator for x. It must be initialized, i.e., it should start with
         // the "convergent" 1/0 when evaluated.
-        template <class ContinuedFractionsCalc>
-        constexpr multiply_shift_info convert_to_multiply_shift(ContinuedFractionsCalc& cf,
+        template <class ConvergentGenerator>
+        constexpr multiply_shift_info convert_to_multiply_shift(ConvergentGenerator& cf,
                                                                 bigint::uint_var const& nmax) {
             multiply_shift_info ret_value{};
             auto range = find_floor_quotient_range(cf, nmax);
@@ -168,8 +166,8 @@ namespace jkj {
             util::constexpr_assert<util::error_msgs::divide_by_zero>(!x.denominator.is_zero());
             util::constexpr_assert(x.denominator <= nmax);
 
-            using continued_fractions_calculator_type = caching_continued_fractions<
-                rational_continued_fractions<bigint::uint_var, bigint::uint_var>, std::vector>;
+            using continued_fractions_calculator_type = caching_continued_fraction<
+                rational_continued_fraction<bigint::uint_var, bigint::uint_var>>;
 
             multiply_add_shift_info ret_value;
             continued_fractions_calculator_type continued_fractions_calculator{x};

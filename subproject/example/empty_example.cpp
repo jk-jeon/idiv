@@ -32,11 +32,7 @@ int main() {
     frac x{7, 18};
     std::cout << "      Number = " << x.numerator << " / " << x.denominator;
 
-    using continued_fractions_calc_type = jkj::caching_continued_fractions<
-        jkj::rational_continued_fractions<jkj::bigint::int_var, jkj::bigint::uint_var>,
-        std::vector>;
-    continued_fractions_calc_type cf{x};
-
+    jkj::caching_continued_fraction cf{jkj::rational_continued_fraction{x}};
     jkj::bigint::uint_var nmax = 0xffff'ffff;
     std::cout << "\n       n_max = " << nmax;
 
@@ -45,7 +41,7 @@ int main() {
     std::cout << "\n\n[Multiply-and-shift method]\n"
               << "  Multiplier = " << info1.multiplier << "\n       Shift = " << info1.shift_amount;
 
-    
+
     jkj::bigint::uint_var max_allowed = jkj::bigint::uint_var{0xffff'ffff'ffff'ffff};
     auto info2 = jkj::idiv::convert_to_multiply_add_shift_effectively_rational(
         {x.numerator.abs(), x.denominator}, nmax, max_allowed);
@@ -58,5 +54,4 @@ int main() {
     else {
         std::cout << "Failed to find any solution.\n";
     }
-    
 }

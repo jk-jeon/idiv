@@ -15,10 +15,11 @@
 // is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 // KIND, either express or implied.
 
-#ifndef JKJ_HEADER_GOSPER_CONTINUED_FRACTIONS
-#define JKJ_HEADER_GOSPER_CONTINUED_FRACTIONS
+#ifndef JKJ_HEADER_GOSPER_CONTINUED_FRACTION
+#define JKJ_HEADER_GOSPER_CONTINUED_FRACTION
 
-#include "continued_fractions.h"
+#include "continued_fraction.h"
+#include "frac.h"
 #include <cstdlib>
 #include <type_traits>
 
@@ -36,18 +37,24 @@ namespace jkj {
             Int y_coeff;
             Int xy_coeff;
 
-            constexpr void feed_x(Int const& continued_fractions_coeff) {
-                // (a, b, c, d) |-> (b, a + tb, d, c + td)
-                const_coeff += continued_fractions_coeff * x_coeff;
-                y_coeff += continued_fractions_coeff * xy_coeff;
+            template <class PartialFraction>
+            constexpr void feed_x(PartialFraction const& partial_fraction) {
+                // s/t, (a, b, c, d) |-> (b, sa + tb, d, sc + td)
+                const_coeff *= partial_fraction.numerator;
+                const_coeff += partial_fraction.denominator * x_coeff;
+                y_coeff *= partial_fraction.numerator;
+                y_coeff += partial_fraction.denominator * xy_coeff;
                 swap(const_coeff, x_coeff);
                 swap(y_coeff, xy_coeff);
             }
 
-            constexpr void feed_y(Int const& continued_fractions_coeff) {
-                // (a, b, c, d) |-> (c, d, a + tc, b + td)
-                const_coeff += continued_fractions_coeff * y_coeff;
-                x_coeff += continued_fractions_coeff * xy_coeff;
+            template <class PartialFraction>
+            constexpr void feed_y(PartialFraction const& partial_fraction) {
+                // s/t, (a, b, c, d) |-> (c, d, sa + tc, sb + td)
+                const_coeff *= partial_fraction.numerator;
+                const_coeff += partial_fraction.denominator * y_coeff;
+                x_coeff *= partial_fraction.numerator;
+                x_coeff += partial_fraction.denominator * xy_coeff;
                 swap(const_coeff, y_coeff);
                 swap(x_coeff, xy_coeff);
             }
@@ -57,38 +64,35 @@ namespace jkj {
         coeff denominator;
     };
 
-    template <class ContinuedFractionsCalcX, class ContinuedFractionsCalcY>
-        requires(std::is_same_v<typename ContinuedFractionsCalcX::int_type,
-                                typename ContinuedFractionsCalcY::int_type> &&
-                 std::is_same_v<typename ContinuedFractionsCalcX::uint_type,
-                                typename ContinuedFractionsCalcY::uint_type>)
-    class gosper_continued_fractions
-        : public continued_fractions<
-              gosper_continued_fractions<ContinuedFractionsCalcX, ContinuedFractionsCalcY>,
-              typename ContinuedFractionsCalcX::int_type,
-              typename ContinuedFractionsCalcX::uint_type> {
+    template <class ContinuedFractionImplX, class ContinuedFractionImplY, class Unity = unity,
+              template <class> class... Mixin>
+        requires(std::is_same_v<typename ContinuedFractionImplX::partial_fraction_type,
+                                typename ContinuedFractionImplY::partial_fraction_type> &&
+                 std::is_same_v<typename ContinuedFractionImplX::convergent_type,
+                                typename ContinuedFractionImplY::convergent_type>)
+    class gosper_continued_fraction {
     public:
-        using int_type = typename ContinuedFractionsCalcX::int_type;
-        using uint_type = typename ContinuedFractionsCalcX::uint_type;
+        using int_type = decltype(ContinuedFractionImplX::convergent_type::numerator);
+        using uint_type = decltype(ContinuedFractionImplX::convergent_type::denominator);
+        using partial_fraction_type = frac<Unity, int_type>;
+        using convergent_type = typename ContinuedFractionImplX::convergent_type;
 
     private:
-        using crtp_base = continued_fractions<
-            gosper_continued_fractions<ContinuedFractionsCalcX, ContinuedFractionsCalcY>, int_type,
-            uint_type>;
-        friend crtp_base;
-
-        ContinuedFractionsCalcX x_cf_;
-        ContinuedFractionsCalcY y_cf_;
+        ContinuedFractionImplX x_cf_;
+        ContinuedFractionImplY y_cf_;
         gosper_coeff<int_type> coeff_;
+        bool is_x_terminated_ = false;
+        bool is_y_terminated_ = false;
 
         constexpr void progress_x() {
-            x_cf_.update();
-            coeff_.numerator.feed_x(x_cf_.current_coefficient());
-            coeff_.denominator.feed_x(x_cf_.current_coefficient());
+            auto result = x_cf_.next_partial_fraction();
+            coeff_.numerator.feed_x(result.partial_fraction);
+            coeff_.denominator.feed_x(result.partial_fraction);
 
             // If the current coefficient is the last one, we have to use a different update
             // formula from now on.
-            if (x_cf_.is_terminated()) {
+            if (result.is_last) {
+                is_x_terminated_ = true;
                 using util::swap;
                 swap(coeff_.numerator.const_coeff, coeff_.numerator.x_coeff);
                 swap(coeff_.numerator.y_coeff, coeff_.numerator.xy_coeff);
@@ -97,13 +101,14 @@ namespace jkj {
             }
         }
         constexpr void progress_y() {
-            y_cf_.update();
-            coeff_.numerator.feed_y(y_cf_.current_coefficient());
-            coeff_.denominator.feed_y(y_cf_.current_coefficient());
+            auto result = y_cf_.next_partial_fraction();
+            coeff_.numerator.feed_y(result.partial_fraction);
+            coeff_.denominator.feed_y(result.partial_fraction);
 
             // If the current coefficient is the last one, we have to use a different update
             // formula from now on.
-            if (y_cf_.is_terminated()) {
+            if (result.is_last) {
+                is_y_terminated_ = true;
                 using util::swap;
                 swap(coeff_.numerator.const_coeff, coeff_.numerator.y_coeff);
                 swap(coeff_.numerator.x_coeff, coeff_.numerator.xy_coeff);
@@ -112,9 +117,17 @@ namespace jkj {
             }
         }
 
-        constexpr int_type compute_next_coefficient() {
+    public:
+        constexpr gosper_continued_fraction(ContinuedFractionImplX x_cf,
+                                            ContinuedFractionImplY y_cf,
+                                            gosper_coeff<int_type> coeff)
+            : x_cf_{static_cast<ContinuedFractionImplX>(x_cf)},
+              y_cf_{static_cast<ContinuedFractionImplY>(y_cf)},
+              coeff_{static_cast<gosper_coeff<int_type>&&>(coeff)} {}
+
+        constexpr next_partial_fraction_return<partial_fraction_type> next_partial_fraction() {
             while (true) {
-                if (x_cf_.is_terminated() && y_cf_.is_terminated()) {
+                if (is_x_terminated_ && is_y_terminated_) {
                     // Proceed as in the case of usual rational continued fractions.
                     util::constexpr_assert<util::error_msgs::divide_by_zero>(
                         !is_zero(coeff_.denominator.const_coeff));
@@ -126,20 +139,19 @@ namespace jkj {
                         div(coeff_.numerator.const_coeff, abs(coeff_.denominator.const_coeff));
                     coeff_.numerator.const_coeff =
                         static_cast<int_type&&>(coeff_.denominator.const_coeff);
-                    coeff_.denominator.const_coeff = int_type(static_cast<uint_type&&>(div_result.rem));
+                    coeff_.denominator.const_coeff =
+                        int_type(static_cast<uint_type&&>(div_result.rem));
 
-                    if (is_zero(coeff_.denominator.const_coeff)) {
-                        crtp_base::set_terminate_flag();
-                    }
-
-                    return static_cast<int_type&&>(div_result.quot);
+                    // Terminate if all coefficients in the denominator has become zero.
+                    return {partial_fraction_type{{}, static_cast<int_type&&>(div_result.quot)},
+                            is_zero(coeff_.denominator.const_coeff)};
                 }
-                else if (x_cf_.is_terminated()) {
+                else if (is_x_terminated_) {
                     if (!is_zero(coeff_.denominator.const_coeff) &&
                         !is_zero(coeff_.denominator.y_coeff)) {
-                        auto const const_output =
+                        auto const_output =
                             div_floor(coeff_.numerator.const_coeff, coeff_.denominator.const_coeff);
-                        auto const y_output =
+                        auto y_output =
                             div_floor(coeff_.numerator.y_coeff, coeff_.denominator.y_coeff);
 
                         if (const_output == y_output) {
@@ -152,24 +164,22 @@ namespace jkj {
                             swap(coeff_.numerator, coeff_.denominator);
 
                             // Terminate if all coefficients in the denominator has become zero.
-                            if (is_zero(coeff_.denominator.const_coeff) &&
-                                is_zero(coeff_.denominator.y_coeff)) {
-                                crtp_base::set_terminate_flag();
-                            }
-
-                            return const_output;
+                            return {
+                                partial_fraction_type{{}, static_cast<int_type&&>(const_output)},
+                                is_zero(coeff_.denominator.const_coeff) &&
+                                    is_zero(coeff_.denominator.y_coeff)};
                         }
                     }
 
                     // If two endpoints do not agree, then refine the region.
                     progress_y();
                 }
-                else if (y_cf_.is_terminated()) {
+                else if (is_y_terminated_) {
                     if (!is_zero(coeff_.denominator.const_coeff) &&
                         !is_zero(coeff_.denominator.x_coeff)) {
-                        auto const const_output =
+                        auto const_output =
                             div_floor(coeff_.numerator.const_coeff, coeff_.denominator.const_coeff);
-                        auto const x_output =
+                        auto x_output =
                             div_floor(coeff_.numerator.x_coeff, coeff_.denominator.x_coeff);
 
                         if (const_output == x_output) {
@@ -182,12 +192,10 @@ namespace jkj {
                             swap(coeff_.numerator, coeff_.denominator);
 
                             // Terminate if all coefficients in the denominator has become zero.
-                            if (is_zero(coeff_.denominator.const_coeff) &&
-                                is_zero(coeff_.denominator.x_coeff)) {
-                                crtp_base::set_terminate_flag();
-                            }
-
-                            return const_output;
+                            return {
+                                partial_fraction_type{{}, static_cast<int_type&&>(const_output)},
+                                is_zero(coeff_.denominator.const_coeff) &&
+                                    is_zero(coeff_.denominator.x_coeff)};
                         }
                     }
 
@@ -199,13 +207,13 @@ namespace jkj {
                         !is_zero(coeff_.denominator.x_coeff) &&
                         !is_zero(coeff_.denominator.y_coeff) &&
                         !is_zero(coeff_.denominator.xy_coeff)) {
-                        auto const const_output =
+                        auto const_output =
                             div_floor(coeff_.numerator.const_coeff, coeff_.denominator.const_coeff);
-                        auto const x_output =
+                        auto x_output =
                             div_floor(coeff_.numerator.x_coeff, coeff_.denominator.x_coeff);
-                        auto const y_output =
+                        auto y_output =
                             div_floor(coeff_.numerator.y_coeff, coeff_.denominator.y_coeff);
-                        auto const xy_output =
+                        auto xy_output =
                             div_floor(coeff_.numerator.xy_coeff, coeff_.denominator.xy_coeff);
 
                         if (const_output == x_output && x_output == y_output &&
@@ -221,14 +229,12 @@ namespace jkj {
                             swap(coeff_.numerator, coeff_.denominator);
 
                             // Terminate if all coefficients in the denominator has become zero.
-                            if (is_zero(coeff_.denominator.const_coeff) &&
-                                is_zero(coeff_.denominator.x_coeff) &&
-                                is_zero(coeff_.denominator.y_coeff) &&
-                                is_zero(coeff_.denominator.xy_coeff)) {
-                                crtp_base::set_terminate_flag();
-                            }
-
-                            return const_output;
+                            return {
+                                partial_fraction_type{{}, static_cast<int_type&&>(const_output)},
+                                is_zero(coeff_.denominator.const_coeff) &&
+                                    is_zero(coeff_.denominator.x_coeff) &&
+                                    is_zero(coeff_.denominator.y_coeff) &&
+                                    is_zero(coeff_.denominator.xy_coeff)};
                         }
                     }
 
@@ -258,14 +264,6 @@ namespace jkj {
                 }
             }
         }
-
-    public:
-        constexpr gosper_continued_fractions(ContinuedFractionsCalcX x_cf,
-                                             ContinuedFractionsCalcY y_cf,
-                                             gosper_coeff<int_type> coeff)
-            : x_cf_{static_cast<ContinuedFractionsCalcX>(x_cf)},
-              y_cf_{static_cast<ContinuedFractionsCalcY>(y_cf)},
-              coeff_{static_cast<gosper_coeff<int_type>&&>(coeff)} {}
     };
 }
 
