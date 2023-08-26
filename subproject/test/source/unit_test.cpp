@@ -1,5 +1,6 @@
 #include "idiv/bigint.h"
 #include "idiv/gosper_continued_fractions.h"
+#include "idiv/log_continued_fractions.h"
 #include "idiv/rational_continued_fractions.h"
 #include <boost/ut.hpp>
 
@@ -462,5 +463,32 @@ int main() {
         expect(cf.update() == true);
         expect(cf.current_convergent() == frac_t{2655, 182u});
         expect(cf.is_terminated() == true);
+    };
+
+    "[log_continued_fractions]"_test = [] {
+        using frac_t = frac<bigint::int_var, bigint::uint_var>;
+        using unsigned_frac_t = frac<bigint::uint_var, bigint::uint_var>;
+
+        should("natural_log_calculator") = [] {
+            // Compute ln(2) up to 100 digits.
+            unsigned_frac_t error_bound{
+                1u, bigint::uint_var(bigint::decimal_uint_const_v<1'000'000, 0, 0, 0, 0, 0>)};
+            {
+                jkj::natural_log_calculator<bigint::int_var, bigint::uint_var> nlc{
+                    unsigned_frac_t{2u, 1u}};
+
+                auto const approx_ln2 = nlc.compute_within_error(error_bound);
+                auto const digits = div_floor(
+                    approx_ln2.numerator * bigint::decimal_uint_const_v<100'000, 0, 0, 0, 0, 0>,
+                    approx_ln2.denominator);
+
+                expect(
+                    digits ==
+                    bigint::decimal_uint_const_v<
+                        69'314, UINT64_C(7'180'559'945'309'417'232),
+                        UINT64_C(1'214'581'765'680'755'001), UINT64_C(3'436'025'525'412'068'000),
+                        UINT64_C(9'493'393'621'969'694'715), UINT64_C(6'058'633'269'964'186'875)>);
+            }
+        };
     };
 }
