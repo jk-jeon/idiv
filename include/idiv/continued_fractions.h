@@ -22,7 +22,9 @@
 #include "util.h"
 
 namespace jkj {
-    // Continued fractions calculator for real numbers.
+    // An interface for generalized continued fraction calculator for real numbers.
+    // Partial numerators and denominators can be signed integers, but the denominator of the
+    // convergents are assumed to be always nonnegative.
     template <class Impl, class Int, class UInt>
     class continued_fractions {
         // The (-1)st coefficient is assumed to be 0.
@@ -82,7 +84,7 @@ namespace jkj {
                 auto new_denominator =
                     previous_denominator() + current_coefficient_ * current_denominator();
 
-                util::constexpr_assert<util::error_msgs::no_error_msg>(is_nonnegative(new_denominator));
+                util::constexpr_assert(is_nonnegative(new_denominator));
 
                 previous_convergent_ = static_cast<frac<Int, UInt>&&>(current_convergent_);
                 current_convergent_.numerator = static_cast<Int&&>(new_numerator);

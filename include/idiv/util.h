@@ -55,8 +55,16 @@ namespace jkj {
         template <char const* error_msg>
         void assert_failed() {}
 
+        namespace error_msgs {
+            inline constexpr char no_error_msg[] = "no error message";
+            inline constexpr char index_out_of_range[] = "index out of range";
+            inline constexpr char overflow[] = "overflow";
+            inline constexpr char underflow[] = "underflow";
+            inline constexpr char divide_by_zero[] = "divide by zero";
+        }
+
         // A replacement for assert to use in constexpr functions.
-        template <char const* error_msg>
+        template <char const* error_msg = error_msgs::no_error_msg>
         constexpr void constexpr_assert(bool cond) {
             // Use the assert macro for the runtime.
             assert(cond);
@@ -64,14 +72,6 @@ namespace jkj {
             if (!cond) {
                 assert_failed<error_msg>();
             }
-        }
-
-        namespace error_msgs {
-            inline constexpr char no_error_msg[] = "no error message";
-            inline constexpr char index_out_of_range[] = "index out of range";
-            inline constexpr char overflow[] = "overflow";
-            inline constexpr char underflow[] = "underflow";
-            inline constexpr char divide_by_zero[] = "divide by zero";
         }
 
         template <class T>

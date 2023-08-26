@@ -103,7 +103,7 @@ namespace jkj {
             // should be appended.
             template <class X, class Y>
             constexpr decltype(auto) add_impl(X&& x, Y const& y) noexcept {
-                util::constexpr_assert<util::error_msgs::no_error_msg>(x.size() >= y.size());
+                util::constexpr_assert(x.size() >= y.size());
 
                 unsigned int carry = 0;
                 for (std::size_t idx = 0; idx < y.size(); ++idx) {
@@ -181,8 +181,7 @@ namespace jkj {
                             while (result[idx] == wuint::uint64_mask) {
                                 result[idx] = 0;
                                 ++idx;
-                                util::constexpr_assert<util::error_msgs::no_error_msg>(
-                                    idx < result.size());
+                                util::constexpr_assert(idx < result.size());
                             }
                             ++result[idx];
                         }
@@ -199,8 +198,7 @@ namespace jkj {
             // Returns the number of blocks in the remainder.
             template <class X, class Y, class Quotient>
             constexpr std::size_t long_division_impl(X&& x, Y const& y, Quotient& q) noexcept {
-                util::constexpr_assert<util::error_msgs::no_error_msg>(q.size() + y.size() >=
-                                                                       x.size() + 1);
+                util::constexpr_assert(q.size() + y.size() >= x.size() + 1);
 
                 auto x_size = x.size();
                 auto x_leading_one_pos_in_leading_block = std::size_t(std::bit_width(x.back()));
@@ -317,13 +315,12 @@ namespace jkj {
 
                             auto const y_block =
                                 (y.back() >> (number_of_bits_in_block - bit_shift));
-                            util::constexpr_assert<util::error_msgs::no_error_msg>(with_borrow >=
-                                                                                   y_block);
+                            util::constexpr_assert(with_borrow >= y_block);
                             x[y.size() + block_shift] = with_borrow - y_block;
                             borrow =
                                 first_borrow | ((x[y.size() + block_shift] > with_borrow) ? 1 : 0);
                         }
-                        util::constexpr_assert<util::error_msgs::no_error_msg>(borrow == 0);
+                        util::constexpr_assert(borrow == 0);
                     }
                     else {
                         unsigned int borrow = 0;
@@ -337,10 +334,8 @@ namespace jkj {
                         }
 
                         if (borrow != 0) {
-                            util::constexpr_assert<util::error_msgs::no_error_msg>(
-                                y.size() + block_shift < x_size);
-                            util::constexpr_assert<util::error_msgs::no_error_msg>(
-                                x[y.size() + block_shift] != 0);
+                            util::constexpr_assert(y.size() + block_shift < x_size);
+                            util::constexpr_assert(x[y.size() + block_shift] != 0);
                             --x[y.size() + block_shift];
                         }
                     }
@@ -524,9 +519,8 @@ namespace jkj {
                         result[idx] = result[N - idx - 1];
                         result[N - idx - 1] = temp;
 
-                        util::constexpr_assert<util::error_msgs::no_error_msg>(
-                            result[idx] <= wuint::uint64_mask &&
-                            result[N - idx - 1] <= wuint::uint64_mask);
+                        util::constexpr_assert(result[idx] <= wuint::uint64_mask &&
+                                               result[N - idx - 1] <= wuint::uint64_mask);
                     }
                     return result;
                 }
@@ -1124,6 +1118,7 @@ namespace jkj {
                 blocks_.clear();
                 return *this;
             }
+            constexpr uint_var& operator*=(uint_const_t<1u>) noexcept { return *this; }
             constexpr uint_var& operator*=(block_type n) {
                 util::constexpr_assert<util::error_msgs::overflow>(n <= wuint::uint64_mask);
                 if (n == 0) {
@@ -1177,6 +1172,11 @@ namespace jkj {
 
                 return quotient;
             }
+            constexpr uint_var long_division(uint_const_t<1u>) {
+                auto quotient = static_cast<uint_var&&>(*this);
+                util::constexpr_assert(is_zero());
+                return quotient;
+            }
 
             constexpr uint_var& operator%=(uint_view y) {
                 long_division(y);
@@ -1184,6 +1184,10 @@ namespace jkj {
             }
             constexpr uint_var& operator%=(block_type y) {
                 long_division(uint_view::make_view_from_single_block(y));
+                return *this;
+            }
+            constexpr uint_var& operator%=(uint_const_t<1u>) noexcept {
+                blocks_.clear();
                 return *this;
             }
             constexpr uint_var& operator%=(uint_const_t<>) const = delete;
@@ -1306,7 +1310,7 @@ namespace jkj {
             // Find the largest power of 2 dividing *this, divide *this by that power, and return
             // the exponent.
             constexpr std::size_t factor_out_power_of_2() noexcept {
-                util::constexpr_assert<util::error_msgs::no_error_msg>(!is_zero());
+                util::constexpr_assert(!is_zero());
 
                 std::size_t trailing_zero_blocks = 0;
                 for (; trailing_zero_blocks < blocks_.size(); ++trailing_zero_blocks) {
@@ -1376,8 +1380,7 @@ namespace jkj {
                 uint_var result;
                 uint_var multiplier = 1;
                 for (std::size_t idx_p1 = digits.size(); idx_p1 > 0; --idx_p1) {
-                    util::constexpr_assert<util::error_msgs::no_error_msg>(digits[idx_p1 - 1] <
-                                                                           largest_pow10_in_block);
+                    util::constexpr_assert(digits[idx_p1 - 1] < largest_pow10_in_block);
                     result += digits[idx_p1 - 1] * multiplier;
                     multiplier *= largest_pow10_in_block;
                 }

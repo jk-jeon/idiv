@@ -89,8 +89,8 @@ namespace jkj {
         using uint_type = UInt;
 
         natural_log_calculator(frac<UInt, UInt> const& positive_rational) {
-            util::constexpr_assert<util::error_msgs::no_error_msg>(
-                !is_zero(positive_rational.denominator) && !is_zero(positive_rational.numerator));
+            util::constexpr_assert(!is_zero(positive_rational.denominator) &&
+                                   !is_zero(positive_rational.numerator));
 
             // For given input x, we find the reduced form of z s.t. x = (1+z)/(1-z), i.e.,
             // z = (x-1)/(x+1). Note that z always lies in (-1,1) for x in (0,infty).

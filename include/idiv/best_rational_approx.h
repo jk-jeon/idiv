@@ -37,8 +37,7 @@ namespace jkj {
     constexpr best_rational_approx_output<typename ContinuedFractionsImpl::int_type,
                                           typename ContinuedFractionsImpl::uint_type>
     find_best_rational_approx(ContinuedFractionsImpl& cf, UInt const& denominator_upper_bound) {
-        util::constexpr_assert<util::error_msgs::no_error_msg>(
-            is_strictly_positive(denominator_upper_bound));
+        util::constexpr_assert(is_strictly_positive(denominator_upper_bound));
 
         using int_type = typename ContinuedFractionsImpl::int_type;
         using uint_type = typename ContinuedFractionsImpl::uint_type;

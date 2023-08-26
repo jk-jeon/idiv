@@ -37,7 +37,7 @@ namespace jkj {
                                 typename ContinuedFractionsCalc::uint_type>,
                            interval_type_t::bounded_left_closed_right_open>
         find_floor_quotient_range(ContinuedFractionsCalc& cf, UInt const& nmax) {
-            util::constexpr_assert<util::error_msgs::no_error_msg>(is_strictly_positive(nmax));
+            util::constexpr_assert(is_strictly_positive(nmax));
 
             using frac_t = frac<typename ContinuedFractionsCalc::int_type,
                                 typename ContinuedFractionsCalc::uint_type>;
@@ -128,8 +128,7 @@ namespace jkj {
             // k0 = ceil(log2(1/Delta)).
             auto k0 = [&] {
                 auto const delta = range.upper_bound() - range.lower_bound();
-                util::constexpr_assert<util::error_msgs::no_error_msg>(
-                    is_strictly_positive(delta.numerator));
+                util::constexpr_assert(is_strictly_positive(delta.numerator));
 
                 return trunc_ceil_log2_div(delta.denominator, abs(delta.numerator));
             }();
@@ -167,7 +166,7 @@ namespace jkj {
             frac<bigint::uint_var, bigint::uint_var> const& x, bigint::uint_var const& nmax,
             bigint::uint_var const& max_allowed_value) {
             util::constexpr_assert<util::error_msgs::divide_by_zero>(!x.denominator.is_zero());
-            util::constexpr_assert<util::error_msgs::no_error_msg>(x.denominator <= nmax);
+            util::constexpr_assert(x.denominator <= nmax);
 
             using continued_fractions_calculator_type = caching_continued_fractions<
                 rational_continued_fractions<bigint::uint_var, bigint::uint_var>, std::vector>;
@@ -280,8 +279,7 @@ namespace jkj {
                     }
 
                     delta.numerator -= numerator_diff;
-                    util::constexpr_assert<util::error_msgs::no_error_msg>(delta.denominator >=
-                                                                           delta.numerator);
+                    util::constexpr_assert(delta.denominator >= delta.numerator);
                     candidate.shift_amount =
                         trunc_floor_log2_div(delta.denominator, delta.numerator);
                 }
