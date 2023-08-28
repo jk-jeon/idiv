@@ -77,13 +77,13 @@ namespace jkj {
                     record_.reserve(record_.size() + 1);
 
                     auto result = impl_.next_partial_fraction();
-                    auto new_convergent =
+                    auto next_convergent =
                         crtp_base::template compute_next_convergent<convergent_type>(
                             result.partial_fraction);
                     is_terminated_ = result.is_last;
                     record_.push_back(
                         record_t{static_cast<partial_fraction_type&&>(result.partial_fraction),
-                                 static_cast<convergent_type&&>(new_convergent)});
+                                 static_cast<convergent_type&&>(next_convergent)});
                     ++current_index_;
                 }
                 return !is_terminated_;
