@@ -51,43 +51,18 @@ namespace jkj {
 
     template <class Int, class UInt>
     class natural_log_calculator {
-        frac<Int, UInt> current_convergent_{1, 0u};
-        frac<Int, UInt> previous_convergent_{0, 1u};
-        frac<UInt, UInt> current_error_bound_{1, 0u};
+    public:
+        using partial_fraction_type = frac<Int, Int>;
+        using convergent_type = frac<Int, UInt>;
+        using error_bound_type = frac<UInt, UInt>;
+
+    private:
+        frac<Int, Int> current_partial_fraction_{1, 0u};
         UInt p_square_ = 0u;
         UInt two_q_ = 0u;
-        UInt coeff_curr_ = 0u;
-        UInt coeff_prev_ = 0u;
-
         int current_index_ = -1;
 
-        // Compute the new convergent.
-        void update() {
-            coeff_curr_ += two_q_;
-            coeff_prev_ = (unsigned(current_index_) * unsigned(current_index_)) * p_square_;
-            auto new_numerator = coeff_curr_ * current_convergent_.numerator -
-                                 coeff_prev_ * previous_convergent_.numerator;
-
-            auto new_denominator = coeff_curr_ * current_convergent_.denominator -
-                                   coeff_prev_ * previous_convergent_.denominator;
-
-            // Update the error bound = 2|p|^(2n-1)((n-1)!)^2 / (Q_(n-1)Q_n).
-            current_error_bound_.numerator *= (unsigned(current_index_) * unsigned(current_index_));
-            current_error_bound_.denominator /= previous_convergent_.denominator;
-            current_error_bound_.denominator *= new_denominator;
-
-            // Update convergents.
-            previous_convergent_ = static_cast<frac<Int, UInt>&&>(current_convergent_);
-            current_convergent_.numerator = static_cast<Int&&>(new_numerator);
-            current_convergent_.denominator = static_cast<UInt&&>(new_denominator);
-
-            ++current_index_;
-        }
-
     public:
-        using int_type = Int;
-        using uint_type = UInt;
-
         natural_log_calculator(frac<UInt, UInt> const& positive_rational) {
             util::constexpr_assert(!is_zero(positive_rational.denominator) &&
                                    !is_zero(positive_rational.numerator));
@@ -105,36 +80,25 @@ namespace jkj {
                 return cf.current_convergent();
             }();
 
-            // Set n = 1.
-            previous_convergent_ = frac<Int, UInt>{0, 1u};
-            current_convergent_ = frac<Int, UInt>{(z.numerator << 1), z.denominator};
-
-            // error_bound = 2|p|^(2n-1)((n-1)!)^2 / (Q_(n-1)Q_n) where z = p/q.
-            // When n = 1, this is equal to |2z| = |2p/q|.
-            current_error_bound_ = frac<UInt, UInt>{abs(current_convergent_.numerator),
-                                                    current_convergent_.denominator};
-
-            coeff_curr_ = z.denominator;
+            current_partial_fraction_.numerator = (z.numerator << 1);
+            current_partial_fraction_.denominator = static_cast<Int>(z.denominator);
             p_square_ = abs(static_cast<Int&&>(z.numerator));
             p_square_ *= p_square_;
             two_q_ = static_cast<UInt&&>(z.denominator <<= 1);
-
-            current_index_ = 1;
         }
 
-        frac<Int, UInt> const& current_value() const noexcept { return current_convergent_; }
-        frac<UInt, UInt> const& current_error_bound() const noexcept {
-            return current_error_bound_;
-        }
-
-        // Refine the current value so that the maximum possible error is strictly less than the
-        // given bound.
-        template <class ErrorValue>
-        frac<Int, UInt> const& compute_within_error(ErrorValue const& error_bound) {
-            while (current_error_bound() >= error_bound) {
-                update();
+        constexpr next_partial_fraction_return<partial_fraction_type> next_partial_fraction() {
+            if (current_index_ == -1) {
+                ++current_index_;
+                return {{1, 0u}, false};
             }
-            return current_value();
+            else if (current_index_ > 0) {
+                current_partial_fraction_.numerator =
+                    (-current_index_ * current_index_) * p_square_;
+                current_partial_fraction_.denominator += two_q_;
+            }
+            ++current_index_;
+            return {current_partial_fraction_, false};
         }
     };
 }
