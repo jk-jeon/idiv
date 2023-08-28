@@ -161,7 +161,7 @@ namespace jkj {
                             coeff_.numerator.y_coeff -= const_output * coeff_.denominator.y_coeff;
 
                             using util::swap;
-                            swap(coeff_.numerator, coeff_.denominator);
+                            swap(coeff_.numerator.const_coeff, coeff_.denominator.const_coeff);
 
                             // Terminate if all coefficients in the denominator has become zero.
                             return {
