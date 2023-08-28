@@ -139,12 +139,9 @@ namespace jkj {
         constexpr bool update() {
             if (!is_terminated()) {
                 auto result = impl_.next_partial_fraction();
-
-                if (result.is_last) {
-                    is_terminated_ = true;
-                }
                 auto next_convergent = crtp_base::template compute_next_convergent<convergent_type>(
                     result.partial_fraction);
+                is_terminated_ = result.is_last;
 
                 (static_cast<Mixin<Impl, convergent_generator>&>(*this).update(
                      result.partial_fraction, next_convergent),
