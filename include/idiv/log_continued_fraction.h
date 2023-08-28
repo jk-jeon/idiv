@@ -18,8 +18,7 @@
 #ifndef JKJ_HEADER_LOG_CONTINUED_FRACTION
 #define JKJ_HEADER_LOG_CONTINUED_FRACTION
 
-#include "rational_continued_fraction.h"
-#include "util.h"
+#include "gosper_continued_fraction.h"
 
 namespace jkj {
     // Computes an arbitrary-precision rational approximation of ln(a/b) for positive integers a, b
@@ -56,7 +55,7 @@ namespace jkj {
         int current_index_ = -1;
 
     public:
-        natural_log_calculator(frac<UInt, UInt> const& positive_rational) {
+        constexpr natural_log_calculator(frac<UInt, UInt> const& positive_rational) {
             util::constexpr_assert(!is_zero(positive_rational.denominator) &&
                                    !is_zero(positive_rational.numerator));
 
