@@ -81,6 +81,7 @@ namespace jkj {
                         crtp_base::template compute_next_convergent<convergent_type>(
                             result.partial_fraction);
                     is_terminated_ = result.is_last;
+
                     record_.push_back(
                         record_t{static_cast<partial_fraction_type&&>(result.partial_fraction),
                                  static_cast<convergent_type&&>(next_convergent)});
