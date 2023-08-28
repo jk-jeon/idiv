@@ -93,6 +93,49 @@ namespace jkj {
             return {current_partial_fraction_, false};
         }
     };
+
+    template <class Int, class UInt, class Unity = unity>
+    class natural_log_continued_fraction
+        : private unary_gosper_continued_fraction<natural_log_calculator<Int, UInt>, Unity> {
+        using impl_type = unary_gosper_continued_fraction<natural_log_calculator<Int, UInt>, Unity>;
+
+    public:
+        using partial_fraction_type = typename impl_type::partial_fraction_type;
+        using convergent_type = typename impl_type::convergent_type;
+
+        constexpr natural_log_continued_fraction(frac<UInt, UInt> const& positive_rational)
+            : impl_type{{positive_rational},
+                        {// numerator
+                         {0, 1},
+                         // denominator
+                         {1, 0}}} {}
+
+        using impl_type::next_partial_fraction;
+    };
+
+    template <class Int, class UInt, class Unity = unity>
+    class general_log_continued_fraction
+        : private binary_gosper_continued_fraction<natural_log_calculator<Int, UInt>,
+                                                   natural_log_calculator<Int, UInt>, Unity> {
+        using impl_type =
+            binary_gosper_continued_fraction<natural_log_calculator<Int, UInt>,
+                                             natural_log_calculator<Int, UInt>, Unity>;
+
+    public:
+        using partial_fraction_type = typename impl_type::partial_fraction_type;
+        using convergent_type = typename impl_type::convergent_type;
+
+        constexpr general_log_continued_fraction(frac<UInt, UInt> const& base,
+                                                 frac<UInt, UInt> const& parameter)
+            : impl_type{{parameter},
+                        {base},
+                        {// numerator
+                         {0, 1, 0, 0},
+                         // denominator
+                         {0, 0, 1, 0}}} {}
+
+        using impl_type::next_partial_fraction;
+    };
 }
 
 #endif
