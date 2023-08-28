@@ -3155,11 +3155,11 @@ namespace jkj {
                 }
                 else {
                     constexpr auto result = [] {
-                        auto result = div(to_view(decltype(xx){}), to_view(decltype(yy){}));
+                        auto result_var = div(to_view(decltype(xx){}), to_view(decltype(yy){}));
                         auto quot =
                             block_holder_size_sign_triple<util::max(M, N) - util::min(M, N) + 2>(
-                                result.quot);
-                        auto rem = block_holder_size_pair<N>(result.rem);
+                                result_var.quot);
+                        auto rem = block_holder_size_pair<N>(result_var.rem);
 
                         struct intermediate_result {
                             decltype(quot) quot;
