@@ -19,6 +19,7 @@
 #define JKJ_HEADER_LOG_CONTINUED_FRACTION
 
 #include "gosper_continued_fraction.h"
+#include "rational_continued_fraction.h"
 
 namespace jkj {
     // Computes an arbitrary-precision rational approximation of ln(a/b) for positive integers a, b
