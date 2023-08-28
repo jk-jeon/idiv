@@ -39,15 +39,8 @@ namespace jkj {
     // P_0 = 0, P_1 = 2p, P_n = (2n-1)qP_(n-1) - (n-1)^2 p^2 P_(n-2) for n >= 2,
     // Q_0 = 1, Q_1 = q,  Q_n = (2n-1)qQ_(n-1) - (n-1)^2 p^2 Q_(n-2) for n >= 2.
     //
-    // Then it can be shown that
-    //
-    // P_(n-1)/Q_(n-1) - P_n/Q_n = A_(n-1)/B_(n-1) - A_n/B_n = 2 * (-1)^n p^(2n-1)/(Q_(n-1)Q_n).
-    //
-    // In particular, since Q_n >= (2n-1)qQ_(n-1) >= ... >= ((2n-1)(2n-3) ... 1) * q^n, the sequence
-    // (P_n/Q_n)_n converges, in the alternating, "zig-zag" manner, uniformly for all p/q provided
-    // |p/q|<1. Therefore, for any n, the limit value 2tanh(z) must lie in between P_(n-1)/Q_(n-1)
-    // and P_n/Q_n and the error |P_n/Q_n - 2tanh(z)| is bounded by the difference
-    // |P_(n-1)/Q_(n-1) - P_n/Q_n|.
+    // Then it can be shown that the denominators Q_n's are always positive and the sequence
+    // (P_n/Q_n)_n of convergents converges to 2atanh(z).
 
     template <class Int, class UInt>
     class natural_log_calculator {
