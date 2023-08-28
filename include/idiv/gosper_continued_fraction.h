@@ -242,10 +242,14 @@ namespace jkj {
                     // Compare |b/f - a/e| and |c/g - a/e|, and choose x if the former is larger.
                     // I.e., we choose x if |bge - afg| >= |cfe - afg|.
 
+                    // If e & f are both zero, progressing x will never make them nonzero, so
+                    // progress y in this case.
                     if (is_zero(coeff_.denominator.const_coeff) &&
                         is_zero(coeff_.denominator.x_coeff)) {
                         progress_y();
                     }
+                    // If e & g are both zero, progressing y will never make them nonzero, so
+                    // progress x in this case.
                     else if (is_zero(coeff_.denominator.const_coeff) &&
                              is_zero(coeff_.denominator.y_coeff)) {
                         progress_x();
