@@ -1547,8 +1547,8 @@ namespace jkj {
             x.long_division(uint_view::make_view_from_single_block(y));
             return static_cast<uint_var&&>(x);
         }
-        constexpr uint_var operator%(uint_view x, uint_const_t<1u>) { return {}; }
-        constexpr uint_var operator%(uint_view x, uint_const_t<>) = delete;
+        constexpr uint_var operator%(uint_view, uint_const_t<1u>) { return {}; }
+        constexpr uint_var operator%(uint_view, uint_const_t<>) = delete;
 
         struct uint_var_div_t {
             uint_var quot;
@@ -1818,9 +1818,10 @@ namespace jkj {
                 }
                 else {
                     constexpr auto result = [] {
-                        auto result = div(to_view(decltype(xx){}), to_view(decltype(yy){}));
-                        auto quot = block_holder_size_pair<M - util::min(M, N) + 1>(result.quot);
-                        auto rem = block_holder_size_pair<util::min(M, N)>(result.rem);
+                        auto result_var = div(to_view(decltype(xx){}), to_view(decltype(yy){}));
+                        auto quot =
+                            block_holder_size_pair<M - util::min(M, N) + 1>(result_var.quot);
+                        auto rem = block_holder_size_pair<util::min(M, N)>(result_var.rem);
 
                         struct intermediate_result {
                             decltype(quot) quot;
@@ -2779,7 +2780,9 @@ namespace jkj {
             return int_var(y.sign(), x * y.abs());
         }
         constexpr int_var operator*(uint_view x, convertible_to_signed_block_type auto y) {
-            return int_var(y >= 0 ? sign_t::positive : sign_t::negative, x * y);
+            return int_var(y >= 0 ? sign_t::positive : sign_t::negative,
+                           x * (y >= 0 ? static_cast<block_type>(y)
+                                       : (wuint::uint64_mask - static_cast<block_type>(y) + 1)));
         }
         constexpr int_var operator*(uint_view x, int_const_t<sign_t::positive, 1u>) {
             return int_var(sign_t::positive, uint_var(x));
