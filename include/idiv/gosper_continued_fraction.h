@@ -30,7 +30,26 @@
 
 namespace jkj {
     template <class Int>
-    struct gosper_coeff {
+    struct unary_gosper_coeff {
+        struct coeff {
+            Int const_coeff;
+            Int x_coeff;
+
+            template <class PartialFraction>
+            constexpr void feed(PartialFraction const& partial_fraction) {
+                // s/t, (a, b) |-> (b, sa + tb)
+                const_coeff *= partial_fraction.numerator;
+                const_coeff += partial_fraction.denominator * x_coeff;
+                swap(const_coeff, x_coeff);
+            }
+        };
+
+        coeff numerator;
+        coeff denominator;
+    };
+
+    template <class Int>
+    struct binary_gosper_coeff {
         struct coeff {
             Int const_coeff;
             Int x_coeff;
@@ -64,13 +83,99 @@ namespace jkj {
         coeff denominator;
     };
 
-    template <class ContinuedFractionImplX, class ContinuedFractionImplY, class Unity = unity,
-              template <class> class... Mixin>
+    template <class ContinuedFractionImpl, class Unity = unity>
+    class unary_gosper_continued_fraction {
+    public:
+        using int_type = decltype(ContinuedFractionImpl::convergent_type::numerator);
+        using uint_type = decltype(ContinuedFractionImpl::convergent_type::denominator);
+        using partial_fraction_type = frac<Unity, int_type>;
+        using convergent_type = typename ContinuedFractionImpl::convergent_type;
+
+    private:
+        ContinuedFractionImpl cf_;
+        unary_gosper_coeff<int_type> coeff_;
+        bool is_terminated_ = false;
+
+        constexpr void progress() {
+            auto result = cf_.next_partial_fraction();
+            coeff_.numerator.feed(result.partial_fraction);
+            coeff_.denominator.feed(result.partial_fraction);
+
+            // If the current coefficient is the last one, we have to use a different update
+            // formula from now on.
+            if (result.is_last) {
+                is_terminated_ = true;
+                using util::swap;
+                swap(coeff_.numerator.const_coeff, coeff_.numerator.x_coeff);
+                swap(coeff_.denominator.const_coeff, coeff_.denominator.x_coeff);
+            }
+        }
+
+    public:
+        constexpr unary_gosper_continued_fraction(ContinuedFractionImpl cf,
+                                                  unary_gosper_coeff<int_type> coeff)
+            : cf_{static_cast<ContinuedFractionImpl>(cf)},
+              coeff_{static_cast<unary_gosper_coeff<int_type>&&>(coeff)} {}
+
+        constexpr next_partial_fraction_return<partial_fraction_type> next_partial_fraction() {
+            while (true) {
+                if (is_terminated_) {
+                    // Proceed as in the case of usual rational continued fractions.
+                    util::constexpr_assert<util::error_msgs::divide_by_zero>(
+                        !is_zero(coeff_.denominator.const_coeff));
+                    util::constexpr_assert<util::error_msgs::divide_by_zero>(
+                        is_strictly_positive(coeff_.denominator.const_coeff));
+
+                    using std::div;
+                    auto div_result =
+                        div(coeff_.numerator.const_coeff, abs(coeff_.denominator.const_coeff));
+                    coeff_.numerator.const_coeff =
+                        static_cast<int_type&&>(coeff_.denominator.const_coeff);
+                    coeff_.denominator.const_coeff =
+                        int_type(static_cast<uint_type&&>(div_result.rem));
+
+                    // Terminate if all coefficients in the denominator has become zero.
+                    return {partial_fraction_type{{}, static_cast<int_type&&>(div_result.quot)},
+                            is_zero(coeff_.denominator.const_coeff)};
+                }
+                else {
+                    if (!is_zero(coeff_.denominator.const_coeff) &&
+                        !is_zero(coeff_.denominator.x_coeff)) {
+                        auto const_output =
+                            div_floor(coeff_.numerator.const_coeff, coeff_.denominator.const_coeff);
+                        auto x_output =
+                            div_floor(coeff_.numerator.x_coeff, coeff_.denominator.x_coeff);
+
+                        if (const_output == x_output) {
+                            // Found the new coefficient.
+                            coeff_.numerator.const_coeff -=
+                                const_output * coeff_.denominator.const_coeff;
+                            coeff_.numerator.x_coeff -= const_output * coeff_.denominator.x_coeff;
+
+                            using util::swap;
+                            swap(coeff_.numerator, coeff_.denominator);
+
+                            // Terminate if all coefficients in the denominator has become zero.
+                            return {
+                                partial_fraction_type{{}, static_cast<int_type&&>(const_output)},
+                                is_zero(coeff_.denominator.const_coeff) &&
+                                    is_zero(coeff_.denominator.x_coeff)};
+                        }
+                    }
+
+                    // If two endpoints do not agree, then refine the region.
+                    progress();
+                }
+            }
+        }
+    };
+
+    template <class ContinuedFractionImplX, class ContinuedFractionImplY, class Unity = unity>
         requires(std::is_same_v<typename ContinuedFractionImplX::partial_fraction_type,
                                 typename ContinuedFractionImplY::partial_fraction_type> &&
                  std::is_same_v<typename ContinuedFractionImplX::convergent_type,
                                 typename ContinuedFractionImplY::convergent_type>)
-    class gosper_continued_fraction {
+    class binary_gosper_continued_fraction {
     public:
         using int_type = decltype(ContinuedFractionImplX::convergent_type::numerator);
         using uint_type = decltype(ContinuedFractionImplX::convergent_type::denominator);
@@ -80,7 +185,7 @@ namespace jkj {
     private:
         ContinuedFractionImplX x_cf_;
         ContinuedFractionImplY y_cf_;
-        gosper_coeff<int_type> coeff_;
+        binary_gosper_coeff<int_type> coeff_;
         bool is_x_terminated_ = false;
         bool is_y_terminated_ = false;
 
@@ -118,12 +223,12 @@ namespace jkj {
         }
 
     public:
-        constexpr gosper_continued_fraction(ContinuedFractionImplX x_cf,
-                                            ContinuedFractionImplY y_cf,
-                                            gosper_coeff<int_type> coeff)
+        constexpr binary_gosper_continued_fraction(ContinuedFractionImplX x_cf,
+                                                   ContinuedFractionImplY y_cf,
+                                                   binary_gosper_coeff<int_type> coeff)
             : x_cf_{static_cast<ContinuedFractionImplX>(x_cf)},
               y_cf_{static_cast<ContinuedFractionImplY>(y_cf)},
-              coeff_{static_cast<gosper_coeff<int_type>&&>(coeff)} {}
+              coeff_{static_cast<binary_gosper_coeff<int_type>&&>(coeff)} {}
 
         constexpr next_partial_fraction_return<partial_fraction_type> next_partial_fraction() {
             while (true) {
