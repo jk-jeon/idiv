@@ -241,25 +241,37 @@ namespace jkj {
                     // If four endpoints do not agree, then refine the region.
                     // Compare |b/f - a/e| and |c/g - a/e|, and choose x if the former is larger.
                     // I.e., we choose x if |bge - afg| >= |cfe - afg|.
-                    // afg
-                    auto const base_point = coeff_.numerator.const_coeff *
-                                            coeff_.denominator.x_coeff * coeff_.denominator.y_coeff;
-                    // |bge - afg|
-                    auto const const_to_x_length =
-                        abs(coeff_.numerator.x_coeff * coeff_.denominator.y_coeff *
-                                coeff_.denominator.const_coeff -
-                            base_point);
-                    // |bge - afg|
-                    auto const const_to_y_length =
-                        abs(coeff_.numerator.y_coeff * coeff_.denominator.x_coeff *
-                                coeff_.denominator.const_coeff -
-                            base_point);
 
-                    if (const_to_x_length >= const_to_y_length) {
+                    if (is_zero(coeff_.denominator.const_coeff) &&
+                        is_zero(coeff_.denominator.x_coeff)) {
+                        progress_y();
+                    }
+                    else if (is_zero(coeff_.denominator.const_coeff) &&
+                             is_zero(coeff_.denominator.y_coeff)) {
                         progress_x();
                     }
                     else {
-                        progress_y();
+                        // afg
+                        auto const base_point = coeff_.numerator.const_coeff *
+                                                coeff_.denominator.x_coeff *
+                                                coeff_.denominator.y_coeff;
+                        // |bge - afg|
+                        auto const const_to_x_length =
+                            abs(coeff_.numerator.x_coeff * coeff_.denominator.y_coeff *
+                                    coeff_.denominator.const_coeff -
+                                base_point);
+                        // |bge - afg|
+                        auto const const_to_y_length =
+                            abs(coeff_.numerator.y_coeff * coeff_.denominator.x_coeff *
+                                    coeff_.denominator.const_coeff -
+                                base_point);
+
+                        if (const_to_x_length >= const_to_y_length) {
+                            progress_x();
+                        }
+                        else {
+                            progress_y();
+                        }
                     }
                 }
             }
