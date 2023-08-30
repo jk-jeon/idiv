@@ -166,7 +166,7 @@ namespace jkj {
         constexpr auto& upper_bound() & noexcept = delete;
         constexpr auto&& upper_bound() && noexcept = delete;
 
-        constexpr interval(Value lower_bound, Value upper_bound)
+        constexpr interval(Value lower_bound)
             : lower_bound_{static_cast<Value&&>(lower_bound)} {}
 
     private:
@@ -189,7 +189,7 @@ namespace jkj {
         constexpr auto& upper_bound() & noexcept = delete;
         constexpr auto&& upper_bound() && noexcept = delete;
 
-        constexpr interval(Value lower_bound, Value upper_bound)
+        constexpr interval(Value lower_bound)
             : lower_bound_{static_cast<Value&&>(lower_bound)} {}
 
     private:
@@ -212,7 +212,7 @@ namespace jkj {
         constexpr auto& upper_bound() & noexcept { return upper_bound_; }
         constexpr auto&& upper_bound() && noexcept { return static_cast<Value&&>(upper_bound_); }
 
-        constexpr interval(Value lower_bound, Value upper_bound)
+        constexpr interval(Value upper_bound)
             : upper_bound_{static_cast<Value&&>(upper_bound)} {}
 
     private:
@@ -235,7 +235,7 @@ namespace jkj {
         constexpr auto& upper_bound() & noexcept { return upper_bound_; }
         constexpr auto&& upper_bound() && noexcept { return static_cast<Value&&>(upper_bound_); }
 
-        constexpr interval(Value lower_bound, Value upper_bound)
+        constexpr interval(Value upper_bound)
             : upper_bound_{static_cast<Value&&>(upper_bound)} {}
 
     private:
@@ -245,6 +245,149 @@ namespace jkj {
     template <std::totally_ordered Value>
     struct interval<Value, interval_type_t::entire> {
         static constexpr auto interval_type() noexcept { return interval_type_t::entire; }
+        static constexpr auto left_endpoint_type() noexcept { return endpoint_type_t::infinity; }
+        static constexpr auto right_endpoint_type() noexcept { return endpoint_type_t::infinity; }
+
+        constexpr auto const& lower_bound() const& noexcept = delete;
+        constexpr auto& lower_bound() & noexcept = delete;
+        constexpr auto&& lower_bound() && noexcept = delete;
+
+        constexpr auto const& upper_bound() const& noexcept = delete;
+        constexpr auto& upper_bound() & noexcept = delete;
+        constexpr auto&& upper_bound() && noexcept = delete;
+    };
+
+    enum class cyclic_interval_type_t {
+        empty,                  // empty
+        open,                   // (a,b)
+        left_open_right_closed, // (a,b]
+        left_closed_right_open, // [a,b)
+        closed,                 // [a,b]
+        entire                  // entire
+    };
+
+    template <class T>
+    concept cyclically_ordered = std::equality_comparable<T> && requires(T a, T b, T c) {
+        { cyclic_order(a, b, c) } -> std::same_as<bool>;
+    };
+
+    template <cyclically_ordered Value, cyclic_interval_type_t it>
+    struct cyclic_interval;
+
+    template <cyclically_ordered Value>
+    struct cyclic_interval<Value, cyclic_interval_type_t::empty> {
+        static constexpr auto interval_type() noexcept { return cyclic_interval_type_t::empty; }
+        static constexpr auto left_endpoint_type() noexcept { return endpoint_type_t::empty; }
+        static constexpr auto right_endpoint_type() noexcept { return endpoint_type_t::empty; }
+
+        constexpr auto const& lower_bound() const& noexcept = delete;
+        constexpr auto& lower_bound() & noexcept = delete;
+        constexpr auto&& lower_bound() && noexcept = delete;
+
+        constexpr auto const& upper_bound() const& noexcept = delete;
+        constexpr auto& upper_bound() & noexcept = delete;
+        constexpr auto&& upper_bound() && noexcept = delete;
+    };
+
+    template <cyclically_ordered Value>
+    struct cyclic_interval<Value, cyclic_interval_type_t::open> {
+        static constexpr auto interval_type() noexcept { return cyclic_interval_type_t::open; }
+        static constexpr auto left_endpoint_type() noexcept { return endpoint_type_t::open; }
+        static constexpr auto right_endpoint_type() noexcept { return endpoint_type_t::open; }
+
+        constexpr auto const& lower_bound() const& noexcept { return lower_bound_; }
+        constexpr auto& lower_bound() & noexcept { return lower_bound_; }
+        constexpr auto&& lower_bound() && noexcept { return static_cast<Value&&>(lower_bound_); }
+
+        constexpr auto const& upper_bound() const& noexcept { return upper_bound_; }
+        constexpr auto& upper_bound() & noexcept { return upper_bound_; }
+        constexpr auto&& upper_bound() && noexcept { return static_cast<Value&&>(upper_bound_); }
+
+        constexpr cyclic_interval(Value lower_bound, Value upper_bound)
+            : lower_bound_{static_cast<Value&&>(lower_bound)},
+              upper_bound_{static_cast<Value&&>(upper_bound)} {}
+
+    private:
+        Value lower_bound_;
+        Value upper_bound_;
+    };
+
+    template <cyclically_ordered Value>
+    struct cyclic_interval<Value, cyclic_interval_type_t::left_open_right_closed> {
+        static constexpr auto interval_type() noexcept {
+            return cyclic_interval_type_t::left_open_right_closed;
+        }
+        static constexpr auto left_endpoint_type() noexcept { return endpoint_type_t::open; }
+        static constexpr auto right_endpoint_type() noexcept { return endpoint_type_t::closed; }
+
+        constexpr auto const& lower_bound() const& noexcept { return lower_bound_; }
+        constexpr auto& lower_bound() & noexcept { return lower_bound_; }
+        constexpr auto&& lower_bound() && noexcept { return static_cast<Value&&>(lower_bound_); }
+
+        constexpr auto const& upper_bound() const& noexcept { return upper_bound_; }
+        constexpr auto& upper_bound() & noexcept { return upper_bound_; }
+        constexpr auto&& upper_bound() && noexcept { return static_cast<Value&&>(upper_bound_); }
+
+        constexpr cyclic_interval(Value lower_bound, Value upper_bound)
+            : lower_bound_{static_cast<Value&&>(lower_bound)},
+              upper_bound_{static_cast<Value&&>(upper_bound)} {}
+
+    private:
+        Value lower_bound_;
+        Value upper_bound_;
+    };
+
+    template <cyclically_ordered Value>
+    struct cyclic_interval<Value, cyclic_interval_type_t::left_closed_right_open> {
+        static constexpr auto interval_type() noexcept {
+            return cyclic_interval_type_t::left_closed_right_open;
+        }
+        static constexpr auto left_endpoint_type() noexcept { return endpoint_type_t::closed; }
+        static constexpr auto right_endpoint_type() noexcept { return endpoint_type_t::open; }
+
+        constexpr auto const& lower_bound() const& noexcept { return lower_bound_; }
+        constexpr auto& lower_bound() & noexcept { return lower_bound_; }
+        constexpr auto&& lower_bound() && noexcept { return static_cast<Value&&>(lower_bound_); }
+
+        constexpr auto const& upper_bound() const& noexcept { return upper_bound_; }
+        constexpr auto& upper_bound() & noexcept { return upper_bound_; }
+        constexpr auto&& upper_bound() && noexcept { return static_cast<Value&&>(upper_bound_); }
+
+        constexpr cyclic_interval(Value lower_bound, Value upper_bound)
+            : lower_bound_{static_cast<Value&&>(lower_bound)},
+              upper_bound_{static_cast<Value&&>(upper_bound)} {}
+
+    private:
+        Value lower_bound_;
+        Value upper_bound_;
+    };
+
+    template <cyclically_ordered Value>
+    struct cyclic_interval<Value, cyclic_interval_type_t::closed> {
+        static constexpr auto interval_type() noexcept { return cyclic_interval_type_t::closed; }
+        static constexpr auto left_endpoint_type() noexcept { return endpoint_type_t::closed; }
+        static constexpr auto right_endpoint_type() noexcept { return endpoint_type_t::closed; }
+
+        constexpr auto const& lower_bound() const& noexcept { return lower_bound_; }
+        constexpr auto& lower_bound() & noexcept { return lower_bound_; }
+        constexpr auto&& lower_bound() && noexcept { return static_cast<Value&&>(lower_bound_); }
+
+        constexpr auto const& upper_bound() const& noexcept { return upper_bound_; }
+        constexpr auto& upper_bound() & noexcept { return upper_bound_; }
+        constexpr auto&& upper_bound() && noexcept { return static_cast<Value&&>(upper_bound_); }
+
+        constexpr cyclic_interval(Value lower_bound, Value upper_bound)
+            : lower_bound_{static_cast<Value&&>(lower_bound)},
+              upper_bound_{static_cast<Value&&>(upper_bound)} {}
+
+    private:
+        Value lower_bound_;
+        Value upper_bound_;
+    };
+
+    template <cyclically_ordered Value>
+    struct cyclic_interval<Value, cyclic_interval_type_t::entire> {
+        static constexpr auto interval_type() noexcept { return cyclic_interval_type_t::entire; }
         static constexpr auto left_endpoint_type() noexcept { return endpoint_type_t::infinity; }
         static constexpr auto right_endpoint_type() noexcept { return endpoint_type_t::infinity; }
 
