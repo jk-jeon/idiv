@@ -412,7 +412,6 @@ namespace jkj {
                 util::constexpr_assert<util::error_msgs::overflow>(n <= wuint::uint64_mask);
                 return uint_view{{&n, 1}};
             }
-            static constexpr uint_view make_view_from_single_block(block_type&&) = delete;
         };
 
         // Signed version of uint_view.
@@ -2573,6 +2572,9 @@ namespace jkj {
         constexpr int_var operator+(int_var&& x, uint_view y) {
             return static_cast<int_var&&>(x += y);
         }
+        constexpr int_var operator+(int_var&& x, uint_var&& y) {
+            return static_cast<int_var&&>(x += y);
+        }
         constexpr int_var operator+(int_var&& x, int_view y) {
             return static_cast<int_var&&>(x += y);
         }
@@ -2695,6 +2697,9 @@ namespace jkj {
         constexpr int_var operator-(int_view x, int_const_t<>) { return int_var(x); }
 
         constexpr int_var operator-(int_var&& x, uint_view y) {
+            return static_cast<int_var&&>(x -= y);
+        }
+        constexpr int_var operator-(int_var&& x, uint_var&& y) {
             return static_cast<int_var&&>(x -= y);
         }
         constexpr int_var operator-(int_var&& x, int_view y) {
