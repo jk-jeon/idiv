@@ -112,6 +112,7 @@ namespace jkj {
           public Mixin<Impl, convergent_generator<Impl, Mixin...>>... {
     public:
         using convergent_type = typename std::remove_cvref_t<Impl>::convergent_type;
+        using impl_type = Impl;
 
     private:
         using crtp_base = convergent_generator_base<convergent_generator<Impl, Mixin...>>;
@@ -144,7 +145,7 @@ namespace jkj {
                 is_terminated_ = result.is_last;
 
                 (static_cast<Mixin<Impl, convergent_generator>&>(*this).update(
-                     result.partial_fraction, next_convergent),
+                     result.partial_fraction, next_convergent, impl_),
                  ...);
 
                 previous_convergent_ = static_cast<convergent_type&&>(current_convergent_);
@@ -156,49 +157,30 @@ namespace jkj {
         }
     };
 
-    // Keep track of the quantity e = |P_(n-1)/Q_(n-1) - P_n/Q_n| = (|a1| ... |an|)/(Q_(n-1) Q_n).
-    // This must be an upper bound on the distance between the current convergent P_n/Q_n and the
-    // limiting value of the continued fraction, provided that
-    // 1. Q_n's are known to be positive, and
-    // 2. the limit exists.
-    // Otherwise, e may not have anything to do with the error bound.
+    // Keep track of an interval where the limit value should live inside.
     template <class Impl, class ConvergentGenerator>
-    class error_bound_tracker {
+    class interval_tracker {
     public:
         using convergent_type = typename std::remove_cvref_t<Impl>::convergent_type;
-        using error_bound_type = typename std::remove_cvref_t<Impl>::error_bound_type;
-
+        using interval_type = typename std::remove_cvref_t<Impl>::interval_type;
         friend ConvergentGenerator;
 
     private:
-        error_bound_type current_error_bound_{1u, 0u};
+        interval_type current_interval_ = std::remove_cvref_t<Impl>::initial_interval();
 
         template <class PartialFractionType>
-        constexpr void update(PartialFractionType const& partial_fraction,
-                              convergent_type const& next_convergent) {
-            decltype(auto) current_denominator =
-                static_cast<ConvergentGenerator&>(*this).current_convergent_denominator();
-            decltype(auto) previous_denominator =
-                static_cast<ConvergentGenerator&>(*this).previous_convergent_denominator();
-
-            // For the initial update.
-            if (is_zero(current_denominator)) {
-                return;
-            }
-
-            current_error_bound_.numerator *= abs(partial_fraction.numerator);
-            if (is_zero(current_error_bound_.denominator)) {
-                current_error_bound_.denominator = current_denominator;
-            }
-            else {
-                current_error_bound_.denominator /= previous_denominator;
-            }
-            current_error_bound_.denominator *= next_convergent.denominator;
+        constexpr void update(PartialFractionType const&, convergent_type const& next_convergent,
+                              Impl& impl) {
+            auto& self = static_cast<ConvergentGenerator const&>(*this);
+            current_interval_ = impl.next_interval(self.previous_convergent(),
+                                                   self.current_convergent(), next_convergent);
         }
 
     public:
-        error_bound_type const& current_error_bound() const noexcept {
-            return current_error_bound_;
+        interval_type const& current_interval() const noexcept { return current_interval_; }
+
+        auto current_error_bound() const {
+            return current_interval_.upper_bound() - current_interval_.lower_bound();
         }
 
         // Refine the current value so that the maximum possible error is strictly less than the
