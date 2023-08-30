@@ -167,19 +167,23 @@ namespace jkj {
                     if (!is_zero(domain_itv.lower_bound().denominator) ||
                         !is_zero(domain_itv.upper_bound().denominator)) {
                         // Find the mapped cyclic interval.
-                        cyclic_interval<frac<int_type, int_type>, cyclic_interval_type_t::open> itv(
-                            {coeff_.numerator.x_coeff * domain_itv.lower_bound().numerator +
-                                 coeff_.numerator.const_coeff *
-                                     domain_itv.lower_bound().denominator,
-                             coeff_.denominator.x_coeff * domain_itv.lower_bound().numerator +
-                                 coeff_.denominator.const_coeff *
-                                     domain_itv.lower_bound().denominator},
-                            {coeff_.numerator.x_coeff * domain_itv.upper_bound().numerator +
-                                 coeff_.numerator.const_coeff *
-                                     domain_itv.upper_bound().denominator,
-                             coeff_.denominator.x_coeff * domain_itv.upper_bound().numerator +
-                                 coeff_.denominator.const_coeff *
-                                     domain_itv.upper_bound().denominator});
+                        cyclic_interval<frac<int_type, uint_type>, cyclic_interval_type_t::open>
+                            itv{make_frac_from_signed(coeff_.numerator.x_coeff *
+                                                              domain_itv.lower_bound().numerator +
+                                                          coeff_.numerator.const_coeff *
+                                                              domain_itv.lower_bound().denominator,
+                                                      coeff_.denominator.x_coeff *
+                                                              domain_itv.lower_bound().numerator +
+                                                          coeff_.denominator.const_coeff *
+                                                              domain_itv.lower_bound().denominator),
+                                make_frac_from_signed(
+                                    coeff_.numerator.x_coeff * domain_itv.upper_bound().numerator +
+                                        coeff_.numerator.const_coeff *
+                                            domain_itv.upper_bound().denominator,
+                                    coeff_.denominator.x_coeff *
+                                            domain_itv.upper_bound().numerator +
+                                        coeff_.denominator.const_coeff *
+                                            domain_itv.upper_bound().denominator)};
 
                         if (negative_determinant) {
                             swap(itv.lower_bound(), itv.upper_bound());
