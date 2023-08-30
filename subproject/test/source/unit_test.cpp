@@ -441,12 +441,13 @@ int main() {
             rational_continued_fraction<bigint::int_var, bigint::uint_var>;
         // Take x = 17/89, y = 31/125, and
         // z = (8+4x+2y+xy)/(1+2x-3y) = 2655/182.
-        convergent_generator cf{gosper_continued_fraction{rational_continued_fraction_t{{17, 89u}},
-                                                          rational_continued_fraction_t{{31, 125u}},
-                                                          {// numerator
-                                                           {8, 4, 2, 1},
-                                                           // denominator
-                                                           {1, 2, -3, 0}}}};
+        convergent_generator cf{
+            binary_gosper_continued_fraction{rational_continued_fraction_t{{17, 89u}},
+                                             rational_continued_fraction_t{{31, 125u}},
+                                             {// numerator
+                                              {8, 4, 2, 1},
+                                              // denominator
+                                              {1, 2, -3, 0}}}};
 
         expect(cf.update() == true);
         expect(cf.current_convergent() == frac_t{14, 1u});
@@ -465,6 +466,7 @@ int main() {
     };
 
     "[log_continued_fraction]"_test = [] {
+        using frac_t = frac<bigint::int_var, bigint::uint_var>;
         using unsigned_frac_t = frac<bigint::uint_var, bigint::uint_var>;
 
         should("natural_log_calculator") = [] {
@@ -472,10 +474,11 @@ int main() {
             unsigned_frac_t error_bound{
                 1u, bigint::uint_var(bigint::decimal_uint_const_v<1'000'000, 0, 0, 0, 0, 0>)};
             {
-                jkj::natural_log_calculator<bigint::int_var, bigint::uint_var> nlc{
-                    unsigned_frac_t{2u, 1u}};
+                convergent_generator<natural_log_calculator<bigint::int_var, bigint::uint_var>,
+                                     interval_tracker>
+                    nlc{{unsigned_frac_t{2u, 1u}}};
 
-                auto const approx_ln2 = nlc.compute_within_error(error_bound);
+                auto const approx_ln2 = nlc.progress_until(error_bound);
                 auto const digits = div_floor(
                     approx_ln2.numerator * bigint::decimal_uint_const_v<100'000, 0, 0, 0, 0, 0>,
                     approx_ln2.denominator);
@@ -487,6 +490,44 @@ int main() {
                         UINT64_C(1'214'581'765'680'755'001), UINT64_C(3'436'025'525'412'068'000),
                         UINT64_C(9'493'393'621'969'694'715), UINT64_C(6'058'633'269'964'186'875)>);
             }
+        };
+
+        should("natural_log_continued_fraction") = [] {
+            jkj::convergent_generator cf{
+                jkj::natural_log_continued_fraction<bigint::int_var, bigint::uint_var>{
+                    unsigned_frac_t{3u, 1u}}};
+
+            // First 15 convergents of ln(3).
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{1, 1u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{11, 10u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{78, 71u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{713, 649u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{1'504, 1'369u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{3'721, 3'387u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{5'225, 4'756u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{19'396, 17'655u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{24'621, 22'411u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{807'268, 734'807u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{1'639'157, 1'492'025u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{28'672'937, 26'099'232u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{30'312'094, 27'591'257u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{483'354'347, 439'968'087u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == frac_t{513'666'441, 467'559'344u});
         };
     };
 }
