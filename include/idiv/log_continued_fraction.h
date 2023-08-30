@@ -54,7 +54,6 @@ namespace jkj {
         frac<Int, Int> current_partial_fraction_{1, 0u};
         frac<UInt, UInt> current_error_bound_{1u, 0u};
         UInt p_square_ = 0u;
-        UInt q_square_ = 1u;
         UInt two_q_ = 0u;
         int current_index_ = -1;
         bool is_z_negative_ = false;
@@ -149,9 +148,9 @@ namespace jkj {
         constexpr natural_log_continued_fraction(frac<UInt, UInt> const& positive_rational)
             : impl_type{{positive_rational},
                         {// numerator
-                         {0, 1},
+                         {1, 0},
                          // denominator
-                         {1, 0}}} {}
+                         {0, 1}}} {}
 
         using impl_type::next_partial_fraction;
     };
