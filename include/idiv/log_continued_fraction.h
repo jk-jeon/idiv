@@ -19,6 +19,7 @@
 #define JKJ_HEADER_LOG_CONTINUED_FRACTION
 
 #include "gosper_continued_fraction.h"
+#include "interval.h"
 #include "rational_continued_fraction.h"
 
 namespace jkj {
@@ -47,13 +48,16 @@ namespace jkj {
     public:
         using partial_fraction_type = frac<Int, Int>;
         using convergent_type = frac<Int, UInt>;
-        using error_bound_type = frac<UInt, UInt>;
+        using interval_type = interval<frac<Int, UInt>, interval_type_t::bounded_open>;
 
     private:
         frac<Int, Int> current_partial_fraction_{1, 0u};
+        frac<UInt, UInt> current_error_bound_{1u, 0u};
         UInt p_square_ = 0u;
+        UInt q_square_ = 1u;
         UInt two_q_ = 0u;
         int current_index_ = -1;
+        bool is_z_negative_ = false;
 
     public:
         constexpr natural_log_calculator(frac<UInt, UInt> const& positive_rational) {
@@ -73,11 +77,17 @@ namespace jkj {
                 return cf.current_convergent();
             }();
 
+            is_z_negative_ = is_strictly_negative(z.numerator);
             current_partial_fraction_.numerator = (z.numerator << 1);
             current_partial_fraction_.denominator = static_cast<Int>(z.denominator);
+            two_q_ = (z.denominator << 1);
             p_square_ = abs(static_cast<Int&&>(z.numerator));
             p_square_ *= p_square_;
-            two_q_ = static_cast<UInt&&>(z.denominator <<= 1);
+            current_error_bound_.numerator =
+                abs(current_partial_fraction_.numerator) * abs(z.denominator);
+            current_error_bound_.denominator = abs(z.denominator);
+            current_error_bound_.denominator *= current_error_bound_.denominator;
+            current_error_bound_.denominator -= p_square_;
         }
 
         constexpr next_partial_fraction_return<partial_fraction_type> next_partial_fraction() {
@@ -92,6 +102,38 @@ namespace jkj {
             }
             ++current_index_;
             return {current_partial_fraction_, false};
+        }
+
+        static constexpr interval_type initial_interval() {
+            return interval_type{frac<Int, UInt>{-1, 0u}, frac<Int, UInt>{1, 0u}};
+        }
+
+        constexpr interval_type next_interval(convergent_type const& previous_convergent,
+                                              convergent_type const&,
+                                              convergent_type const& next_convergent) {
+            util::constexpr_assert(current_index_ >= 0);
+            if (current_index_ == 1) {
+                // current_error_bound_ = 2pq/(q^2 - p^2).
+                current_error_bound_.numerator /= (two_q_ >> 1);
+                current_error_bound_.numerator *= p_square_;
+                current_error_bound_.denominator *= two_q_;
+            }
+            else if (current_index_ >= 2) {
+                current_error_bound_.numerator *=
+                    (unsigned(current_index_ - 1) * unsigned(current_index_));
+                current_error_bound_.numerator *= p_square_;
+                current_error_bound_.denominator /=
+                    (unsigned(current_index_) * previous_convergent.denominator);
+                current_error_bound_.denominator *=
+                    (unsigned(current_index_ + 1) * next_convergent.denominator);
+            }
+
+            if (is_z_negative_) {
+                return interval_type{next_convergent - current_error_bound_, next_convergent};
+            }
+            else {
+                return interval_type{next_convergent, next_convergent + current_error_bound_};
+            }
         }
     };
 
