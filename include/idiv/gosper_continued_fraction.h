@@ -20,30 +20,18 @@
 
 #include "continued_fraction.h"
 #include "frac.h"
+#include "interval.h"
 #include <cstdlib>
 #include <type_traits>
-
-// Implements Gosper's algorithm.
-// Gosper's algorithm computes the continued fractions of the number
-// z = (a + bx + cy + dxy) / (e + fx + gy + hxy)
-// in terms of the continued fractions of x and y.
 
 namespace jkj {
     template <class Int>
     struct unary_gosper_coeff {
+        // f(x) = (ax+b)/(cx+d).
         struct coeff {
-            Int const_coeff;
             Int x_coeff;
-
-            template <class PartialFraction>
-            constexpr void feed(PartialFraction const& partial_fraction) {
-                // s/t, (a, b) |-> (b, sa + tb)
-                const_coeff *= partial_fraction.numerator;
-                const_coeff += partial_fraction.denominator * x_coeff;
-                swap(const_coeff, x_coeff);
-            }
+            Int const_coeff;
         };
-
         coeff numerator;
         coeff denominator;
     };
@@ -92,22 +80,31 @@ namespace jkj {
         using convergent_type = typename ContinuedFractionImpl::convergent_type;
 
     private:
-        ContinuedFractionImpl cf_;
+        convergent_generator<ContinuedFractionImpl, interval_tracker> cf_;
         unary_gosper_coeff<int_type> coeff_;
         bool is_terminated_ = false;
+        bool negative_determinant = true;
 
         constexpr void progress() {
-            auto result = cf_.next_partial_fraction();
-            coeff_.numerator.feed(result.partial_fraction);
-            coeff_.denominator.feed(result.partial_fraction);
+            cf_.update();
 
             // If the current coefficient is the last one, we have to use a different update
             // formula from now on.
-            if (result.is_last) {
+            if (cf_.is_terminated()) {
                 is_terminated_ = true;
-                using util::swap;
-                swap(coeff_.numerator.const_coeff, coeff_.numerator.x_coeff);
-                swap(coeff_.denominator.const_coeff, coeff_.denominator.x_coeff);
+                coeff_.numerator.const_coeff =
+                    coeff_.numerator.x_coeff * cf_.current_convergent().numerator +
+                    coeff_.numerator.const_coeff * cf_.current_convergent().denominator;
+                coeff_.denominator.const_coeff =
+                    coeff_.denominator.x_coeff * cf_.current_convergent().numerator +
+                    coeff_.denominator.const_coeff * cf_.current_convergent().denominator;
+
+                if (is_strictly_negative(coeff_.denominator.const_coeff)) {
+                    coeff_.numerator.const_coeff =
+                        invert_sign(static_cast<int_type&&>(coeff_.numerator.const_coeff));
+                    coeff_.denominator.const_coeff =
+                        invert_sign(static_cast<int_type&&>(coeff_.denominator.const_coeff));
+                }
             }
         }
 
@@ -115,14 +112,38 @@ namespace jkj {
         constexpr unary_gosper_continued_fraction(ContinuedFractionImpl cf,
                                                   unary_gosper_coeff<int_type> coeff)
             : cf_{static_cast<ContinuedFractionImpl>(cf)},
-              coeff_{static_cast<unary_gosper_coeff<int_type>&&>(coeff)} {}
+              coeff_{static_cast<unary_gosper_coeff<int_type>&&>(coeff)} {
+            auto const determinant = coeff_.numerator.x_coeff * coeff_.denominator.const_coeff -
+                                     coeff_.numerator.const_coeff * coeff_.denominator.x_coeff;
+
+            if (is_strictly_positive(determinant)) {
+                negative_determinant = false;
+            }
+            else if (is_strictly_negative(determinant)) {
+                negative_determinant = true;
+            }
+            else {
+                // Zero determinant.
+                // Assumes cx + d is not zero.
+                is_terminated_ = true;
+
+                if (is_zero(coeff_.denominator.const_coeff)) {
+                    util::constexpr_assert<util::error_msgs::divide_by_zero>(
+                        !is_zero(coeff_.denominator.x_coeff));
+                    coeff_.denominator.const_coeff =
+                        static_cast<int_type&&>(coeff_.denominator.x_coeff);
+                    coeff_.numerator.const_coeff =
+                        static_cast<int_type&&>(coeff_.numerator.x_coeff);
+                }
+            }
+        }
 
         constexpr next_partial_fraction_return<partial_fraction_type> next_partial_fraction() {
+            using util::swap;
+
             while (true) {
                 if (is_terminated_) {
                     // Proceed as in the case of usual rational continued fractions.
-                    util::constexpr_assert<util::error_msgs::divide_by_zero>(
-                        !is_zero(coeff_.denominator.const_coeff));
                     util::constexpr_assert<util::error_msgs::divide_by_zero>(
                         is_strictly_positive(coeff_.denominator.const_coeff));
 
@@ -139,31 +160,59 @@ namespace jkj {
                             is_zero(coeff_.denominator.const_coeff)};
                 }
                 else {
-                    if (!is_zero(coeff_.denominator.const_coeff) &&
-                        !is_zero(coeff_.denominator.x_coeff)) {
-                        auto const_output =
-                            div_floor(coeff_.numerator.const_coeff, coeff_.denominator.const_coeff);
-                        auto x_output =
-                            div_floor(coeff_.numerator.x_coeff, coeff_.denominator.x_coeff);
+                    // Read the current cyclic interval.
+                    auto const domain_itv = cf_.current_interval();
+                    // If the current interval is the entire real line, nothing can be done, so
+                    // progress.
+                    if (!is_zero(domain_itv.lower_bound().denominator) ||
+                        !is_zero(domain_itv.upper_bound().denominator)) {
+                        // Find the mapped cyclic interval.
+                        cyclic_interval<frac<int_type, int_type>, cyclic_interval_type_t::open> itv(
+                            {coeff_.numerator.x_coeff * domain_itv.lower_bound().numerator +
+                                 coeff_.numerator.const_coeff *
+                                     domain_itv.lower_bound().denominator,
+                             coeff_.denominator.x_coeff * domain_itv.lower_bound().numerator +
+                                 coeff_.denominator.const_coeff *
+                                     domain_itv.lower_bound().denominator},
+                            {coeff_.numerator.x_coeff * domain_itv.upper_bound().numerator +
+                                 coeff_.numerator.const_coeff *
+                                     domain_itv.upper_bound().denominator,
+                             coeff_.denominator.x_coeff * domain_itv.upper_bound().numerator +
+                                 coeff_.denominator.const_coeff *
+                                     domain_itv.upper_bound().denominator});
 
-                        if (const_output == x_output) {
-                            // Found the new coefficient.
-                            coeff_.numerator.const_coeff -=
-                                const_output * coeff_.denominator.const_coeff;
-                            coeff_.numerator.x_coeff -= const_output * coeff_.denominator.x_coeff;
+                        if (negative_determinant) {
+                            swap(itv.lower_bound(), itv.upper_bound());
+                        }
 
-                            using util::swap;
-                            swap(coeff_.numerator, coeff_.denominator);
+                        // Check if itv is a bounded nonempty open interval in the real line.
+                        if (!is_zero(itv.lower_bound().denominator) &&
+                            !is_zero(itv.upper_bound().denominator)) {
+                            if (itv.lower_bound() < itv.upper_bound()) {
+                                // See if the endpoints agree on the integer part.
+                                auto lb = div_floor(itv.lower_bound().numerator,
+                                                    itv.lower_bound().denominator);
+                                auto ub = div_floor(itv.upper_bound().numerator,
+                                                    itv.upper_bound().denominator);
 
-                            // Terminate if all coefficients in the denominator has become zero.
-                            return {
-                                partial_fraction_type{{}, static_cast<int_type&&>(const_output)},
-                                is_zero(coeff_.denominator.const_coeff) &&
-                                    is_zero(coeff_.denominator.x_coeff)};
+                                if (lb == ub) {
+                                    // Found the next coefficient.
+                                    coeff_.numerator.x_coeff -= lb * coeff_.denominator.x_coeff;
+                                    coeff_.numerator.const_coeff -=
+                                        lb * coeff_.denominator.const_coeff;
+                                    swap(coeff_.numerator, coeff_.denominator);
+                                    negative_determinant = !negative_determinant;
+
+                                    // Terminate if all coefficients in the denominator has become
+                                    // zero.
+                                    return {partial_fraction_type{{}, static_cast<int_type&&>(lb)},
+                                            is_zero(coeff_.denominator.x_coeff) &&
+                                                is_zero(coeff_.denominator.const_coeff)};
+                                }
+                            }
                         }
                     }
 
-                    // If two endpoints do not agree, then refine the region.
                     progress();
                 }
             }
