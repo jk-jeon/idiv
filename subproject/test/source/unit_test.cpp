@@ -386,55 +386,59 @@ int main() {
     };
 
     "[rational_continued_fraction]"_test = [] {
-        using frac_t = frac<bigint::int_var, bigint::uint_var>;
+        using convergent_t = cntfrc::projective_rational<bigint::int_var, bigint::uint_var>;
         {
-            convergent_generator cf{
-                rational_continued_fraction<bigint::int_var, bigint::uint_var>{{156, 179u}}};
+            cntfrc::rational_continued_fraction<bigint::int_var, bigint::uint_var, cntfrc::unity,
+                                                cntfrc::convergent_tracker>
+                cf{{156, 179u}};
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{0, 1u});
+            expect(cf.current_convergent() == convergent_t{0, 1u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{1, 1u});
+            expect(cf.current_convergent() == convergent_t{1, 1u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{6, 7u});
+            expect(cf.current_convergent() == convergent_t{6, 7u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{7, 8u});
+            expect(cf.current_convergent() == convergent_t{7, 8u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{27, 31u});
+            expect(cf.current_convergent() == convergent_t{27, 31u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{34, 39u});
+            expect(cf.current_convergent() == convergent_t{34, 39u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{61, 70u});
+            expect(cf.current_convergent() == convergent_t{61, 70u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{156, 179u});
             expect(cf.update() == false);
-            expect(cf.current_convergent() == frac_t{156, 179u});
         }
         {
-            convergent_generator cf{
-                rational_continued_fraction<bigint::int_var, bigint::uint_var>{{-2767, 1982u}}};
+            cntfrc::rational_continued_fraction<bigint::int_var, bigint::uint_var, cntfrc::unity,
+                                                cntfrc::convergent_tracker>
+                cf{{-2767, 1982u}};
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{-2, 1u});
+            expect(cf.current_convergent() == convergent_t{-2, 1u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{-1, 1u});
+            expect(cf.current_convergent() == convergent_t{-1, 1u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{-3, 2u});
+            expect(cf.current_convergent() == convergent_t{-3, 2u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{-4, 3u});
+            expect(cf.current_convergent() == convergent_t{-4, 3u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{-7, 5u});
+            expect(cf.current_convergent() == convergent_t{-7, 5u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{-67, 48u});
+            expect(cf.current_convergent() == convergent_t{-67, 48u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{-74, 53u});
+            expect(cf.current_convergent() == convergent_t{-74, 53u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{-141, 101u});
+            expect(cf.current_convergent() == convergent_t{-141, 101u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{-497, 356u});
+            expect(cf.current_convergent() == convergent_t{-497, 356u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{-1135, 813u});
+            expect(cf.current_convergent() == convergent_t{-1135, 813u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{-2767, 1982u});
             expect(cf.update() == false);
-            expect(cf.current_convergent() == frac_t{-2767, 1982u});
         }
     };
-
+#if 0
     "[gosper_continued_fraction]"_test = [] {
         using frac_t = frac<bigint::int_var, bigint::uint_var>;
         using rational_continued_fraction_t =
@@ -464,9 +468,29 @@ int main() {
         expect(cf.update() == false);
         expect(cf.current_convergent() == frac_t{2655, 182u});
     };
+#endif
+    "[unary_gosper]"_test = [] {
+        using unary_gosper_t = cntfrc::unary_gosper<
+            cntfrc::rational_continued_fraction<bigint::int_var, bigint::uint_var, cntfrc::unity,
+                                                cntfrc::index_tracker, cntfrc::convergent_tracker,
+                                                cntfrc::interval_tracker>,
+            cntfrc::unity, cntfrc::convergent_tracker>;
+
+        // 481/2245 = (-18*156 + 13*179)/(12*156 - 23*179)
+        unary_gosper_t cf1{unary_gosper_t::internal_continued_fraction_impl_type{{156, 179u}},
+                           {-18, 13, 12, -23}};
+        cntfrc::rational_continued_fraction<bigint::int_var, bigint::uint_var, cntfrc::unity,
+                                            cntfrc::convergent_tracker>
+            cf2{{481, 2245u}};
+
+        while (!cf2.terminated()) {
+            expect(cf1.update() == cf2.update());
+            expect(cf1.current_convergent() == cf2.current_convergent());
+        }
+    };
 
     "[log_continued_fraction]"_test = [] {
-        using frac_t = frac<bigint::int_var, bigint::uint_var>;
+        using convergent_t = cntfrc::projective_rational<bigint::int_var, bigint::uint_var>;
         using unsigned_frac_t = frac<bigint::uint_var, bigint::uint_var>;
 
         should("natural_log_calculator") = [] {
@@ -474,9 +498,9 @@ int main() {
             unsigned_frac_t error_bound{
                 1u, bigint::uint_var(bigint::decimal_uint_const_v<1'000'000, 0, 0, 0, 0, 0>)};
             {
-                convergent_generator<natural_log_calculator<bigint::int_var, bigint::uint_var>,
-                                     interval_tracker>
-                    nlc{{unsigned_frac_t{2u, 1u}}};
+                cntfrc::natural_log_calculator<bigint::int_var, bigint::uint_var,
+                                               cntfrc::interval_tracker>
+                    nlc{unsigned_frac_t{2u, 1u}};
 
                 auto const approx_ln2 = nlc.progress_until(error_bound);
                 auto const digits = div_floor(
@@ -493,41 +517,41 @@ int main() {
         };
 
         should("natural_log_continued_fraction") = [] {
-            jkj::convergent_generator cf{
-                jkj::natural_log_continued_fraction<bigint::int_var, bigint::uint_var>{
-                    unsigned_frac_t{3u, 1u}}};
+            cntfrc::natural_log_continued_fraction<bigint::int_var, bigint::uint_var, cntfrc::unity,
+                                                   cntfrc::convergent_tracker>
+                cf{unsigned_frac_t{3u, 1u}};
 
             // First 15 convergents of ln(3).
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{1, 1u});
+            expect(cf.current_convergent() == convergent_t{1, 1u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{11, 10u});
+            expect(cf.current_convergent() == convergent_t{11, 10u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{78, 71u});
+            expect(cf.current_convergent() == convergent_t{78, 71u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{713, 649u});
+            expect(cf.current_convergent() == convergent_t{713, 649u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{1'504, 1'369u});
+            expect(cf.current_convergent() == convergent_t{1'504, 1'369u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{3'721, 3'387u});
+            expect(cf.current_convergent() == convergent_t{3'721, 3'387u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{5'225, 4'756u});
+            expect(cf.current_convergent() == convergent_t{5'225, 4'756u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{19'396, 17'655u});
+            expect(cf.current_convergent() == convergent_t{19'396, 17'655u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{24'621, 22'411u});
+            expect(cf.current_convergent() == convergent_t{24'621, 22'411u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{807'268, 734'807u});
+            expect(cf.current_convergent() == convergent_t{807'268, 734'807u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{1'639'157, 1'492'025u});
+            expect(cf.current_convergent() == convergent_t{1'639'157, 1'492'025u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{28'672'937, 26'099'232u});
+            expect(cf.current_convergent() == convergent_t{28'672'937, 26'099'232u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{30'312'094, 27'591'257u});
+            expect(cf.current_convergent() == convergent_t{30'312'094, 27'591'257u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{483'354'347, 439'968'087u});
+            expect(cf.current_convergent() == convergent_t{483'354'347, 439'968'087u});
             expect(cf.update() == true);
-            expect(cf.current_convergent() == frac_t{513'666'441, 467'559'344u});
+            expect(cf.current_convergent() == convergent_t{513'666'441, 467'559'344u});
         };
     };
 }
