@@ -23,81 +23,87 @@
 #include <vector>
 
 namespace jkj {
-    // Memorizes all previous partial fractions and convergents in a container, and reuse them when
-    // rewinded.
-    template <class Impl>
-    class caching_continued_fraction
-        : public convergent_generator_base<caching_continued_fraction<Impl>> {
-    public:
-        using partial_fraction_type = typename Impl::partial_fraction_type;
-        using convergent_type = typename Impl::convergent_type;
+    namespace cntfrc {
+        // Memorizes all previous partial fractions and convergents in a container, and reuse them
+        // when rewinded.
+        template <class Impl>
+        class caching_continued_fraction {
+        public:
+            using partial_fraction_type = typename std::remove_cvref_t<Impl>::partial_fraction_type;
+            using convergent_type = typename std::remove_cvref_t<Impl>::convergent_type;
 
-    private:
-        using crtp_base = convergent_generator_base<caching_continued_fraction<Impl>>;
+        private:
+            Impl impl_;
+            int current_index_ = -1;
+            bool terminated_ = false;
 
-        Impl impl_;
-        int current_index_ = -1;
-        bool is_terminated_ = false;
+            struct record_t {
+                partial_fraction_type partial_fraction;
+                convergent_type convergent;
+            };
+            std::vector<record_t> record_;
 
-        struct record_t {
-            partial_fraction_type partial_fraction;
-            convergent_type convergent;
-        };
-        std::vector<record_t> record_;
+            constexpr void initialize_record() {
+                // current_convergent_ = {1, 0u};
+                // previous_convergent_ = {0, 1u};
+                record_.push_back(record_t{partial_fraction_type{}, convergent_type{0, 1u}});
+                record_.push_back(record_t{partial_fraction_type{}, convergent_type{1, 0u}});
+            }
 
-        constexpr void initialize_record() {
-            // current_convergent_ = {1, 0u};
-            // previous_convergent_ = {0, 1u};
-            record_.push_back(record_t{partial_fraction_type{}, convergent_type{0, 1u}});
-            record_.push_back(record_t{partial_fraction_type{}, convergent_type{1, 0u}});
-        }
+        public:
+            constexpr caching_continued_fraction(Impl&& impl) : impl_{static_cast<Impl&&>(impl)} {
+                initialize_record();
+            }
 
-    public:
-        constexpr caching_continued_fraction(Impl&& impl) : impl_{static_cast<Impl&&>(impl)} {
-            initialize_record();
-        }
+            constexpr int current_index() const noexcept { return current_index_; }
+            constexpr bool terminated() const noexcept {
+                return terminated_ && current_index_ + 3 == record_.size();
+            }
 
-        constexpr int current_index() const noexcept { return current_index_; }
-        constexpr bool is_terminated() const noexcept {
-            return is_terminated_ && current_index_ + 3 == record_.size();
-        }
+            constexpr convergent_type const& current_convergent() const noexcept {
+                return record_[current_index_ + 2].convergent;
+            }
+            constexpr auto const& current_convergent_numerator() const noexcept {
+                return current_convergent().numerator;
+            }
+            constexpr auto const& current_convergent_denominator() const noexcept {
+                return current_convergent().denominator;
+            }
 
-        constexpr convergent_type const& current_convergent() const noexcept {
-            return record_[current_index_ + 2].convergent;
-        }
-        constexpr convergent_type const& previous_convergent() const noexcept {
-            return record_[current_index_ + 1].convergent;
-        }
+            constexpr convergent_type const& previous_convergent() const noexcept {
+                return record_[current_index_ + 1].convergent;
+            }
+            constexpr auto const& previous_convergent_numerator() const noexcept {
+                return previous_convergent().numerator;
+            }
+            constexpr auto const& previous_convergent_denominator() const noexcept {
+                return previous_convergent().denominator;
+            }
 
-        // Returns true if there are further partial fractions.
-        constexpr bool update() {
-            // Progress the implementation only if the indices match.
-            if (current_index_ + 3 == record_.size()) {
-                if (!is_terminated_) {
-                    record_.reserve(record_.size() + 1);
-
-                    auto result = impl_.next_partial_fraction();
-                    auto next_convergent =
-                        crtp_base::template compute_next_convergent<convergent_type>(
-                            result.partial_fraction);
-                    is_terminated_ = result.is_last;
-
-                    record_.push_back(
-                        record_t{static_cast<partial_fraction_type&&>(result.partial_fraction),
-                                 static_cast<convergent_type&&>(next_convergent)});
-                    ++current_index_;
+            // Returns true if there are further partial fractions.
+            constexpr bool update() {
+                // Progress the implementation only if the indices match.
+                if (current_index_ + 3 == record_.size()) {
+                    if (!terminated_) {
+                        record_.reserve(record_.size() + 1);
+                        terminated_ = impl_.update();
+                        record_.push_back(record_t{
+                            static_cast<partial_fraction_type&&>(impl_.current_partial_fraction()),
+                            static_cast<convergent_type&&>(impl_.current_convergent())});
+                        ++current_index_;
+                    }
+                    return !terminated_;
                 }
-                return !is_terminated_;
+                else {
+                    ++current_index_;
+                    return true;
+                }
             }
-            else {
-                ++current_index_;
-                return true;
-            }
-        }
 
-        // Go back to the initial state.
-        constexpr void rewind() noexcept { current_index_ = -1; }
-    };
+            // Go back to the initial state.
+            constexpr void rewind() noexcept { current_index_ = -1; }
+        };
+    }
 }
 
 #endif

@@ -20,35 +20,70 @@
 
 #include "continued_fraction.h"
 #include "frac.h"
-#include <cassert>
+#include "interval.h"
 #include <cstdlib>
 
 namespace jkj {
-    template <class Int, class UInt, class Unity = unity>
-    class rational_continued_fraction {
-        Int prev_error_;
-        Int curr_error_;
+    namespace cntfrc {
+        template <class Int, class UInt, class Unity = unity, template <class> class... Mixins>
+        class rational_continued_fraction;
 
-    public:
-        using partial_fraction_type = frac<Unity, Int>;
-        using convergent_type = frac<Int, UInt>;
+        template <class Int, class UInt, class Unity, template <class> class... Mixins>
+        struct continued_fraction_traits<rational_continued_fraction<Int, UInt, Unity, Mixins...>> {
+            using partial_fraction_type = frac<Unity, Int>;
+            using convergent_type = projective_rational<Int, UInt>;
+            using interval_type = variable_shape_cyclic_interval<convergent_type>;
+        };
 
-        constexpr rational_continued_fraction(frac<Int, UInt> r)
-            : prev_error_{static_cast<Int&&>(r.numerator)},
-              curr_error_{static_cast<UInt&&>(r.denominator)} {
-            util::constexpr_assert<util::error_msgs::divide_by_zero>(!is_zero(curr_error_));
-        }
+        template <class Int, class UInt, class Unity, template <class> class... Mixins>
+        class rational_continued_fraction
+            : public continued_fraction_base<
+                  rational_continued_fraction<Int, UInt, Unity, Mixins...>, Mixins...> {
+            using crtp_base =
+                continued_fraction_base<rational_continued_fraction<Int, UInt, Unity, Mixins...>,
+                                        Mixins...>;
+            friend crtp_base;
 
-        constexpr next_partial_fraction_return<partial_fraction_type> next_partial_fraction() {
-            util::constexpr_assert<util::error_msgs::divide_by_zero>(!is_zero(curr_error_));
+        public:
+            using partial_fraction_type = typename crtp_base::traits_type::partial_fraction_type;
+            using convergent_type = typename crtp_base::traits_type::convergent_type;
+            using interval_type = typename crtp_base::traits_type::interval_type;
 
-            using std::div;
-            auto div_result = div(prev_error_, abs(curr_error_));
-            prev_error_ = static_cast<Int&&>(curr_error_);
-            curr_error_ = Int(static_cast<UInt&&>(div_result.rem));
-            return {{Unity{1}, static_cast<Int&&>(div_result.quot)}, is_zero(curr_error_)};
-        }
-    };
+        private:
+            projective_rational<Int, UInt> fraction_;
+
+            template <class Functor>
+            constexpr bool with_next_partial_fraction(Functor&& f) {
+                if (is_zero(fraction_.denominator)) {
+                    return false;
+                }
+
+                using std::div;
+                auto div_result = div(fraction_.numerator, fraction_.denominator);
+                fraction_.numerator = Int{static_cast<UInt&&>(fraction_.denominator)};
+                fraction_.denominator = static_cast<UInt&&>(div_result.rem);
+
+                f(partial_fraction_type{Unity{}, static_cast<Int&&>(div_result.quot)});
+                return true;
+            }
+
+        public:
+            struct default_mixin_initializer {
+                static constexpr partial_fraction_type initial_partial_fraction() {
+                    return {Unity{}, Int{0}};
+                }
+                static constexpr interval_type initial_interval() noexcept {
+                    return cyclic_interval<convergent_type, cyclic_interval_type_t::entire>{};
+                }
+            };
+
+            template <class MixinInitializer = default_mixin_initializer>
+            explicit constexpr rational_continued_fraction(
+                projective_rational<Int, UInt> r, MixinInitializer&& mixin_initializer = {})
+                : crtp_base{mixin_initializer},
+                  fraction_{static_cast<Int&&>(r.numerator), static_cast<UInt&&>(r.denominator)} {}
+        };
+    }
 }
 
 #endif
