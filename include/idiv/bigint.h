@@ -1044,8 +1044,13 @@ namespace jkj {
                 ++blocks_[idx];
                 return *this;
             }
-            constexpr uint_var operator++(int) {
+            constexpr uint_var operator++(int) & {
                 auto temp = *this;
+                ++*this;
+                return temp;
+            }
+            constexpr uint_var operator++(int) && {
+                auto temp = static_cast<uint_var&&>(*this);
                 ++*this;
                 return temp;
             }
@@ -1107,8 +1112,13 @@ namespace jkj {
 
                 return *this;
             }
-            constexpr uint_var operator--(int) {
+            constexpr uint_var operator--(int) & {
                 auto temp = *this;
+                --*this;
+                return temp;
+            }
+            constexpr uint_var operator--(int) && {
+                auto temp = static_cast<uint_var&&>(*this);
                 --*this;
                 return temp;
             }
@@ -1256,8 +1266,13 @@ namespace jkj {
 
                 return *this;
             }
-            constexpr uint_var operator<<(std::size_t k) const {
+            constexpr uint_var operator<<(std::size_t k) const& {
                 auto r = *this;
+                r <<= k;
+                return r;
+            }
+            constexpr uint_var operator<<(std::size_t k) && {
+                auto r = static_cast<uint_var&&>(*this);
                 r <<= k;
                 return r;
             }
@@ -1300,8 +1315,13 @@ namespace jkj {
                 blocks_.resize(new_number_of_blocks);
                 return *this;
             }
-            constexpr uint_var operator>>(std::size_t k) const {
+            constexpr uint_var operator>>(std::size_t k) const& {
                 auto r = *this;
+                r >>= k;
+                return r;
+            }
+            constexpr uint_var operator>>(std::size_t k) && {
+                auto r = static_cast<uint_var&&>(*this);
                 r >>= k;
                 return r;
             }
@@ -2119,8 +2139,13 @@ namespace jkj {
                 }
                 return *this;
             }
-            constexpr int_var operator++(int) {
+            constexpr int_var operator++(int) & {
                 auto temp = *this;
+                ++*this;
+                return temp;
+            }
+            constexpr int_var operator++(int) && {
+                auto temp = static_cast<int_var&&>(*this);
                 ++*this;
                 return temp;
             }
@@ -2210,8 +2235,13 @@ namespace jkj {
                 }
                 return *this;
             }
-            constexpr int_var operator--(int) {
+            constexpr int_var operator--(int) & {
                 auto temp = *this;
+                --*this;
+                return temp;
+            }
+            constexpr int_var operator--(int) && {
+                auto temp = static_cast<int_var&&>(*this);
                 --*this;
                 return temp;
             }
@@ -2295,8 +2325,13 @@ namespace jkj {
                 return *this;
             }
 
-            constexpr int_var operator<<(std::size_t k) const {
+            constexpr int_var operator<<(std::size_t k) const& {
                 auto r = *this;
+                r <<= k;
+                return r;
+            }
+            constexpr int_var operator<<(std::size_t k) && {
+                auto r = static_cast<int_var&&>(*this);
                 r <<= k;
                 return r;
             }
@@ -2341,9 +2376,14 @@ namespace jkj {
                 }
             }
 
-            constexpr int_var operator>>(std::size_t k) const {
+            constexpr int_var operator>>(std::size_t k) const& {
                 auto r = *this;
-                r <<= k;
+                r >>= k;
+                return r;
+            }
+            constexpr int_var operator>>(std::size_t k) && {
+                auto r = static_cast<int_var&&>(*this);
+                r >>= k;
                 return r;
             }
 
