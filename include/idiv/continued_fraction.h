@@ -18,6 +18,8 @@
 #ifndef JKJ_HEADER_CONTINUED_FRACTION
 #define JKJ_HEADER_CONTINUED_FRACTION
 
+#include "interval.h"
+#include "projective_rational.h"
 #include "util.h"
 
 namespace jkj {
@@ -31,168 +33,233 @@ namespace jkj {
     // we call an/bn the nth "partial fraction", and also we call the fraction obtained by
     // truncating the continued fraction at the nth partial fraction as the nth "convergent".
 
-    template <class PartialFractionType>
-    struct next_partial_fraction_return {
-        PartialFractionType partial_fraction;
-        bool is_last;
-    };
-    template <class PartialFractionType>
-    next_partial_fraction_return(PartialFractionType&&, bool)
-        -> next_partial_fraction_return<std::remove_cvref_t<PartialFractionType>>;
+    namespace cntfrc {
+        // Declare needed type aliases by specializing this template.
+        template <class Impl>
+        struct continued_fraction_traits;
 
-    // May use this type for the partial numerators of regular continued fractions.
-    struct unity {
-        unity() = default;
+        struct mixin_initializer_token {};
 
-        template <class T>
-        constexpr unity(T&&) noexcept {}
+        template <class Impl, template <class> class... Mixins>
+        class continued_fraction_base : public continued_fraction_traits<Impl>,
+                                        public Mixins<Impl>... {
+            bool terminated_ = false;
 
-        template <class T>
-        constexpr auto&& operator*(T&& x) const noexcept {
-            return static_cast<T&&>(x);
-        }
-        template <class T>
-        friend constexpr auto&& operator*(T&& x, unity) noexcept {
-            return static_cast<T&&>(x);
-        }
-        template <class T>
-        friend constexpr T& operator*=(T& x, unity) noexcept {
-            return x;
-        }
-        template <class T>
-        friend constexpr auto&& operator/(T&& x, unity) noexcept {
-            return static_cast<T&&>(x);
-        }
-        template <class T>
-        friend constexpr T& operator/=(T& x, unity) noexcept {
-            return x;
-        }
-    };
+        public:
+            using traits_type = continued_fraction_traits<Impl>;
 
-    template <class Impl>
-    class convergent_generator_base {
-    protected:
-        template <class ConvergentType, class PartialFractionType>
-        constexpr auto compute_next_convergent(PartialFractionType const& partial_fraction) {
-            auto new_numerator = partial_fraction.denominator * current_convergent_numerator() +
-                                 partial_fraction.numerator * previous_convergent_numerator();
-            auto new_denominator = partial_fraction.denominator * current_convergent_denominator() +
-                                   partial_fraction.numerator * previous_convergent_denominator();
+            template <class MixinInitializer>
+            constexpr continued_fraction_base(MixinInitializer&& mixin_initializer = {})
+                : Mixins<Impl>{mixin_initializer_token{}, mixin_initializer}... {}
 
-            util::constexpr_assert(is_nonnegative(new_denominator));
-            return ConvergentType{static_cast<decltype(new_numerator)&&>(new_numerator),
-                                  abs(static_cast<decltype(new_denominator)&&>(new_denominator))};
-        }
+            // Returns true if succeeded obtaining a further partial fraction.
+            constexpr bool update() {
+                if (!terminated_) {
+                    terminated_ = !static_cast<Impl&>(*this).with_next_partial_fraction(
+                        [&](auto&& next_partial_fraction) {
+                            (static_cast<Mixins<Impl>&>(*this).update(static_cast<Impl&>(*this),
+                                                                      next_partial_fraction),
+                             ...);
+                        });
 
-    public:
-        constexpr auto const& current_convergent() const noexcept {
-            return static_cast<Impl const&>(*this).current_convergent();
-        }
-        constexpr auto const& current_convergent_numerator() const noexcept {
-            return current_convergent().numerator;
-        }
-        constexpr auto const& current_convergent_denominator() const noexcept {
-            return current_convergent().denominator;
-        }
+                    if (terminated_) {
+                        auto invoke_final_update = [&impl =
+                                                        static_cast<Impl&>(*this)](auto&& mixin) {
+                            if constexpr (requires { mixin.final_update(impl); }) {
+                                mixin.final_update(impl);
+                            }
+                        };
+                        (invoke_final_update(static_cast<Mixins<Impl>&>(*this)), ...);
+                    }
+                }
+                return !terminated_;
+            }
 
-        constexpr auto const& previous_convergent() const noexcept {
-            return static_cast<Impl const&>(*this).previous_convergent();
-        }
-        constexpr auto const& previous_convergent_numerator() const noexcept {
-            return previous_convergent().numerator;
-        }
-        constexpr auto const& previous_convergent_denominator() const noexcept {
-            return previous_convergent().denominator;
-        }
-    };
+            constexpr bool terminated() const noexcept { return terminated_; }
+        };
 
-    template <class Impl, template <class, class> class... Mixin>
-    class convergent_generator
-        : public convergent_generator_base<convergent_generator<Impl, Mixin...>>,
-          public Mixin<Impl, convergent_generator<Impl, Mixin...>>... {
-    public:
-        using convergent_type = typename std::remove_cvref_t<Impl>::convergent_type;
-        using impl_type = Impl;
+        template <class Impl>
+        class index_tracker {
+            int current_index_ = -1;
 
-    private:
-        using crtp_base = convergent_generator_base<convergent_generator<Impl, Mixin...>>;
+            template <class, template <class> class...>
+            friend class continued_fraction_base;
 
-        Impl impl_;
-        int current_index_ = -1;
-        bool is_terminated_ = false;
-        convergent_type current_convergent_{1, 0u};
-        convergent_type previous_convergent_{0, 1u};
+            template <class MixinInitializer>
+            constexpr index_tracker(mixin_initializer_token, MixinInitializer&&) {}
 
-    public:
-        constexpr convergent_generator(Impl&& impl) : impl_{static_cast<Impl&&>(impl)} {}
+            constexpr void update(Impl&, auto&&) { ++current_index_; }
 
-        constexpr int current_index() const noexcept { return current_index_; }
-        constexpr bool is_terminated() const noexcept { return is_terminated_; }
+        public:
+            constexpr int current_index() const noexcept { return current_index_; }
+        };
 
-        constexpr convergent_type const& current_convergent() const noexcept {
-            return current_convergent_;
-        }
-        constexpr convergent_type const& previous_convergent() const noexcept {
-            return previous_convergent_;
-        }
+        template <class Impl>
+        class partial_fraction_tracker {
+            using partial_fraction_type =
+                typename continued_fraction_traits<Impl>::partial_fraction_type;
 
-        // Returns true if there are further partial fractions.
-        constexpr bool update() {
-            if (!is_terminated()) {
-                auto result = impl_.next_partial_fraction();
-                auto next_convergent = crtp_base::template compute_next_convergent<convergent_type>(
-                    result.partial_fraction);
-                is_terminated_ = result.is_last;
+            partial_fraction_type current_partial_fraction_;
 
-                (static_cast<Mixin<Impl, convergent_generator>&>(*this).update(
-                     result.partial_fraction, next_convergent, impl_),
-                 ...);
+            template <class, template <class> class...>
+            friend class continued_fraction_base;
+
+            template <class MixinInitializer>
+            constexpr partial_fraction_tracker(mixin_initializer_token,
+                                               MixinInitializer&& mixin_initializer)
+                : current_partial_fraction_{mixin_initializer.initial_partial_fraction()} {}
+
+            constexpr void update(Impl&, partial_fraction_type const& next_partial_fraction) {
+                current_partial_fraction_ = next_partial_fraction;
+            }
+
+        public:
+            constexpr partial_fraction_type const& current_partial_fraction() const noexcept {
+                return current_partial_fraction_;
+            }
+        };
+
+        template <class Impl>
+        class convergent_tracker {
+            using convergent_type = typename continued_fraction_traits<Impl>::convergent_type;
+
+            convergent_type current_convergent_{1, 0u};
+            convergent_type previous_convergent_{0, 1u};
+
+            template <class, template <class> class...>
+            friend class continued_fraction_base;
+
+            template <class MixinInitializer>
+            constexpr convergent_tracker(mixin_initializer_token, MixinInitializer&&) {}
+
+            template <class PartialFractionType>
+            constexpr void update(Impl&, PartialFractionType const& next_partial_fraction) {
+                auto next_numerator =
+                    next_partial_fraction.denominator * current_convergent_numerator() +
+                    next_partial_fraction.numerator * previous_convergent_numerator();
+                auto next_denominator =
+                    next_partial_fraction.denominator * current_convergent_denominator() +
+                    next_partial_fraction.numerator * previous_convergent_denominator();
 
                 previous_convergent_ = static_cast<convergent_type&&>(current_convergent_);
-                current_convergent_ = static_cast<convergent_type&&>(next_convergent);
-
-                ++current_index_;
+                current_convergent_ = convergent_type{
+                    static_cast<decltype(next_numerator)&&>(next_numerator),
+                    abs(static_cast<decltype(next_denominator)&&>(next_denominator))};
             }
-            return !is_terminated();
-        }
-    };
 
-    // Keep track of an interval where the limit value should live inside.
-    template <class Impl, class ConvergentGenerator>
-    class interval_tracker {
-    public:
-        using convergent_type = typename std::remove_cvref_t<Impl>::convergent_type;
-        using interval_type = typename std::remove_cvref_t<Impl>::interval_type;
-        friend ConvergentGenerator;
-
-    private:
-        interval_type current_interval_ = std::remove_cvref_t<Impl>::initial_interval();
-
-        template <class PartialFractionType>
-        constexpr void update(PartialFractionType const&, convergent_type const& next_convergent,
-                              Impl& impl) {
-            auto& self = static_cast<ConvergentGenerator const&>(*this);
-            current_interval_ = impl.next_interval(self.previous_convergent(),
-                                                   self.current_convergent(), next_convergent);
-        }
-
-    public:
-        interval_type const& current_interval() const noexcept { return current_interval_; }
-
-        auto current_error_bound() const {
-            return current_interval_.upper_bound() - current_interval_.lower_bound();
-        }
-
-        // Refine the current value so that the maximum possible error is strictly less than the
-        // given bound.
-        template <class ErrorValue>
-        convergent_type const& progress_until(ErrorValue const& error_bound) {
-            while (current_error_bound() >= error_bound) {
-                static_cast<ConvergentGenerator&>(*this).update();
+        public:
+            constexpr convergent_type const& current_convergent() const noexcept {
+                return current_convergent_;
             }
-            return static_cast<ConvergentGenerator&>(*this).current_convergent();
-        }
-    };
+            constexpr auto const& current_convergent_numerator() const noexcept {
+                return current_convergent().numerator;
+            }
+            constexpr auto const& current_convergent_denominator() const noexcept {
+                return current_convergent().denominator;
+            }
+
+            constexpr convergent_type const& previous_convergent() const noexcept {
+                return previous_convergent_;
+            }
+            constexpr auto const& previous_convergent_numerator() const noexcept {
+                return previous_convergent().numerator;
+            }
+            constexpr auto const& previous_convergent_denominator() const noexcept {
+                return previous_convergent().denominator;
+            }
+        };
+
+        template <class Impl>
+        class interval_tracker {
+            using convergent_type = typename continued_fraction_traits<Impl>::convergent_type;
+            using interval_type = typename continued_fraction_traits<Impl>::interval_type;
+
+            interval_type current_interval_;
+
+            template <class, template <class> class...>
+            friend class continued_fraction_base;
+
+            template <class MixinInitializer>
+            constexpr interval_tracker(mixin_initializer_token,
+                                       MixinInitializer&& mixin_initializer)
+                : current_interval_{mixin_initializer.initial_interval()} {}
+
+            constexpr void update_impl(Impl& impl) {
+                if constexpr (requires { impl.next_interval(); }) {
+                    current_interval_ = impl.next_interval();
+                }
+                else {
+                    // Use convergents. Note that this is valid only for regular continued
+                    // fractions.
+                    auto& self = static_cast<Impl const&>(*this);
+                    if (self.terminated()) {
+                        current_interval_ = cyclic_interval<typename interval_type::value_type,
+                                                            cyclic_interval_type_t::single_point>{
+                            self.current_convergent()};
+                    }
+                    else if (self.current_index() >= 1) {
+                        if (self.current_index() % 2 == 0) {
+                            current_interval_ = cyclic_interval<typename interval_type::value_type,
+                                                                cyclic_interval_type_t::closed>{
+                                self.current_convergent(), self.previous_convergent()};
+                        }
+                        else {
+                            current_interval_ = cyclic_interval<typename interval_type::value_type,
+                                                                cyclic_interval_type_t::closed>{
+                                self.previous_convergent(), self.current_convergent()};
+                        }
+                    }
+                }
+            }
+
+            template <class PartialFractionType>
+            constexpr void update(Impl& impl, PartialFractionType const&) {
+                update_impl(impl);
+            }
+            constexpr void final_update(Impl& impl) { update_impl(impl); }
+
+        public:
+            interval_type const& current_interval() const noexcept { return current_interval_; }
+
+            // Refine the current value so that the maximum possible error is no more than the
+            // given bound.
+            template <class ErrorValue>
+            convergent_type const& progress_until(ErrorValue const& error_bound) {
+                // Translate the lower bound by error_bound and see if it belongs to the interval.
+                while (current_interval().visit([&](auto&& itv) {
+                    if constexpr (itv.interval_type() == cyclic_interval_type_t::empty) {
+                        util::constexpr_assert(false);
+                        return false;
+                    }
+                    else if constexpr (itv.interval_type() ==
+                                       cyclic_interval_type_t::single_point) {
+                        return false;
+                    }
+                    else if constexpr (itv.interval_type() == cyclic_interval_type_t::entire) {
+                        return true;
+                    }
+                    else {
+                        auto translated = linear_fractional_translation(
+                            error_bound.numerator, error_bound.denominator)(itv.lower_bound());
+
+                        if (!itv.contains(translated)) {
+                            return false;
+                        }
+
+                        if (itv.interval_type() == cyclic_interval_type_t::closed &&
+                            translated == itv.upper_bound()) {
+                            return false;
+                        }
+
+                        return true;
+                    }
+                })) {
+                    static_cast<Impl&>(*this).update();
+                }
+                return static_cast<Impl&>(*this).current_convergent();
+            }
+        };
+    }
 }
 
 #endif
