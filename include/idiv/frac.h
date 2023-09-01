@@ -97,14 +97,6 @@ namespace jkj {
             return frac{static_cast<Num&&>(numerator), abs(static_cast<Den&&>(denominator))};
         }
     }
-
-    template <class Num1, class Den1, class Num2, class Den2, class Num3, class Den3>
-    constexpr bool cyclic_order(frac<Num1, Den1> const& x, frac<Num2, Den2> const& y,
-                                frac<Num3, Den3> const& z) {
-        return bool((x.numerator * y.denominator > x.denominator * y.numerator) ^
-                    (y.numerator * z.denominator > y.denominator * z.numerator) ^
-                    (z.numerator * x.denominator > z.denominator * x.numerator));
-    }
 }
 
 #endif
