@@ -29,6 +29,34 @@ namespace jkj {
         struct projective_rational {
             Num numerator;
             Den denominator;
+
+            projective_rational() = default;
+
+            template <class OtherNum = Num, class OtherDen = Den>
+                requires requires(OtherNum num, OtherDen den) {
+                    Num{num};
+                    Den{den};
+                }
+            explicit constexpr projective_rational(OtherNum&& num, OtherDen&& den)
+                : numerator{static_cast<OtherNum&&>(num)},
+                  denominator{static_cast<OtherDen&&>(den)} {}
+
+            template <class OtherNum, class OtherDen>
+                requires(requires(OtherNum num, OtherDen den) {
+                            Num{num};
+                            Den{den};
+                        } && !(std::is_same_v<Num, OtherNum> && std::is_same_v<Den, OtherDen>))
+            explicit constexpr projective_rational(projective_rational<OtherNum, OtherDen> const& other)
+                : numerator{other.numerator}, denominator{other.denominator} {}
+
+            template <class OtherNum, class OtherDen>
+                requires(requires(OtherNum num, OtherDen den) {
+                            Num{num};
+                            Den{den};
+                        } && !(std::is_same_v<Num, OtherNum> && std::is_same_v<Den, OtherDen>))
+            explicit constexpr projective_rational(projective_rational<OtherNum, OtherDen>&& other)
+                : numerator{static_cast<OtherNum&&>(other.numerator)},
+                  denominator{static_cast<OtherDen&&>(other.denominator)} {}
         };
         template <class Num, class Den>
         projective_rational(Num&&, Den&&)
@@ -44,9 +72,14 @@ namespace jkj {
         constexpr bool cyclic_order(projective_rational<Num1, Den1> const& x,
                                     projective_rational<Num2, Den2> const& y,
                                     projective_rational<Num3, Den3> const& z) {
-            return bool((x.numerator * y.denominator > x.denominator * y.numerator) ^
-                        (y.numerator * z.denominator > y.denominator * z.numerator) ^
-                        (z.numerator * x.denominator > z.denominator * x.numerator));
+            int const sign1 = util::strong_order_to_int(x.numerator * y.denominator <=>
+                                                        x.denominator * y.numerator);
+            int const sign2 = util::strong_order_to_int(y.numerator * z.denominator <=>
+                                                        y.denominator * z.numerator);
+            int const sign3 = util::strong_order_to_int(z.numerator * x.denominator <=>
+                                                        z.denominator * x.numerator);
+
+            return sign1 * sign2 * sign3 > 0;
         }
 
         // May use this type to replace constant 0.
@@ -143,7 +176,7 @@ namespace jkj {
             DenDen den_to_den; // d
 
             template <class Num, class Den>
-            constexpr auto operator()(projective_rational<Num, Den> const& x) {
+            constexpr auto operator()(projective_rational<Num, Den> const& x) const {
                 return projective_rational{num_to_num * x.numerator + den_to_num * x.denominator,
                                            num_to_den * x.numerator + den_to_den * x.denominator};
             }
@@ -166,8 +199,8 @@ namespace jkj {
                 swap(den_to_num, den_to_den);
             }
         };
-        // This class is supposed to be used both as a temporary and as a stored lvalue, so we do
-        // not strip off the reference.
+        // This class is supposed to be used both as a temporary and as a stored lvalue, so we
+        // do not strip off the reference.
         template <class NumNum, class DenNum, class NumDen, class DenDen>
         linear_fractional_transform(NumNum&&, DenNum&&, NumDen&&, DenDen&&)
             -> linear_fractional_transform<NumNum, DenNum, NumDen, DenDen>;
@@ -177,6 +210,68 @@ namespace jkj {
             return linear_fractional_transform{denominator, static_cast<Num&&>(numerator), zero{},
                                                denominator};
         }
+
+        template <class XNumYNumNum, class XNumYDenNum = XNumYNumNum,
+                  class XDenYNumNum = XNumYNumNum, class XDenYDenNum = XNumYNumNum,
+                  class XNumYNumDen = XNumYNumNum, class XNumYDenDen = XNumYNumNum,
+                  class XDenYNumDen = XNumYNumNum, class XDenYDenDen = XNumYNumNum>
+        struct bilinear_fractional_transform {
+            XNumYNumNum xnum_ynum_to_num;
+            XNumYDenNum xnum_yden_to_num;
+            XDenYNumNum xden_ynum_to_num;
+            XDenYDenNum xden_yden_to_num;
+            XNumYNumDen xnum_ynum_to_den;
+            XNumYDenDen xnum_yden_to_den;
+            XDenYNumDen xden_ynum_to_den;
+            XDenYDenDen xden_yden_to_den;
+
+            template <class XNum, class XDen, class YNum, class YDen>
+            constexpr auto operator()(projective_rational<XNum, XDen> const& x,
+                                      projective_rational<YNum, YDen> const& y) const {
+                return projective_rational{xnum_ynum_to_num * x.numerator * y.numerator +
+                                               xnum_yden_to_num * x.numerator * y.denominator +
+                                               xden_ynum_to_num * x.denominator * y.numerator +
+                                               xden_yden_to_num * x.denominator * y.denominator,
+                                           xnum_ynum_to_den * x.numerator * y.numerator +
+                                               xnum_yden_to_den * x.numerator * y.denominator +
+                                               xden_ynum_to_den * x.denominator * y.numerator +
+                                               xden_yden_to_den * x.denominator * y.denominator};
+            }
+
+            // Multiply the matrix (t s \\ 0 t) from left for a number s/t.
+            template <class Num, class Den = unity>
+            constexpr void translate(Num&& numerator, Den&& denominator = {}) {
+                xnum_ynum_to_num *= denominator;
+                xnum_ynum_to_num += numerator * xnum_ynum_to_den;
+                xnum_yden_to_num *= denominator;
+                xnum_yden_to_num += numerator * xnum_yden_to_den;
+                xden_ynum_to_num *= denominator;
+                xden_ynum_to_num += numerator * xden_ynum_to_den;
+                xden_yden_to_num *= denominator;
+                xden_yden_to_num += numerator * xden_yden_to_den;
+                xnum_ynum_to_den *= denominator;
+                xnum_yden_to_den *= denominator;
+                xden_ynum_to_den *= denominator;
+                xden_yden_to_den *= denominator;
+            }
+
+            // Multiply the matrix (0 1 \\ 1 0) from left.
+            constexpr void reflect() {
+                using std::swap;
+                swap(xnum_ynum_to_num, xnum_ynum_to_den);
+                swap(xnum_yden_to_num, xnum_yden_to_den);
+                swap(xden_ynum_to_num, xden_ynum_to_den);
+                swap(xden_yden_to_num, xden_yden_to_den);
+            }
+        };
+        // This class is supposed to be used both as a temporary and as a stored lvalue, so we
+        // do not strip off the reference.
+        template <class XNumYNumNum, class XNumYDenNum, class XDenYNumNum, class XDenYDenNum,
+                  class XNumYNumDen, class XNumYDenDen, class XDenYNumDen, class XDenYDenDen>
+        bilinear_fractional_transform(XNumYNumNum&&, XNumYDenNum&&, XDenYNumNum&&, XDenYDenNum&&,
+                                      XNumYNumDen&&, XNumYDenDen&&, XDenYNumDen&&, XDenYDenDen&&)
+            -> bilinear_fractional_transform<XNumYNumNum, XNumYDenNum, XDenYNumNum, XDenYDenNum,
+                                             XNumYNumDen, XNumYDenDen, XDenYNumDen, XDenYDenDen>;
     }
 }
 
