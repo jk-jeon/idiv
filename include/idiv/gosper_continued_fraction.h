@@ -416,13 +416,16 @@ namespace jkj {
                                 }
                             }
                             else {
-                                // 14 different cases.
+                                // 16 different cases.
                                 auto&& a = itv1.lower_bound();
                                 auto&& b = itv1.upper_bound();
                                 auto&& c = itv2.lower_bound();
                                 auto&& d = itv2.upper_bound();
                                 if (a == c) {
-                                    if (cyclic_order(a, b, d)) {
+                                    if (b == d) {
+                                        return f(closed_interval{a, b});
+                                    }
+                                    else if (cyclic_order(a, b, d)) {
                                         return f(closed_interval{a, b});
                                     }
                                     else {
@@ -431,7 +434,11 @@ namespace jkj {
                                     }
                                 }
                                 else if (a == d) {
-                                    if (cyclic_order(a, b, c)) {
+                                    if (b == c) {
+                                        return f(single_point_interval{a}) &&
+                                               f(single_point_interval{b});
+                                    }
+                                    else if (cyclic_order(a, b, c)) {
                                         return f(single_point_interval{a});
                                     }
                                     else {
@@ -700,13 +707,16 @@ namespace jkj {
                                 return f(itv1);
                             }
                             else {
-                                // 14 different cases.
+                                // 16 different cases.
                                 auto&& a = itv1.lower_bound();
                                 auto&& b = itv1.upper_bound();
                                 auto&& c = itv2.lower_bound();
                                 auto&& d = itv2.upper_bound();
                                 if (a == c) {
-                                    if (cyclic_order(a, b, d)) {
+                                    if (b == d) {
+                                        return f(closed_interval{a, b});
+                                    }
+                                    else if (cyclic_order(a, b, d)) {
                                         return f(closed_interval{a, d});
                                     }
                                     else {
@@ -715,7 +725,10 @@ namespace jkj {
                                     }
                                 }
                                 else if (a == d) {
-                                    if (cyclic_order(a, b, c)) {
+                                    if (b == c) {
+                                        return f(entire_interval{});
+                                    }
+                                    else if (cyclic_order(a, b, c)) {
                                         return f(closed_interval{c, b});
                                     }
                                     else {
