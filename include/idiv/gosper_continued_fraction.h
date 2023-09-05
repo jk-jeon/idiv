@@ -202,8 +202,9 @@ namespace jkj {
             using partial_fraction_type = frac<Unity, int_type>;
             using convergent_type = typename XContinuedFractionImpl::convergent_type;
             using interval_type = variable_shape_cyclic_interval<
-                projective_rational<int_type, int_type>, cyclic_interval_type_t::single_point,
-                cyclic_interval_type_t::closed, cyclic_interval_type_t::entire>;
+                convergent_type, cyclic_interval_type_t::single_point,
+                cyclic_interval_type_t::left_open_right_closed,
+                cyclic_interval_type_t::left_closed_right_open, cyclic_interval_type_t::entire>;
         };
 
         template <class XContinuedFractionImpl, class YContinuedFractionImpl, class Unity,
@@ -256,7 +257,7 @@ namespace jkj {
                     }
                     else {
                         det_sign = 0;
-                        nullity = (is_zero(a) && is_zero(b) ? 2 : 1);
+                        nullity = (is_zero(a) && is_zero(b) && is_zero(c) && is_zero(d) ? 2 : 1);
                     }
                 };
 
@@ -312,10 +313,17 @@ namespace jkj {
             // Precondition: itv is contained in the domain of transform.
             template <class NumNum, class DenNum, class NumDen, class DenDen,
                       class InputIntervalType>
-            static constexpr interval_type map_cyclic_interval(
+            static constexpr variable_shape_cyclic_interval<
+                projective_rational<int_type, int_type>, cyclic_interval_type_t::single_point,
+                cyclic_interval_type_t::closed, cyclic_interval_type_t::entire>
+            map_cyclic_interval(
                 linear_fractional_transform<NumNum, DenNum, NumDen, DenDen> const& transform,
                 InputIntervalType const& itv, int determinant_sign) {
-                return itv.visit([&transform, determinant_sign](auto&& itv) -> interval_type {
+                using return_type = variable_shape_cyclic_interval<
+                    projective_rational<int_type, int_type>, cyclic_interval_type_t::single_point,
+                    cyclic_interval_type_t::closed, cyclic_interval_type_t::entire>;
+
+                return itv.visit([&transform, determinant_sign](auto&& itv) -> return_type {
                     using enum cyclic_interval_type_t;
                     using value_type = projective_rational<int_type, int_type>;
                     constexpr auto itv_type = itv.interval_type();
@@ -350,7 +358,10 @@ namespace jkj {
             }
             template <class NumNum, class DenNum, class NumDen, class DenDen,
                       class InputIntervalType>
-            static constexpr interval_type map_cyclic_interval(
+            static constexpr variable_shape_cyclic_interval<
+                projective_rational<int_type, int_type>, cyclic_interval_type_t::single_point,
+                cyclic_interval_type_t::closed, cyclic_interval_type_t::entire>
+            map_cyclic_interval(
                 linear_fractional_transform<NumNum, DenNum, NumDen, DenDen> const& transform,
                 InputIntervalType const& itv) {
                 return map_cyclic_interval(
