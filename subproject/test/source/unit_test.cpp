@@ -390,7 +390,7 @@ int main() {
         {
             cntfrc::rational_continued_fraction<bigint::int_var, bigint::uint_var, cntfrc::unity,
                                                 cntfrc::convergent_tracker>
-                cf{{156, 179u}};
+                cf{convergent_t{156, 179u}};
             expect(cf.update() == true);
             expect(cf.current_convergent() == convergent_t{0, 1u});
             expect(cf.update() == true);
@@ -412,7 +412,7 @@ int main() {
         {
             cntfrc::rational_continued_fraction<bigint::int_var, bigint::uint_var, cntfrc::unity,
                                                 cntfrc::convergent_tracker>
-                cf{{-2767, 1982u}};
+                cf{convergent_t{-2767, 1982u}};
             expect(cf.update() == true);
             expect(cf.current_convergent() == convergent_t{-2, 1u});
             expect(cf.update() == true);
@@ -438,38 +438,9 @@ int main() {
             expect(cf.update() == false);
         }
     };
-#if 0
-    "[gosper_continued_fraction]"_test = [] {
-        using frac_t = frac<bigint::int_var, bigint::uint_var>;
-        using rational_continued_fraction_t =
-            rational_continued_fraction<bigint::int_var, bigint::uint_var>;
-        // Take x = 17/89, y = 31/125, and
-        // z = (8+4x+2y+xy)/(1+2x-3y) = 2655/182.
-        convergent_generator cf{
-            binary_gosper_continued_fraction{rational_continued_fraction_t{{17, 89u}},
-                                             rational_continued_fraction_t{{31, 125u}},
-                                             {// numerator
-                                              {8, 4, 2, 1},
-                                              // denominator
-                                              {1, 2, -3, 0}}}};
 
-        expect(cf.update() == true);
-        expect(cf.current_convergent() == frac_t{14, 1u});
-        expect(cf.update() == true);
-        expect(cf.current_convergent() == frac_t{15, 1u});
-        expect(cf.update() == true);
-        expect(cf.current_convergent() == frac_t{29, 2u});
-        expect(cf.update() == true);
-        expect(cf.current_convergent() == frac_t{73, 5u});
-        expect(cf.update() == true);
-        expect(cf.current_convergent() == frac_t{175, 12u});
-        expect(cf.update() == true);
-        expect(cf.current_convergent() == frac_t{248, 17u});
-        expect(cf.update() == false);
-        expect(cf.current_convergent() == frac_t{2655, 182u});
-    };
-#endif
     "[unary_gosper]"_test = [] {
+        using convergent_t = cntfrc::projective_rational<bigint::int_var, bigint::uint_var>;
         using unary_gosper_t = cntfrc::unary_gosper<
             cntfrc::rational_continued_fraction<bigint::int_var, bigint::uint_var, cntfrc::unity,
                                                 cntfrc::index_tracker, cntfrc::convergent_tracker,
@@ -477,11 +448,40 @@ int main() {
             cntfrc::unity, cntfrc::convergent_tracker>;
 
         // 481/2245 = (-18*156 + 13*179)/(12*156 - 23*179)
-        unary_gosper_t cf1{unary_gosper_t::internal_continued_fraction_impl_type{{156, 179u}},
-                           {-18, 13, 12, -23}};
+        unary_gosper_t cf1{
+            unary_gosper_t::internal_continued_fraction_impl_type{convergent_t{156, 179u}},
+            {-18, 13, 12, -23}};
         cntfrc::rational_continued_fraction<bigint::int_var, bigint::uint_var, cntfrc::unity,
                                             cntfrc::convergent_tracker>
-            cf2{{481, 2245u}};
+            cf2{convergent_t{481, 2245u}};
+
+        while (!cf2.terminated()) {
+            expect(cf1.update() == cf2.update());
+            expect(cf1.current_convergent() == cf2.current_convergent());
+        }
+    };
+
+    "[binary_gosper]"_test = [] {
+        using convergent_t = cntfrc::projective_rational<bigint::int_var, bigint::uint_var>;
+        using rational_continued_fraction_t =
+            cntfrc::rational_continued_fraction<bigint::int_var, bigint::uint_var, cntfrc::unity,
+                                                cntfrc::index_tracker, cntfrc::convergent_tracker,
+                                                cntfrc::interval_tracker>;
+        using binary_gosper_t =
+            cntfrc::binary_gosper<rational_continued_fraction_t, rational_continued_fraction_t,
+                                  cntfrc::unity, cntfrc::convergent_tracker>;
+
+        // Take x = 17/89, y = 31/125, and
+        // z = (xy + 4x + 2y + 8)/(2x - 3y + 1) = 2655/182.
+        binary_gosper_t cf1{rational_continued_fraction_t{convergent_t{17, 89u}},
+                            rational_continued_fraction_t{convergent_t{31, 125u}},
+                            {// numerator
+                             1, 4, 2, 8,
+                             // denominator
+                             0, 2, -3, 1}};
+        cntfrc::rational_continued_fraction<bigint::int_var, bigint::uint_var, cntfrc::unity,
+                                            cntfrc::convergent_tracker>
+            cf2{convergent_t{2655, 182u}};
 
         while (!cf2.terminated()) {
             expect(cf1.update() == cf2.update());
@@ -552,6 +552,49 @@ int main() {
             expect(cf.current_convergent() == convergent_t{483'354'347, 439'968'087u});
             expect(cf.update() == true);
             expect(cf.current_convergent() == convergent_t{513'666'441, 467'559'344u});
+        };
+
+        should("additional_unary_gosper") = [] {
+            using continued_fraction_t = cntfrc::unary_gosper<
+                cntfrc::natural_log_calculator<bigint::int_var, bigint::uint_var,
+                                               cntfrc::interval_tracker>,
+                cntfrc::unity, cntfrc::convergent_tracker>;
+
+            continued_fraction_t cf{continued_fraction_t::internal_continued_fraction_impl_type{
+                                        unsigned_frac_t{4u, 3u}},
+                                    {0, 7, 2, 1}};
+
+            // First 15 convergents of 7/(2ln(4/3) + 1).
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{4, 1u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{9, 2u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{31, 7u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{40, 9u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{471, 106u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{1'924, 433u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{10'091, 2'271u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{12'015, 2'704u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{34'121, 7'679u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{592'072, 133'247u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{4'770'697, 1'073'655u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{5'362'769, 1'206'902u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{20'859'004, 4'694'361u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{276'529'821, 62'233'595u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{297'388'825, 66'927'956u});
         };
     };
 }
