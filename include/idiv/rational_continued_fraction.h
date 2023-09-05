@@ -32,7 +32,10 @@ namespace jkj {
         struct continued_fraction_traits<rational_continued_fraction<Int, UInt, Unity, Mixins...>> {
             using partial_fraction_type = frac<Unity, Int>;
             using convergent_type = projective_rational<Int, UInt>;
-            using interval_type = variable_shape_cyclic_interval<convergent_type>;
+            using interval_type = variable_shape_cyclic_interval<
+                convergent_type, cyclic_interval_type_t::single_point,
+                cyclic_interval_type_t::left_open_right_closed,
+                cyclic_interval_type_t::left_closed_right_open, cyclic_interval_type_t::entire>;
         };
 
         template <class Int, class UInt, class Unity, template <class> class... Mixins>
