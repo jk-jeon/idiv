@@ -933,7 +933,7 @@ namespace jkj {
                                             return check_union(
                                                 joined_itv123, itv4,
                                                 [&check_floor](auto&& joined_itv1234) {
-                                                    return joined_itv1234.visit(check_floor);
+                                                    return check_floor(joined_itv1234);
                                                 });
                                         });
                                 });
