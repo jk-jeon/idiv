@@ -51,7 +51,9 @@ namespace jkj {
         struct continued_fraction_traits<natural_log_calculator<Int, UInt, AdditionalMixins...>> {
             using partial_fraction_type = frac<Int, Int>;
             using convergent_type = projective_rational<Int, UInt>;
-            using interval_type = variable_shape_cyclic_interval<convergent_type>;
+            using interval_type = variable_shape_cyclic_interval<
+                convergent_type, cyclic_interval_type_t::single_point, cyclic_interval_type_t::open,
+                cyclic_interval_type_t::entire>;
         };
 
         template <class Int, class UInt, template <class> class... AdditionalMixins>
@@ -231,8 +233,6 @@ namespace jkj {
                                   Mixins...> {
             using impl_type =
                 unary_gosper<natural_log_calculator<Int, UInt, interval_tracker>, Unity, Mixins...>;
-            using crtp_base = continued_fraction_base<impl_type, Mixins...>;
-            friend crtp_base;
 
         public:
             template <class MixinInitializer = typename impl_type::default_mixin_initializer>
