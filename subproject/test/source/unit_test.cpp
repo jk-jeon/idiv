@@ -385,6 +385,22 @@ int main() {
         };
     };
 
+    "[prime_factorization]"_test = [] {
+        using uint_type = bigint::uint_var;
+        auto prime_factors = prime_factorization(
+            frac<uint_type, uint_type>{UINT64_C(185'712'372'396), UINT64_C(198'759'128'733)});
+
+        expect(prime_factors[0] == prime_factor<uint_type>{2u, 2});
+        expect(prime_factors[1] == prime_factor<uint_type>{11u, -1});
+        expect(prime_factors[2] == prime_factor<uint_type>{37u, 1});
+        expect(prime_factors[3] == prime_factor<uint_type>{79u, 1});
+        expect(prime_factors[4] == prime_factor<uint_type>{853u, 1});
+        expect(prime_factors[5] == prime_factor<uint_type>{2'069u, 1});
+        expect(prime_factors[6] == prime_factor<uint_type>{5'861u, -1});
+        expect(prime_factors[7] == prime_factor<uint_type>{342'547u, -1});
+        expect(prime_factors.size() == 8);
+    };
+
     "[rational_continued_fraction]"_test = [] {
         using convergent_t = cntfrc::projective_rational<bigint::int_var, bigint::uint_var>;
         {
@@ -516,9 +532,9 @@ int main() {
             }
         };
 
-        should("natural_log_continued_fraction") = [] {
-            cntfrc::natural_log_continued_fraction<bigint::int_var, bigint::uint_var, cntfrc::unity,
-                                                   cntfrc::convergent_tracker>
+        should("natural_log") = [] {
+            cntfrc::natural_log<bigint::int_var, bigint::uint_var, cntfrc::unity,
+                                cntfrc::convergent_tracker>
                 cf{unsigned_frac_t{3u, 1u}};
 
             // First 15 convergents of ln(3).
@@ -552,6 +568,73 @@ int main() {
             expect(cf.current_convergent() == convergent_t{483'354'347, 439'968'087u});
             expect(cf.update() == true);
             expect(cf.current_convergent() == convergent_t{513'666'441, 467'559'344u});
+        };
+
+        should("general_log") = [] {
+            // Rational case.
+            {
+                // log(175616/91125) / log(3136/2025)
+                // = log(2^9*7^4 / 3^6*5^3) / log(2^6*7^2 / 3^4*5^2)
+                // = 3/2.
+                cntfrc::general_log<bigint::int_var, bigint::uint_var, cntfrc::unity,
+                                    cntfrc::convergent_tracker>
+                    cf{unsigned_frac_t{3136u, 2025u}, unsigned_frac_t{175'616u, 91'125u}};
+
+                expect(cf.update() == true);
+                expect(cf.current_convergent() == convergent_t{1, 1u});
+                expect(cf.update() == true);
+                expect(cf.current_convergent() == convergent_t{3, 2u});
+                expect(cf.update() == false);
+            }
+            // Irrational case.
+            {
+                cntfrc::general_log<bigint::int_var, bigint::uint_var, cntfrc::unity,
+                                    cntfrc::convergent_tracker>
+                    cf{unsigned_frac_t{2u, 1u}, unsigned_frac_t{4u, 3u}};
+
+                // First 20 convergents of log2(4/3).
+                expect(cf.update() == true);
+                expect(cf.current_convergent() == convergent_t{0, 1u});
+                expect(cf.update() == true);
+                expect(cf.current_convergent() == convergent_t{1, 2u});
+                expect(cf.update() == true);
+                expect(cf.current_convergent() == convergent_t{2, 5u});
+                expect(cf.update() == true);
+                expect(cf.current_convergent() == convergent_t{5, 12u});
+                expect(cf.update() == true);
+                expect(cf.current_convergent() == convergent_t{17, 41u});
+                expect(cf.update() == true);
+                expect(cf.current_convergent() == convergent_t{22, 53u});
+                expect(cf.update() == true);
+                expect(cf.current_convergent() == convergent_t{127, 306u});
+                expect(cf.update() == true);
+                expect(cf.current_convergent() == convergent_t{276, 665u});
+                expect(cf.update() == true);
+                expect(cf.current_convergent() == convergent_t{6'475, 15'601u});
+                expect(cf.update() == true);
+                expect(cf.current_convergent() == convergent_t{13'226, 31'867u});
+                expect(cf.update() == true);
+                expect(cf.current_convergent() == convergent_t{32'927, 79'335u});
+                expect(cf.update() == true);
+                expect(cf.current_convergent() == convergent_t{46'153, 111'202u});
+                expect(cf.update() == true);
+                expect(cf.current_convergent() == convergent_t{79'080, 190'537u});
+                expect(cf.update() == true);
+                expect(cf.current_convergent() == convergent_t{4'395'553, 10'590'737u});
+                expect(cf.update() == true);
+                expect(cf.current_convergent() == convergent_t{4'474'633, 10'781'274u});
+                expect(cf.update() == true);
+                expect(cf.current_convergent() == convergent_t{22'294'085, 53'715'833u});
+                expect(cf.update() == true);
+                expect(cf.current_convergent() == convergent_t{71'356'888, 171'928'773u});
+                expect(cf.update() == true);
+                expect(cf.current_convergent() == convergent_t{93'650'973, 225'644'606u});
+                expect(cf.update() == true);
+                expect(cf.current_convergent() == convergent_t{165'007'861, 397'573'379u});
+                expect(cf.update() == true);
+                expect(cf.current_convergent() ==
+                       convergent_t{INT64_C(2'568'768'888), UINT64_C(6'189'245'291)});
+            }
         };
 
         should("additional_unary_gosper") = [] {

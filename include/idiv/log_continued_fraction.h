@@ -21,6 +21,7 @@
 #include "gosper_continued_fraction.h"
 #include "interval.h"
 #include "rational_continued_fraction.h"
+#include "prime_factorization.h"
 
 namespace jkj {
     namespace cntfrc {
@@ -212,36 +213,158 @@ namespace jkj {
 
 
         template <class Int, class UInt, class Unity = unity, template <class> class... Mixins>
-        class natural_log_continued_fraction;
+        class natural_log;
 
         template <class Int, class UInt, class Unity, template <class> class... Mixins>
-        struct continued_fraction_traits<
-            natural_log_continued_fraction<Int, UInt, Unity, Mixins...>> {
-        private:
+        struct continued_fraction_traits<natural_log<Int, UInt, Unity, Mixins...>> {
             using impl_type =
                 unary_gosper<natural_log_calculator<Int, UInt, interval_tracker>, Unity, Mixins...>;
-
-        public:
             using partial_fraction_type = typename impl_type::partial_fraction_type;
             using convergent_type = typename impl_type::convergent_type;
             using interval_type = typename impl_type::interval_type;
         };
 
         template <class Int, class UInt, class Unity, template <class> class... Mixins>
-        class natural_log_continued_fraction
-            : public unary_gosper<natural_log_calculator<Int, UInt, interval_tracker>, Unity,
-                                  Mixins...> {
-            using impl_type =
-                unary_gosper<natural_log_calculator<Int, UInt, interval_tracker>, Unity, Mixins...>;
+        class natural_log : public continued_fraction_traits<
+                                natural_log<Int, UInt, Unity, Mixins...>>::impl_type {
+            using impl_type = typename continued_fraction_traits<natural_log>::impl_type;
 
         public:
             template <class MixinInitializer = typename impl_type::default_mixin_initializer>
-            explicit constexpr natural_log_continued_fraction(
-                frac<UInt, UInt> const& positive_rational,
-                MixinInitializer&& mixin_initializer = {})
+            explicit constexpr natural_log(frac<UInt, UInt> const& positive_rational,
+                                           MixinInitializer&& mixin_initializer = {})
                 : impl_type{natural_log_calculator<Int, UInt, interval_tracker>{positive_rational},
                             {1, 0, 0, 1},
                             mixin_initializer} {}
+        };
+
+        template <class Int, class UInt, class Unity = unity, template <class> class... Mixins>
+        class general_log;
+
+        template <class Int, class UInt, class Unity, template <class> class... Mixins>
+        struct continued_fraction_traits<general_log<Int, UInt, Unity, Mixins...>> {
+            using rational_impl_type =
+                rational_continued_fraction<Int, UInt, Unity, partial_fraction_tracker>;
+            using irrational_impl_type =
+                binary_gosper<natural_log_calculator<Int, UInt, interval_tracker>,
+                              natural_log_calculator<Int, UInt, interval_tracker>, Unity,
+                              partial_fraction_tracker>;
+
+            using partial_fraction_type = typename rational_impl_type::partial_fraction_type;
+            using convergent_type = typename rational_impl_type::convergent_type;
+            using interval_type = typename rational_impl_type::interval_type;
+
+            static_assert(std::is_same_v<partial_fraction_type,
+                                         typename irrational_impl_type::partial_fraction_type>);
+            static_assert(
+                std::is_same_v<convergent_type, typename irrational_impl_type::convergent_type>);
+            static_assert(
+                std::is_same_v<interval_type, typename irrational_impl_type::interval_type>);
+        };
+
+        template <class Int, class UInt, class Unity, template <class> class... Mixins>
+        class general_log
+            : public continued_fraction_base<general_log<Int, UInt, Unity, Mixins...>, Mixins...> {
+            using crtp_base =
+                continued_fraction_base<general_log<Int, UInt, Unity, Mixins...>, Mixins...>;
+            friend crtp_base;
+
+            using rational_impl_type = typename crtp_base::traits_type::rational_impl_type;
+            using irrational_impl_type = typename crtp_base::traits_type::irrational_impl_type;
+
+        public:
+            using partial_fraction_type = typename crtp_base::traits_type::partial_fraction_type;
+            using convergent_type = typename crtp_base::traits_type::convergent_type;
+            using interval_type = typename crtp_base::traits_type::interval_type;
+
+        private:
+            rational_impl_type rational_impl_;
+            irrational_impl_type irrational_impl_;
+            bool is_rational_;
+
+            struct check_rational_return {
+                bool is_rational = false;
+                projective_rational<Int, UInt> result{1, 0u};
+            };
+
+            static constexpr check_rational_return check_rational(frac<UInt, UInt> const& base,
+                                                                  frac<UInt, UInt> const& x) {
+                // Both base and x must lie in the interval (0, infinity).
+                util::constexpr_assert(!is_zero(base.numerator) && !is_zero(base.denominator));
+                util::constexpr_assert(!is_zero(x.numerator) && !is_zero(x.denominator));
+
+                // Log with base 1 does not make sense.
+                util::constexpr_assert(base.numerator != base.denominator);
+
+                auto prime_factors_base = prime_factorization(base);
+                auto prime_factors_x = prime_factorization(x);
+
+                if (prime_factors_x.size() != prime_factors_base.size()) {
+                    return {};
+                }
+                util::constexpr_assert(prime_factors_x.size() != 0);
+
+                auto ratio = projective_rational<int, int>{prime_factors_x[0].exponent,
+                                                           prime_factors_base[0].exponent};
+
+                for (std::size_t idx = 1; idx < prime_factors_x.size(); ++idx) {
+                    if (prime_factors_x[idx].factor != prime_factors_base[idx].factor) {
+                        return {};
+                    }
+
+                    if (ratio != projective_rational<int, int>{prime_factors_x[idx].exponent,
+                                                               prime_factors_base[idx].exponent}) {
+                        return {};
+                    }
+                }
+
+                return {true, projective_rational<Int, UInt>{
+                                  ratio.denominator > 0 ? ratio.numerator : -ratio.numerator,
+                                  ratio.denominator > 0 ? unsigned(ratio.denominator)
+                                                        : unsigned(-ratio.denominator)}};
+            }
+
+            explicit constexpr general_log(frac<UInt, UInt> const& base, frac<UInt, UInt> const& x,
+                                           check_rational_return rational_check)
+                : crtp_base{default_mixin_initializer{}}, rational_impl_{rational_check.result},
+                  irrational_impl_{
+                      typename irrational_impl_type::first_internal_continued_fraction_impl_type{x},
+                      typename irrational_impl_type::second_internal_continued_fraction_impl_type{
+                          base},
+                      // (0xy + 1x + 0y + 0) / (0xy + 0x + 1y + 0)
+                      {0, 1, 0, 0, 0, 0, 1, 0}},
+                  is_rational_{rational_check.is_rational} {}
+
+            template <class Functor>
+            constexpr bool with_next_partial_fraction(Functor&& f) {
+                if (is_rational_) {
+                    if (rational_impl_.update()) {
+                        f(rational_impl_.current_partial_fraction());
+                        return true;
+                    }
+                    return false;
+                }
+                else {
+                    if (irrational_impl_.update()) {
+                        f(irrational_impl_.current_partial_fraction());
+                        return true;
+                    }
+                    return false;
+                }
+            }
+
+        public:
+            struct default_mixin_initializer {
+                static constexpr partial_fraction_type initial_partial_fraction() {
+                    return {Unity{}, Int{0}};
+                }
+                static constexpr interval_type initial_interval() {
+                    return cyclic_interval<convergent_type, cyclic_interval_type_t::entire>{};
+                }
+            };
+
+            explicit constexpr general_log(frac<UInt, UInt> const& base, frac<UInt, UInt> const& x)
+                : general_log{base, x, check_rational(base, x)} {}
         };
     }
 }
