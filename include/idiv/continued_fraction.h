@@ -184,39 +184,35 @@ namespace jkj {
                                        MixinInitializer&& mixin_initializer)
                 : current_interval_{mixin_initializer.initial_interval()} {}
 
-            constexpr void update_impl(Impl& impl) {
+            template <class PartialFractionType>
+            constexpr void update(Impl& impl, PartialFractionType const&) {
                 if constexpr (requires { impl.next_interval(); }) {
                     current_interval_ = impl.next_interval();
                 }
                 else {
                     // Use convergents. Note that this is valid only for regular continued
                     // fractions.
-                    auto& self = static_cast<Impl const&>(*this);
-                    if (self.terminated()) {
-                        current_interval_ = cyclic_interval<typename interval_type::value_type,
-                                                            cyclic_interval_type_t::single_point>{
-                            self.current_convergent()};
-                    }
-                    else if (self.current_index() >= 1) {
-                        if (self.current_index() % 2 == 0) {
-                            current_interval_ = cyclic_interval<typename interval_type::value_type,
-                                                                cyclic_interval_type_t::closed>{
-                                self.current_convergent(), self.previous_convergent()};
+                    if (impl.current_index() >= 1) {
+                        if (impl.current_index() % 2 == 0) {
+                            current_interval_ =
+                                cyclic_interval<typename interval_type::value_type,
+                                                cyclic_interval_type_t::left_closed_right_open>{
+                                    impl.current_convergent(), impl.previous_convergent()};
                         }
                         else {
-                            current_interval_ = cyclic_interval<typename interval_type::value_type,
-                                                                cyclic_interval_type_t::closed>{
-                                self.previous_convergent(), self.current_convergent()};
+                            current_interval_ =
+                                cyclic_interval<typename interval_type::value_type,
+                                                cyclic_interval_type_t::left_open_right_closed>{
+                                    impl.previous_convergent(), impl.current_convergent()};
                         }
                     }
                 }
             }
-
-            template <class PartialFractionType>
-            constexpr void update(Impl& impl, PartialFractionType const&) {
-                update_impl(impl);
+            constexpr void final_update(Impl& impl) {
+                current_interval_ = cyclic_interval<typename interval_type::value_type,
+                                                    cyclic_interval_type_t::single_point>{
+                    impl.current_convergent()};
             }
-            constexpr void final_update(Impl& impl) { update_impl(impl); }
 
         public:
             interval_type const& current_interval() const noexcept { return current_interval_; }
