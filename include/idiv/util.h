@@ -91,6 +91,18 @@ namespace jkj {
             y = static_cast<T&&>(temp);
         }
 
+        constexpr int strong_order_to_int(std::strong_ordering r) noexcept {
+            if (r > 0) {
+                return 1;
+            }
+            else if (r < 0) {
+                return -1;
+            }
+            else {
+                return 0;
+            }
+        }
+
         // A minimal implementation of std::array.
         template <class T, std::size_t N>
         struct array {
