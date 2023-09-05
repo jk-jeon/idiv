@@ -890,8 +890,9 @@ namespace jkj {
             }
 
             using value_type = std::remove_cvref_t<Value>;
-            template <Enum it>
-            constexpr variable_shape_interval_impl(StaticIntervalTemplate<Value, it> itv) noexcept
+
+            template <class T, Enum it> requires std::is_constructible_v<Value, T>
+            constexpr variable_shape_interval_impl(StaticIntervalTemplate<T, it> itv) noexcept
                 : interval_type_{it} {
                 static_assert(is_allowed_interval_type(it),
                               "specified interval type not is allowed");
