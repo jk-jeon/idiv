@@ -1757,6 +1757,11 @@ namespace jkj {
             return total_shift;
         }
 
+        // Find the largest power of 2 dividing n, divide n by that power, and return
+        // the exponent.
+        constexpr std::size_t factor_out_power_of_2(uint_var& n) noexcept {
+            return n.factor_out_power_of_2();
+        }
 
         // Operations on uint_const.
         namespace detail {
