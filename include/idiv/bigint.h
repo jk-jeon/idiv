@@ -963,10 +963,10 @@ namespace jkj {
                 : uint_var(list.begin(), list.end()) {}
 
             // Copy the blocks.
-            explicit constexpr uint_var(uint_view n) {
+            constexpr uint_var(uint_view n) {
                 blocks_.assign(n.blocks().cbegin(), n.blocks().cend());
             }
-            explicit constexpr uint_var(uint_const_t<>) {}
+            constexpr uint_var(uint_const_t<>) {}
 
             constexpr util::span<block_type const> blocks() const noexcept {
                 return {blocks_.data(), blocks_.size()};
@@ -1969,14 +1969,22 @@ namespace jkj {
             friend class uint_var;
 
             int_var() = default;
-            explicit constexpr int_var(sign_t sign, uint_var abs)
+            explicit constexpr int_var(sign_t sign, uint_view abs) : abs_(abs), sign_(sign) {
+                if (abs_.is_zero()) {
+                    sign_ = sign_t::positive;
+                }
+            }
+            explicit constexpr int_var(sign_t sign, uint_var&& abs)
                 : abs_(static_cast<uint_var&&>(abs)), sign_(sign) {
                 if (abs_.is_zero()) {
                     sign_ = sign_t::positive;
                 }
             }
 
-            explicit constexpr int_var(uint_var abs) : int_var(sign_t::positive, abs) {}
+            explicit constexpr int_var(uint_view abs) : int_var(sign_t::positive, abs) {}
+            explicit constexpr int_var(uint_var&& abs)
+                : int_var(sign_t::positive, static_cast<uint_var&&>(abs)) {}
+            constexpr int_var(int_view n) : int_var(n.sign(), n.abs()) {}
 
             constexpr int_var(signed_block_type n) {
                 // Signed-to-unsigned conversion is well-defined.
@@ -1993,13 +2001,8 @@ namespace jkj {
                 }
             }
 
-            // Copy the blocks.
-            explicit constexpr int_var(int_view n) {
-                sign_ = n.sign_;
-                abs_.blocks_.assign(n.blocks().cbegin(), n.blocks().cend());
-            }
-            explicit constexpr int_var(uint_const_t<>) {}
-            explicit constexpr int_var(int_const_t<>) {}
+            constexpr int_var(uint_const_t<>) {}
+            constexpr int_var(int_const_t<>) {}
 
             // Obtain view.
             constexpr operator int_view() const noexcept { return int_view{sign_, abs_.blocks()}; }
