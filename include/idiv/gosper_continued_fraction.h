@@ -70,55 +70,75 @@ namespace jkj {
             };
         }
 
-        template <class ContinuedFractionImpl, class Unity = unity,
-                  template <class> class... Mixins>
-        class unary_gosper;
-
-        template <class ContinuedFractionImpl, class Unity, template <class> class... Mixins>
-        struct continued_fraction_traits<unary_gosper<ContinuedFractionImpl, Unity, Mixins...>> {
-            using int_type = decltype(ContinuedFractionImpl::convergent_type::numerator);
-            using uint_type = decltype(ContinuedFractionImpl::convergent_type::denominator);
+        template <class InternalContinuedFractionGenerator, class Unity = unity>
+        class unary_gosper {
+        public:
+            using int_type =
+                decltype(InternalContinuedFractionGenerator::convergent_type::numerator);
+            using uint_type =
+                decltype(InternalContinuedFractionGenerator::convergent_type::denominator);
             using partial_fraction_type = frac<Unity, int_type>;
-            using convergent_type = typename ContinuedFractionImpl::convergent_type;
+            using convergent_type = typename InternalContinuedFractionGenerator::convergent_type;
             using interval_type = variable_shape_cyclic_interval<
                 projective_rational<int_type, int_type>, cyclic_interval_type_t::single_point,
                 cyclic_interval_type_t::left_open_right_closed,
                 cyclic_interval_type_t::left_closed_right_open, cyclic_interval_type_t::entire>;
-        };
-
-        template <class ContinuedFractionImpl, class Unity, template <class> class... Mixins>
-        class unary_gosper
-            : public continued_fraction_base<unary_gosper<ContinuedFractionImpl, Unity, Mixins...>,
-                                             Mixins...> {
-            using crtp_base =
-                continued_fraction_base<unary_gosper<ContinuedFractionImpl, Unity, Mixins...>,
-                                        Mixins...>;
-            friend crtp_base;
-
-        public:
-            using int_type = typename crtp_base::traits_type::int_type;
-            using uint_type = typename crtp_base::traits_type::uint_type;
-            using partial_fraction_type = typename crtp_base::traits_type::partial_fraction_type;
-            using convergent_type = typename crtp_base::traits_type::convergent_type;
-            using interval_type = typename crtp_base::traits_type::interval_type;
-            using internal_continued_fraction_impl_type = ContinuedFractionImpl;
+            using internal_continued_fraction_impl_type =
+                typename InternalContinuedFractionGenerator::impl_type;
 
         private:
-            ContinuedFractionImpl cf_;
+            InternalContinuedFractionGenerator cf_;
             linear_fractional_transform<int_type> coeff_;
             int determinant_sign_ = 0;
             bool is_first_ = true;
 
-            template <class Functor>
-            constexpr void with_next_partial_fraction(Functor&& f) {
+        public:
+            static constexpr partial_fraction_type initial_partial_fraction() {
+                return {Unity{}, int_type{0}};
+            }
+            static constexpr interval_type initial_interval() {
+                return cyclic_interval<convergent_type, cyclic_interval_type_t::entire>{};
+            }
+
+            constexpr unary_gosper(internal_continued_fraction_impl_type cf_impl,
+                                   linear_fractional_transform<int_type> coeff)
+                : cf_{std::move(cf_impl)},
+                  coeff_{static_cast<linear_fractional_transform<int_type>&&>(coeff)} {
+                determinant_sign_ = coeff_.determinant_sign();
+                // Step 1. Get away from singularities.
+                if (determinant_sign_ == 0) {
+                    // The degenerate case a = b = c = d = 0 is disallowed.
+                    util::constexpr_assert(!is_zero(coeff_.num_to_num) ||
+                                           !is_zero(coeff_.den_to_num));
+
+                    auto singularity =
+                        detail::gosper_util<int_type>::kernel_of_rank1_transform(coeff_);
+
+                    while (true) {
+                        // If the unique singularity is contained in the closure of the current
+                        // interval, then refine the interval.
+                        if (detail::gosper_util<int_type>::contains_in_closure(
+                                cf_.current_interval(), singularity)) {
+                            // We do not allow the input to be at the singularity.
+                            util::constexpr_assert(cf_.current_interval().interval_type() !=
+                                                   cyclic_interval_type_t::single_point);
+                            continue;
+                        }
+                        break;
+                    }
+                }
+            }
+
+            template <class Callback>
+            constexpr void with_next_partial_fraction(Callback&& callback) {
                 // Step 3. Compare the floor of two endpoints and if they are equal, return.
                 auto update_and_callback = [&](auto&& common_floor) {
                     is_first_ = false;
                     coeff_.translate(-common_floor);
                     coeff_.reflect();
                     determinant_sign_ *= -1;
-                    f(partial_fraction_type{Unity{},
-                                            static_cast<decltype(common_floor)&&>(common_floor)});
+                    callback(partial_fraction_type{
+                        Unity{}, static_cast<decltype(common_floor)&&>(common_floor)});
                 };
                 enum class final_result { success, terminate, fail };
                 auto check_floor = [&](auto&& itv) -> final_result {
@@ -280,94 +300,30 @@ namespace jkj {
                     cf_.update();
                 }
             }
-
-        public:
-            struct default_mixin_initializer {
-                static constexpr partial_fraction_type initial_partial_fraction() {
-                    return {Unity{}, int_type{0}};
-                }
-                static constexpr interval_type initial_interval() {
-                    return cyclic_interval<convergent_type, cyclic_interval_type_t::entire>{};
-                }
-            };
-
-            template <class MixinInitializer = default_mixin_initializer>
-            constexpr unary_gosper(ContinuedFractionImpl cf,
-                                   linear_fractional_transform<int_type> coeff,
-                                   MixinInitializer&& mixin_initializer = {})
-                : crtp_base{mixin_initializer}, cf_{static_cast<ContinuedFractionImpl>(cf)},
-                  coeff_{static_cast<linear_fractional_transform<int_type>&&>(coeff)} {
-                determinant_sign_ = coeff_.determinant_sign();
-                // Step 1. Get away from singularities.
-                if (determinant_sign_ == 0) {
-                    // The degenerate case a = b = c = d = 0 is disallowed.
-                    util::constexpr_assert(!is_zero(coeff_.num_to_num) ||
-                                           !is_zero(coeff_.den_to_num));
-
-                    auto singularity =
-                        detail::gosper_util<int_type>::kernel_of_rank1_transform(coeff_);
-
-                    while (true) {
-                        // If the unique singularity is contained in the closure of the current
-                        // interval, then refine the interval.
-                        if (detail::gosper_util<int_type>::contains_in_closure(
-                                cf_.current_interval(), singularity)) {
-                            // We do not allow the input to be at the singularity.
-                            util::constexpr_assert(cf_.current_interval().interval_type() !=
-                                                   cyclic_interval_type_t::single_point);
-                            continue;
-                        }
-                        break;
-                    }
-                }
-            }
         };
 
-        template <class XContinuedFractionImpl, class YContinuedFractionImpl, class Unity = unity,
-                  template <class> class... Mixins>
-            requires std::is_same_v<typename XContinuedFractionImpl::convergent_type,
-                                    typename YContinuedFractionImpl::convergent_type>
-        class binary_gosper;
-
-        template <class XContinuedFractionImpl, class YContinuedFractionImpl, class Unity,
-                  template <class> class... Mixins>
-        struct continued_fraction_traits<
-            binary_gosper<XContinuedFractionImpl, YContinuedFractionImpl, Unity, Mixins...>> {
-            using int_type = decltype(XContinuedFractionImpl::convergent_type::numerator);
-            using uint_type = decltype(XContinuedFractionImpl::convergent_type::denominator);
+        template <class ContinuedFractionGeneratorX, class ContinuedFractionGeneratorY,
+                  class Unity = unity>
+            requires std::is_same_v<typename ContinuedFractionGeneratorX::convergent_type,
+                                    typename ContinuedFractionGeneratorY::convergent_type>
+        class binary_gosper {
+        public:
+            using int_type = decltype(ContinuedFractionGeneratorX::convergent_type::numerator);
+            using uint_type = decltype(ContinuedFractionGeneratorX::convergent_type::denominator);
             using partial_fraction_type = frac<Unity, int_type>;
-            using convergent_type = typename XContinuedFractionImpl::convergent_type;
+            using convergent_type = typename ContinuedFractionGeneratorX::convergent_type;
             using interval_type = variable_shape_cyclic_interval<
                 convergent_type, cyclic_interval_type_t::single_point,
                 cyclic_interval_type_t::left_open_right_closed,
                 cyclic_interval_type_t::left_closed_right_open, cyclic_interval_type_t::entire>;
-        };
-
-        template <class XContinuedFractionImpl, class YContinuedFractionImpl, class Unity,
-                  template <class> class... Mixins>
-            requires std::is_same_v<typename XContinuedFractionImpl::convergent_type,
-                                    typename YContinuedFractionImpl::convergent_type>
-        class binary_gosper
-            : public continued_fraction_base<
-                  binary_gosper<XContinuedFractionImpl, YContinuedFractionImpl, Unity, Mixins...>,
-                  Mixins...> {
-            using crtp_base = continued_fraction_base<
-                binary_gosper<XContinuedFractionImpl, YContinuedFractionImpl, Unity, Mixins...>,
-                Mixins...>;
-            friend crtp_base;
-
-        public:
-            using int_type = typename crtp_base::traits_type::int_type;
-            using uint_type = typename crtp_base::traits_type::uint_type;
-            using partial_fraction_type = typename crtp_base::traits_type::partial_fraction_type;
-            using convergent_type = typename crtp_base::traits_type::convergent_type;
-            using interval_type = typename crtp_base::traits_type::interval_type;
-            using first_internal_continued_fraction_impl_type = XContinuedFractionImpl;
-            using second_internal_continued_fraction_impl_type = YContinuedFractionImpl;
+            using first_internal_continued_fraction_impl_type =
+                typename ContinuedFractionGeneratorX::impl_type;
+            using second_internal_continued_fraction_impl_type =
+                typename ContinuedFractionGeneratorY::impl_type;
 
         private:
-            XContinuedFractionImpl xcf_;
-            YContinuedFractionImpl ycf_;
+            ContinuedFractionGeneratorX xcf_;
+            ContinuedFractionGeneratorY ycf_;
             bilinear_fractional_transform<int_type> coeff_;
             bool is_first_ = true;
 
@@ -550,297 +506,18 @@ namespace jkj {
                 });
             }
 
-            template <class Functor>
-            constexpr void with_next_partial_fraction(Functor&& f) {
-                // Step 3. Compare the floor of two endpoints and if they are equal, return.
-                auto update_and_callback = [&](auto&& common_floor) {
-                    is_first_ = false;
-                    coeff_.translate(-common_floor);
-                    coeff_.reflect();
-                    f(partial_fraction_type{Unity{}, std::move(common_floor)});
-                };
-                enum class final_result { success, terminate, fail };
-                auto check_floor = [&](auto&& itv) -> final_result {
-                    using enum cyclic_interval_type_t;
-                    constexpr auto itv_type = itv.interval_type();
-                    static_assert(itv_type != empty && itv_type != entire);
-                    constexpr auto infinity = projective_rational{unity{}, zero{}};
-
-                    if constexpr (itv_type == single_point) {
-                        // If infinity is the only element in the range, then there is no
-                        // further continued fraction coefficients.
-                        if (itv.lower_bound() == infinity) {
-                            return final_result::terminate;
-                        }
-                        else {
-                            // If a finite rational number is the only element in the range,
-                            // then just compute the continued fraction expansion of that
-                            // number.
-                            update_and_callback(div_floor(itv.lower_bound().numerator,
-                                                          itv.lower_bound().denominator));
-                            return final_result::success;
-                        }
-                    }
-                    else {
-                        // Cannot do anything if the range estimate contains the infinity.
-                        if (itv.lower_bound() == infinity || itv.upper_bound() == infinity ||
-                            cyclic_order(itv.lower_bound(), infinity, itv.upper_bound())) {
-                            return final_result::fail;
-                        }
-
-                        // Otherwise, compare the floor.
-                        auto floor_lower =
-                            div_floor(itv.lower_bound().numerator, itv.lower_bound().denominator);
-                        auto floor_upper =
-                            div_floor(itv.upper_bound().numerator, itv.upper_bound().denominator);
-                        if (floor_lower == floor_upper) {
-                            update_and_callback(std::move(floor_lower));
-                            return final_result::success;
-                        }
-                        return final_result::fail;
-                    }
-                };
-
-                // Step 2. Find the range of the linear fractional transform.
-                auto compute_range = [this, &check_floor](auto&& x_itv,
-                                                          auto&& y_itv) -> final_result {
-                    static_assert(x_itv.interval_type() != cyclic_interval_type_t::empty &&
-                                  y_itv.interval_type() != cyclic_interval_type_t::empty);
-
-                    if constexpr (x_itv.interval_type() == cyclic_interval_type_t::entire ||
-                                  y_itv.interval_type() == cyclic_interval_type_t::entire) {
-                        // If one of x,y ranges from the entire RP1, then the range of
-                        // f(x,y) must be entire RP1.
-                        return final_result::fail;
-                    }
-                    else {
-                        using enum cyclic_interval_type_t;
-                        using value_type = projective_rational<int_type, int_type>;
-
-                        value_type const corners[4] = {
-                            coeff_(x_itv.lower_bound(), y_itv.lower_bound()), // left-bottom
-                            coeff_(x_itv.upper_bound(), y_itv.lower_bound()), // right-bottom
-                            coeff_(x_itv.upper_bound(), y_itv.upper_bound()), // right-top
-                            coeff_(x_itv.lower_bound(), y_itv.upper_bound())  // left-top
-                        };
-                        int const edge_directions[4] = {
-                            // bottom
-                            (x_itv.interval_type() == single_point ? 0 : 1) *
-                                linear_fractional_transform{
-                                    coeff_.xnum_ynum_to_num * y_itv.lower_bound().numerator +
-                                        coeff_.xnum_yden_to_num * y_itv.lower_bound().denominator,
-                                    coeff_.xden_ynum_to_num * y_itv.lower_bound().numerator +
-                                        coeff_.xden_yden_to_num * y_itv.lower_bound().denominator,
-                                    coeff_.xnum_ynum_to_den * y_itv.lower_bound().numerator +
-                                        coeff_.xnum_yden_to_den * y_itv.lower_bound().denominator,
-                                    coeff_.xden_ynum_to_den * y_itv.lower_bound().numerator +
-                                        coeff_.xden_yden_to_den * y_itv.lower_bound().denominator}
-                                    .determinant_sign(),
-                            // right
-                            (y_itv.interval_type() == single_point ? 0 : 1) *
-                                linear_fractional_transform{
-                                    coeff_.xnum_ynum_to_num * x_itv.upper_bound().numerator +
-                                        coeff_.xden_ynum_to_num * x_itv.upper_bound().denominator,
-                                    coeff_.xnum_yden_to_num * x_itv.upper_bound().numerator +
-                                        coeff_.xden_yden_to_num * x_itv.upper_bound().denominator,
-                                    coeff_.xnum_ynum_to_den * x_itv.upper_bound().numerator +
-                                        coeff_.xden_ynum_to_den * x_itv.upper_bound().denominator,
-                                    coeff_.xnum_yden_to_den * x_itv.upper_bound().numerator +
-                                        coeff_.xden_yden_to_den * x_itv.upper_bound().denominator}
-                                    .determinant_sign(),
-                            // top
-                            (x_itv.interval_type() == single_point ? 0 : -1) *
-                                linear_fractional_transform{
-                                    coeff_.xnum_ynum_to_num * y_itv.upper_bound().numerator +
-                                        coeff_.xnum_yden_to_num * y_itv.upper_bound().denominator,
-                                    coeff_.xden_ynum_to_num * y_itv.upper_bound().numerator +
-                                        coeff_.xden_yden_to_num * y_itv.upper_bound().denominator,
-                                    coeff_.xnum_ynum_to_den * y_itv.upper_bound().numerator +
-                                        coeff_.xnum_yden_to_den * y_itv.upper_bound().denominator,
-                                    coeff_.xden_ynum_to_den * y_itv.upper_bound().numerator +
-                                        coeff_.xden_yden_to_den * y_itv.upper_bound().denominator}
-                                    .determinant_sign(),
-                            // left
-                            (y_itv.interval_type() == single_point ? 0 : -1) *
-                                linear_fractional_transform{
-                                    coeff_.xnum_ynum_to_num * x_itv.lower_bound().numerator +
-                                        coeff_.xden_ynum_to_num * x_itv.lower_bound().denominator,
-                                    coeff_.xnum_yden_to_num * x_itv.lower_bound().numerator +
-                                        coeff_.xden_yden_to_num * x_itv.lower_bound().denominator,
-                                    coeff_.xnum_ynum_to_den * x_itv.lower_bound().numerator +
-                                        coeff_.xden_ynum_to_den * x_itv.lower_bound().denominator,
-                                    coeff_.xnum_yden_to_den * x_itv.lower_bound().numerator +
-                                        coeff_.xden_yden_to_den * x_itv.lower_bound().denominator}
-                                    .determinant_sign()};
-
-                        auto passes_through = [&corners, &edge_directions](
-                                                  unsigned int edge_idx, unsigned int corner_idx) {
-                            auto const& corner = corners[corner_idx % 4];
-                            auto const& first_end = corners[edge_idx % 4];
-                            auto const& second_end = corners[(edge_idx + 1) % 4];
-                            auto const& edge_direction = edge_directions[edge_idx % 4];
-
-                            if (edge_direction == 0) {
-                                return false;
-                            }
-                            if (edge_direction > 0) {
-                                return corner == first_end || corner == second_end ||
-                                       cyclic_order(first_end, corner, second_end);
-                            }
-                            else {
-                                return corner == first_end || corner == second_end ||
-                                       cyclic_order(second_end, corner, first_end);
-                            }
-                        };
-
-                        // Cases when f is constant on the region.
-                        if (edge_directions[0] == 0 && edge_directions[1] == 0 &&
-                            edge_directions[2] == 0 && edge_directions[3] == 0) {
-                            return check_floor(
-                                cyclic_interval<value_type const&, single_point>{corners[0]});
-                        }
-
-                        int const plus_count =
-                            (edge_directions[0] >= 0 ? 1 : 0) + (edge_directions[1] >= 0 ? 1 : 0) +
-                            (edge_directions[2] >= 0 ? 1 : 0) + (edge_directions[3] >= 0 ? 1 : 0);
-
-                        // (+,+,+,+) or (-,-,-,-)
-                        if (plus_count == 4 || plus_count == 0) {
-                            // The range must be RP1.
-                            return final_result::fail;
-                        }
-                        // (+,+,+,-)
-                        else if (plus_count == 3) {
-                            // Locate the unique negative at the end.
-                            unsigned starting_pos = edge_directions[0] < 0   ? 1
-                                                    : edge_directions[1] < 0 ? 2
-                                                    : edge_directions[2] < 0 ? 3
-                                                                             : 0;
-
-                            // Either [corners[0], corners[3]] or RP1.
-                            if (passes_through(starting_pos + 1, starting_pos) ||
-                                passes_through(starting_pos + 2, starting_pos)) {
-                                // The range must be RP1.
-                                return final_result::fail;
-                            }
-                            else {
-                                return check_floor(cyclic_interval<value_type const&, closed>{
-                                    corners[starting_pos], corners[(starting_pos + 3) % 4]});
-                            }
-                        }
-                        // (-,-,-,+)
-                        else if (plus_count == 1) {
-                            // Locate the unique positive at the end.
-                            unsigned int starting_pos = edge_directions[0] >= 0   ? 1
-                                                        : edge_directions[1] >= 0 ? 2
-                                                        : edge_directions[2] >= 0 ? 3
-                                                                                  : 0;
-
-                            // Either [corners[3], corners[0]] or RP1.
-                            if (passes_through(starting_pos + 1, starting_pos) ||
-                                passes_through(starting_pos + 2, starting_pos)) {
-                                // The range must be RP1.
-                                return final_result::fail;
-                            }
-                            else {
-                                return check_floor(cyclic_interval<value_type const&, closed>{
-                                    corners[(starting_pos + 3) % 4], corners[starting_pos]});
-                            }
-                        }
-                        // (+,+,-,-)
-                        else if (edge_directions[0] != edge_directions[2]) {
-                            // Locate two successive positive at the beginning.
-                            unsigned int starting_pos =
-                                (edge_directions[0] >= 0 && edge_directions[1] >= 0)   ? 0
-                                : (edge_directions[1] >= 0 && edge_directions[2] >= 0) ? 1
-                                : (edge_directions[2] >= 0 && edge_directions[3] >= 0) ? 2
-                                                                                       : 3;
-
-                            // Either [corners[0], corners[2]] or RP1.
-                            if (passes_through(starting_pos + 1, starting_pos) ||
-                                passes_through(starting_pos + 2, starting_pos)) {
-                                // The range must be RP1.
-                                return final_result::fail;
-                            }
-                            else {
-                                return check_floor(cyclic_interval<value_type const&, closed>{
-                                    corners[starting_pos], corners[(starting_pos + 2) % 4]});
-                            }
-                        }
-                        // (+,-,+,-)
-                        else {
-                            // Locate any positive at the beginning.
-                            unsigned int starting_pos = edge_directions[0] >= 0 ? 0 : 1;
-
-                            // 6 different cases.
-                            if (passes_through(starting_pos + 1, starting_pos)) {
-                                if (passes_through(starting_pos + 2, starting_pos + 1)) {
-                                    return check_floor(cyclic_interval<value_type const&, closed>{
-                                        corners[(starting_pos + 2) % 4],
-                                        corners[(starting_pos + 3) % 4]});
-                                }
-                                else if (passes_through(starting_pos + 2, starting_pos)) {
-                                    return check_floor(cyclic_interval<value_type const&, closed>{
-                                        corners[(starting_pos + 2) % 4],
-                                        corners[(starting_pos + 1) % 4]});
-                                }
-                                else {
-                                    // The range must be RP1.
-                                    return final_result::fail;
-                                }
-                            }
-                            else if (passes_through(starting_pos + 2, starting_pos)) {
-                                // The range must be RP1.
-                                return final_result::fail;
-                            }
-                            else if (passes_through(starting_pos + 2, starting_pos + 1)) {
-                                return check_floor(cyclic_interval<value_type const&, closed>{
-                                    corners[starting_pos], corners[(starting_pos + 3) % 4]});
-                            }
-                            else {
-                                return check_floor(cyclic_interval<value_type const&, closed>{
-                                    corners[starting_pos], corners[(starting_pos + 1) % 4]});
-                            }
-                        }
-                    }
-                };
-
-                while (true) {
-                    auto const result =
-                        xcf_.current_interval().visit([&](auto&& x_itv) -> final_result {
-                            return ycf_.current_interval().visit([&](auto&& y_itv) -> final_result {
-                                return compute_range(x_itv, y_itv);
-                            });
-                        });
-
-                    switch (result) {
-                    case final_result::success:
-                    case final_result::terminate:
-                        return;
-                    case final_result::fail:;
-                    }
-
-                    xcf_.update();
-                    ycf_.update();
-                }
+        public:
+            static constexpr partial_fraction_type initial_partial_fraction() {
+                return {Unity{}, int_type{0}};
+            }
+            static constexpr interval_type initial_interval() {
+                return cyclic_interval<convergent_type, cyclic_interval_type_t::entire>{};
             }
 
-        public:
-            struct default_mixin_initializer {
-                static constexpr partial_fraction_type initial_partial_fraction() {
-                    return {Unity{}, int_type{0}};
-                }
-                static constexpr interval_type initial_interval() {
-                    return cyclic_interval<convergent_type, cyclic_interval_type_t::entire>{};
-                }
-            };
-
-            template <class MixinInitializer = default_mixin_initializer>
-            constexpr binary_gosper(XContinuedFractionImpl xcf, YContinuedFractionImpl ycf,
-                                    bilinear_fractional_transform<int_type> coeff,
-                                    MixinInitializer&& mixin_initializer = {})
-                : crtp_base{mixin_initializer}, xcf_{static_cast<XContinuedFractionImpl>(xcf)},
-                  ycf_{static_cast<XContinuedFractionImpl>(ycf)},
+            constexpr binary_gosper(first_internal_continued_fraction_impl_type xcf_impl,
+                                    second_internal_continued_fraction_impl_type ycf_impl,
+                                    bilinear_fractional_transform<int_type> coeff)
+                : xcf_{std::move(xcf_impl)}, ycf_{std::move(ycf_impl)},
                   coeff_{static_cast<bilinear_fractional_transform<int_type>&&>(coeff)} {
                 // Step 1. Get away from singularities.
                 int det_sign_num_bilinear_form = 0;
@@ -1104,6 +781,281 @@ namespace jkj {
                 };
 
                 while (has_singularity()) {
+                    xcf_.update();
+                    ycf_.update();
+                }
+            }
+
+            template <class Callback>
+            constexpr void with_next_partial_fraction(Callback&& callback) {
+                // Step 3. Compare the floor of two endpoints and if they are equal, return.
+                auto update_and_callback = [&](auto&& common_floor) {
+                    is_first_ = false;
+                    coeff_.translate(-common_floor);
+                    coeff_.reflect();
+                    callback(partial_fraction_type{Unity{}, std::move(common_floor)});
+                };
+                enum class final_result { success, terminate, fail };
+                auto check_floor = [&](auto&& itv) -> final_result {
+                    using enum cyclic_interval_type_t;
+                    constexpr auto itv_type = itv.interval_type();
+                    static_assert(itv_type != empty && itv_type != entire);
+                    constexpr auto infinity = projective_rational{unity{}, zero{}};
+
+                    if constexpr (itv_type == single_point) {
+                        // If infinity is the only element in the range, then there is no
+                        // further continued fraction coefficients.
+                        if (itv.lower_bound() == infinity) {
+                            return final_result::terminate;
+                        }
+                        else {
+                            // If a finite rational number is the only element in the range,
+                            // then just compute the continued fraction expansion of that
+                            // number.
+                            update_and_callback(div_floor(itv.lower_bound().numerator,
+                                                          itv.lower_bound().denominator));
+                            return final_result::success;
+                        }
+                    }
+                    else {
+                        // Cannot do anything if the range estimate contains the infinity.
+                        if (itv.lower_bound() == infinity || itv.upper_bound() == infinity ||
+                            cyclic_order(itv.lower_bound(), infinity, itv.upper_bound())) {
+                            return final_result::fail;
+                        }
+
+                        // Otherwise, compare the floor.
+                        auto floor_lower =
+                            div_floor(itv.lower_bound().numerator, itv.lower_bound().denominator);
+                        auto floor_upper =
+                            div_floor(itv.upper_bound().numerator, itv.upper_bound().denominator);
+                        if (floor_lower == floor_upper) {
+                            update_and_callback(std::move(floor_lower));
+                            return final_result::success;
+                        }
+                        return final_result::fail;
+                    }
+                };
+
+                // Step 2. Find the range of the linear fractional transform.
+                auto compute_range = [this, &check_floor](auto&& x_itv,
+                                                          auto&& y_itv) -> final_result {
+                    static_assert(x_itv.interval_type() != cyclic_interval_type_t::empty &&
+                                  y_itv.interval_type() != cyclic_interval_type_t::empty);
+
+                    if constexpr (x_itv.interval_type() == cyclic_interval_type_t::entire ||
+                                  y_itv.interval_type() == cyclic_interval_type_t::entire) {
+                        // If one of x,y ranges from the entire RP1, then the range of
+                        // f(x,y) must be entire RP1.
+                        return final_result::fail;
+                    }
+                    else {
+                        using enum cyclic_interval_type_t;
+                        using value_type = projective_rational<int_type, int_type>;
+
+                        value_type const corners[4] = {
+                            coeff_(x_itv.lower_bound(), y_itv.lower_bound()), // left-bottom
+                            coeff_(x_itv.upper_bound(), y_itv.lower_bound()), // right-bottom
+                            coeff_(x_itv.upper_bound(), y_itv.upper_bound()), // right-top
+                            coeff_(x_itv.lower_bound(), y_itv.upper_bound())  // left-top
+                        };
+                        int const edge_directions[4] = {
+                            // bottom
+                            (x_itv.interval_type() == single_point ? 0 : 1) *
+                                linear_fractional_transform{
+                                    coeff_.xnum_ynum_to_num * y_itv.lower_bound().numerator +
+                                        coeff_.xnum_yden_to_num * y_itv.lower_bound().denominator,
+                                    coeff_.xden_ynum_to_num * y_itv.lower_bound().numerator +
+                                        coeff_.xden_yden_to_num * y_itv.lower_bound().denominator,
+                                    coeff_.xnum_ynum_to_den * y_itv.lower_bound().numerator +
+                                        coeff_.xnum_yden_to_den * y_itv.lower_bound().denominator,
+                                    coeff_.xden_ynum_to_den * y_itv.lower_bound().numerator +
+                                        coeff_.xden_yden_to_den * y_itv.lower_bound().denominator}
+                                    .determinant_sign(),
+                            // right
+                            (y_itv.interval_type() == single_point ? 0 : 1) *
+                                linear_fractional_transform{
+                                    coeff_.xnum_ynum_to_num * x_itv.upper_bound().numerator +
+                                        coeff_.xden_ynum_to_num * x_itv.upper_bound().denominator,
+                                    coeff_.xnum_yden_to_num * x_itv.upper_bound().numerator +
+                                        coeff_.xden_yden_to_num * x_itv.upper_bound().denominator,
+                                    coeff_.xnum_ynum_to_den * x_itv.upper_bound().numerator +
+                                        coeff_.xden_ynum_to_den * x_itv.upper_bound().denominator,
+                                    coeff_.xnum_yden_to_den * x_itv.upper_bound().numerator +
+                                        coeff_.xden_yden_to_den * x_itv.upper_bound().denominator}
+                                    .determinant_sign(),
+                            // top
+                            (x_itv.interval_type() == single_point ? 0 : -1) *
+                                linear_fractional_transform{
+                                    coeff_.xnum_ynum_to_num * y_itv.upper_bound().numerator +
+                                        coeff_.xnum_yden_to_num * y_itv.upper_bound().denominator,
+                                    coeff_.xden_ynum_to_num * y_itv.upper_bound().numerator +
+                                        coeff_.xden_yden_to_num * y_itv.upper_bound().denominator,
+                                    coeff_.xnum_ynum_to_den * y_itv.upper_bound().numerator +
+                                        coeff_.xnum_yden_to_den * y_itv.upper_bound().denominator,
+                                    coeff_.xden_ynum_to_den * y_itv.upper_bound().numerator +
+                                        coeff_.xden_yden_to_den * y_itv.upper_bound().denominator}
+                                    .determinant_sign(),
+                            // left
+                            (y_itv.interval_type() == single_point ? 0 : -1) *
+                                linear_fractional_transform{
+                                    coeff_.xnum_ynum_to_num * x_itv.lower_bound().numerator +
+                                        coeff_.xden_ynum_to_num * x_itv.lower_bound().denominator,
+                                    coeff_.xnum_yden_to_num * x_itv.lower_bound().numerator +
+                                        coeff_.xden_yden_to_num * x_itv.lower_bound().denominator,
+                                    coeff_.xnum_ynum_to_den * x_itv.lower_bound().numerator +
+                                        coeff_.xden_ynum_to_den * x_itv.lower_bound().denominator,
+                                    coeff_.xnum_yden_to_den * x_itv.lower_bound().numerator +
+                                        coeff_.xden_yden_to_den * x_itv.lower_bound().denominator}
+                                    .determinant_sign()};
+
+                        auto passes_through = [&corners, &edge_directions](
+                                                  unsigned int edge_idx, unsigned int corner_idx) {
+                            auto const& corner = corners[corner_idx % 4];
+                            auto const& first_end = corners[edge_idx % 4];
+                            auto const& second_end = corners[(edge_idx + 1) % 4];
+                            auto const& edge_direction = edge_directions[edge_idx % 4];
+
+                            if (edge_direction == 0) {
+                                return false;
+                            }
+                            if (edge_direction > 0) {
+                                return corner == first_end || corner == second_end ||
+                                       cyclic_order(first_end, corner, second_end);
+                            }
+                            else {
+                                return corner == first_end || corner == second_end ||
+                                       cyclic_order(second_end, corner, first_end);
+                            }
+                        };
+
+                        // Cases when f is constant on the region.
+                        if (edge_directions[0] == 0 && edge_directions[1] == 0 &&
+                            edge_directions[2] == 0 && edge_directions[3] == 0) {
+                            return check_floor(
+                                cyclic_interval<value_type const&, single_point>{corners[0]});
+                        }
+
+                        int const plus_count =
+                            (edge_directions[0] >= 0 ? 1 : 0) + (edge_directions[1] >= 0 ? 1 : 0) +
+                            (edge_directions[2] >= 0 ? 1 : 0) + (edge_directions[3] >= 0 ? 1 : 0);
+
+                        // (+,+,+,+) or (-,-,-,-)
+                        if (plus_count == 4 || plus_count == 0) {
+                            // The range must be RP1.
+                            return final_result::fail;
+                        }
+                        // (+,+,+,-)
+                        else if (plus_count == 3) {
+                            // Locate the unique negative at the end.
+                            unsigned starting_pos = edge_directions[0] < 0   ? 1
+                                                    : edge_directions[1] < 0 ? 2
+                                                    : edge_directions[2] < 0 ? 3
+                                                                             : 0;
+
+                            // Either [corners[0], corners[3]] or RP1.
+                            if (passes_through(starting_pos + 1, starting_pos) ||
+                                passes_through(starting_pos + 2, starting_pos)) {
+                                // The range must be RP1.
+                                return final_result::fail;
+                            }
+                            else {
+                                return check_floor(cyclic_interval<value_type const&, closed>{
+                                    corners[starting_pos], corners[(starting_pos + 3) % 4]});
+                            }
+                        }
+                        // (-,-,-,+)
+                        else if (plus_count == 1) {
+                            // Locate the unique positive at the end.
+                            unsigned int starting_pos = edge_directions[0] >= 0   ? 1
+                                                        : edge_directions[1] >= 0 ? 2
+                                                        : edge_directions[2] >= 0 ? 3
+                                                                                  : 0;
+
+                            // Either [corners[3], corners[0]] or RP1.
+                            if (passes_through(starting_pos + 1, starting_pos) ||
+                                passes_through(starting_pos + 2, starting_pos)) {
+                                // The range must be RP1.
+                                return final_result::fail;
+                            }
+                            else {
+                                return check_floor(cyclic_interval<value_type const&, closed>{
+                                    corners[(starting_pos + 3) % 4], corners[starting_pos]});
+                            }
+                        }
+                        // (+,+,-,-)
+                        else if (edge_directions[0] != edge_directions[2]) {
+                            // Locate two successive positive at the beginning.
+                            unsigned int starting_pos =
+                                (edge_directions[0] >= 0 && edge_directions[1] >= 0)   ? 0
+                                : (edge_directions[1] >= 0 && edge_directions[2] >= 0) ? 1
+                                : (edge_directions[2] >= 0 && edge_directions[3] >= 0) ? 2
+                                                                                       : 3;
+
+                            // Either [corners[0], corners[2]] or RP1.
+                            if (passes_through(starting_pos + 1, starting_pos) ||
+                                passes_through(starting_pos + 2, starting_pos)) {
+                                // The range must be RP1.
+                                return final_result::fail;
+                            }
+                            else {
+                                return check_floor(cyclic_interval<value_type const&, closed>{
+                                    corners[starting_pos], corners[(starting_pos + 2) % 4]});
+                            }
+                        }
+                        // (+,-,+,-)
+                        else {
+                            // Locate any positive at the beginning.
+                            unsigned int starting_pos = edge_directions[0] >= 0 ? 0 : 1;
+
+                            // 6 different cases.
+                            if (passes_through(starting_pos + 1, starting_pos)) {
+                                if (passes_through(starting_pos + 2, starting_pos + 1)) {
+                                    return check_floor(cyclic_interval<value_type const&, closed>{
+                                        corners[(starting_pos + 2) % 4],
+                                        corners[(starting_pos + 3) % 4]});
+                                }
+                                else if (passes_through(starting_pos + 2, starting_pos)) {
+                                    return check_floor(cyclic_interval<value_type const&, closed>{
+                                        corners[(starting_pos + 2) % 4],
+                                        corners[(starting_pos + 1) % 4]});
+                                }
+                                else {
+                                    // The range must be RP1.
+                                    return final_result::fail;
+                                }
+                            }
+                            else if (passes_through(starting_pos + 2, starting_pos)) {
+                                // The range must be RP1.
+                                return final_result::fail;
+                            }
+                            else if (passes_through(starting_pos + 2, starting_pos + 1)) {
+                                return check_floor(cyclic_interval<value_type const&, closed>{
+                                    corners[starting_pos], corners[(starting_pos + 3) % 4]});
+                            }
+                            else {
+                                return check_floor(cyclic_interval<value_type const&, closed>{
+                                    corners[starting_pos], corners[(starting_pos + 1) % 4]});
+                            }
+                        }
+                    }
+                };
+
+                while (true) {
+                    auto const result =
+                        xcf_.current_interval().visit([&](auto&& x_itv) -> final_result {
+                            return ycf_.current_interval().visit([&](auto&& y_itv) -> final_result {
+                                return compute_range(x_itv, y_itv);
+                            });
+                        });
+
+                    switch (result) {
+                    case final_result::success:
+                    case final_result::terminate:
+                        return;
+                    case final_result::fail:;
+                    }
+
                     xcf_.update();
                     ycf_.update();
                 }
