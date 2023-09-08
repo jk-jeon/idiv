@@ -19,9 +19,7 @@
 #define JKJ_HEADER_GOSPER_CONTINUED_FRACTION
 
 #include "continued_fraction.h"
-#include "frac.h"
 #include <cstdlib>
-#include <type_traits>
 
 namespace jkj {
     namespace cntfrc {

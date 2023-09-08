@@ -19,8 +19,6 @@
 #define JKJ_HEADER_RATIONAL_CONTINUED_FRACTION
 
 #include "continued_fraction.h"
-#include "frac.h"
-#include "interval.h"
 #include <cstdlib>
 
 namespace jkj {

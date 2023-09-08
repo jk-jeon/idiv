@@ -1,7 +1,5 @@
 #include <idiv/bigint.h>
-#include <idiv/gosper_continued_fraction.h>
 #include <idiv/log_continued_fraction.h>
-#include <idiv/rational_continued_fraction.h>
 #include <boost/ut.hpp>
 
 int main() {

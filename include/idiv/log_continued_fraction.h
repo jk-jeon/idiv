@@ -18,9 +18,8 @@
 #ifndef JKJ_HEADER_LOG_CONTINUED_FRACTION
 #define JKJ_HEADER_LOG_CONTINUED_FRACTION
 
-#include "gosper_continued_fraction.h"
-#include "interval.h"
 #include "rational_continued_fraction.h"
+#include "gosper_continued_fraction.h"
 #include "prime_factorization.h"
 
 namespace jkj {
