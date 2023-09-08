@@ -235,12 +235,8 @@ namespace jkj {
             convergent_type const& progress_until(ErrorValue const& error_bound) {
                 // Translate the lower bound by error_bound and see if it belongs to the interval.
                 while (current_interval().visit([&](auto&& itv) {
-                    if constexpr (itv.interval_type() == cyclic_interval_type_t::empty) {
-                        util::constexpr_assert(false);
-                        return false;
-                    }
-                    else if constexpr (itv.interval_type() ==
-                                       cyclic_interval_type_t::single_point) {
+                    static_assert(itv.interval_type() != cyclic_interval_type_t::empty);
+                    if constexpr (itv.interval_type() == cyclic_interval_type_t::single_point) {
                         return false;
                     }
                     else if constexpr (itv.interval_type() == cyclic_interval_type_t::entire) {
