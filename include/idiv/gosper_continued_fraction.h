@@ -82,7 +82,8 @@ namespace jkj {
             using convergent_type = typename ContinuedFractionImpl::convergent_type;
             using interval_type = variable_shape_cyclic_interval<
                 projective_rational<int_type, int_type>, cyclic_interval_type_t::single_point,
-                cyclic_interval_type_t::closed, cyclic_interval_type_t::entire>;
+                cyclic_interval_type_t::left_open_right_closed,
+                cyclic_interval_type_t::left_closed_right_open, cyclic_interval_type_t::entire>;
         };
 
         template <class ContinuedFractionImpl, class Unity, template <class> class... Mixins>
@@ -415,16 +416,6 @@ namespace jkj {
                         }
                     }
                 });
-            }
-            template <class NumNum, class DenNum, class NumDen, class DenDen,
-                      class InputIntervalType>
-            static constexpr variable_shape_cyclic_interval<
-                projective_rational<int_type, int_type>, cyclic_interval_type_t::single_point,
-                cyclic_interval_type_t::closed, cyclic_interval_type_t::entire>
-            map_cyclic_interval(
-                linear_fractional_transform<NumNum, DenNum, NumDen, DenDen> const& transform,
-                InputIntervalType const& itv) {
-                return map_cyclic_interval(transform, itv, transform.determinant_sign());
             }
 
             // Check a predicate on each component. Assumes itv1, itv2 are both closed.
