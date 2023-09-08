@@ -203,7 +203,6 @@ namespace jkj {
                 else {
                     // Use convergents. Note that this is valid only for regular continued
                     // fractions.
-                    auto const& self = static_cast<ContinuedFractionGenerator const&>(*this);
                     if (self.current_index() >= 1) {
                         if (self.current_index() % 2 == 0) {
                             current_interval_ =
