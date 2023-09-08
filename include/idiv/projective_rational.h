@@ -46,7 +46,8 @@ namespace jkj {
                             Num{num};
                             Den{den};
                         } && !(std::is_same_v<Num, OtherNum> && std::is_same_v<Den, OtherDen>))
-            explicit constexpr projective_rational(projective_rational<OtherNum, OtherDen> const& other)
+            explicit constexpr projective_rational(
+                projective_rational<OtherNum, OtherDen> const& other)
                 : numerator{other.numerator}, denominator{other.denominator} {}
 
             template <class OtherNum, class OtherDen>
@@ -179,6 +180,11 @@ namespace jkj {
             constexpr auto operator()(projective_rational<Num, Den> const& x) const {
                 return projective_rational{num_to_num * x.numerator + den_to_num * x.denominator,
                                            num_to_den * x.numerator + den_to_den * x.denominator};
+            }
+
+            constexpr int determinant_sign() const {
+                return util::strong_order_to_int(num_to_num * den_to_den <=>
+                                                 den_to_num * num_to_den);
             }
 
             // Multiply the matrix (t s \\ 0 t) from left for a number s/t.
