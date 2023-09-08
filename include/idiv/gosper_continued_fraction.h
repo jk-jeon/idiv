@@ -25,6 +25,51 @@
 
 namespace jkj {
     namespace cntfrc {
+        namespace detail {
+            template <class Int>
+            struct gosper_util {
+                // Find the kernel of a rank-1 linear fractional transform.
+                template <class NumNum, class DenNum, class NumDen, class DenDen>
+                static constexpr projective_rational<Int, Int> kernel_of_rank1_transform(
+                    linear_fractional_transform<NumNum, DenNum, NumDen, DenDen> const& transform) {
+                    return is_zero(transform.num_to_num) && is_zero(transform.den_to_num)
+                               ? projective_rational{-Int{transform.den_to_den},
+                                                     Int{transform.num_to_den}}
+                               : projective_rational{-Int{transform.den_to_num},
+                                                     Int{transform.num_to_num}};
+                }
+                // Find the range of a rank-1 linear fractional transform.
+                template <class NumNum, class DenNum, class NumDen, class DenDen>
+                static constexpr projective_rational<Int, Int> range_of_rank1_transform(
+                    linear_fractional_transform<NumNum, DenNum, NumDen, DenDen> const& transform) {
+                    return is_zero(transform.num_to_num) && is_zero(transform.num_to_den)
+                               ? projective_rational{Int{transform.den_to_num},
+                                                     Int{transform.den_to_den}}
+                               : projective_rational{Int{transform.num_to_num},
+                                                     Int{transform.num_to_den}};
+                }
+                template <class CyclicInterval, class T>
+                static constexpr bool contains_in_closure(CyclicInterval const& itv, T const& x) {
+                    return itv.visit([&x](auto&& itv) {
+                        using enum cyclic_interval_type_t;
+                        constexpr auto itv_type = itv.interval_type();
+                        static_assert(itv_type != empty);
+
+                        if constexpr (itv_type == entire) {
+                            return true;
+                        }
+                        else if constexpr (itv_type == single_point) {
+                            return itv.lower_bound() == x;
+                        }
+                        else {
+                            return itv.lower_bound() == x || itv.upper_bound() == x ||
+                                   cyclic_order(itv.lower_bound(), x, itv.upper_bound());
+                        }
+                    });
+                }
+            };
+        }
+
         template <class ContinuedFractionImpl, class Unity = unity,
                   template <class> class... Mixins>
         class unary_gosper;
@@ -61,106 +106,176 @@ namespace jkj {
             ContinuedFractionImpl cf_;
             linear_fractional_transform<int_type> coeff_;
             int determinant_sign_ = 0;
+            bool is_first_ = true;
 
             template <class Functor>
-            constexpr bool with_next_partial_fraction(Functor&& f) {
-                while (true) {
-                    // Step 1. Get away from singularities.
-                    if (determinant_sign_ == 0) {
-                        // The degenerate case a = b = c = d = 0 is disallowed.
-                        util::constexpr_assert(!is_zero(coeff_.num_to_num) ||
-                                               !is_zero(coeff_.den_to_num));
+            constexpr void with_next_partial_fraction(Functor&& f) {
+                // Step 3. Compare the floor of two endpoints and if they are equal, return.
+                auto update_and_callback = [&](auto&& common_floor) {
+                    is_first_ = false;
+                    coeff_.translate(-common_floor);
+                    coeff_.reflect();
+                    determinant_sign_ *= -1;
+                    f(partial_fraction_type{Unity{},
+                                            static_cast<decltype(common_floor)&&>(common_floor)});
+                };
+                enum class final_result { success, terminate, fail };
+                auto check_floor = [&](auto&& itv) -> final_result {
+                    using enum cyclic_interval_type_t;
+                    constexpr auto itv_type = itv.interval_type();
+                    static_assert(itv_type != empty && itv_type != entire);
+                    constexpr auto infinity = projective_rational{unity{}, zero{}};
 
-                        // The unique singularity is at [-b:a]=[-d:c].
-                        // If the singularity is contained in the current interval, then refine the
-                        // interval.
-                        if (cf_.current_interval().contains(projective_rational{
-                                invert_sign(coeff_.den_to_num), coeff_.num_to_num})) {
-                            // We do not allow the input to be at the singularity.
-                            util::constexpr_assert(cf_.current_interval().interval_type() !=
-                                                   cyclic_interval_type_t::single_point);
-
-                            cf_.update();
-                            continue;
+                    if constexpr (itv_type == single_point) {
+                        // If infinity is the only element in the range, then there is no
+                        // further continued fraction coefficients.
+                        if (itv.lower_bound() == infinity) {
+                            return final_result::terminate;
+                        }
+                        else {
+                            // If a finite rational number is the only element in the range,
+                            // then just compute the continued fraction expansion of that
+                            // number.
+                            update_and_callback(div_floor(itv.lower_bound().numerator,
+                                                          itv.lower_bound().denominator));
+                            return final_result::success;
                         }
                     }
+                    else {
+                        auto lower_bound = itv.lower_bound();
+                        bool lower_bound_inclusive =
+                            (itv.left_endpoint_type() == endpoint_type_t::closed);
+                        bool upper_bound_inclusive =
+                            (itv.right_endpoint_type() == endpoint_type_t::closed);
+                        if (is_first_) {
+                            // Cannot do anything if the range estimate contains the infinity.
+                            if (lower_bound == infinity || itv.upper_bound() == infinity ||
+                                cyclic_order(lower_bound, infinity, itv.upper_bound())) {
+                                return final_result::fail;
+                            }
+                        }
+                        else {
+                            // Except for the first coefficient, the value must be in (1,infty].
+                            // Still, we cannot do anything if infinity is strictly in the
+                            // interval or the upper bound is equal to infty.
+                            if (itv.upper_bound() == infinity ||
+                                cyclic_order(lower_bound, infinity, itv.upper_bound())) {
+                                return final_result::fail;
+                            }
+                            // If lower bound is infinity and is inclusive, then the value might
+                            // be infinity.
+                            if (lower_bound == infinity) {
+                                if (lower_bound_inclusive &&
+                                    (itv.upper_bound() == projective_rational<unity, unity>{} ||
+                                     cyclic_order(lower_bound, itv.upper_bound(),
+                                                  projective_rational<unity, unity>{}))) {
+                                    return final_result::terminate;
+                                }
+                                return final_result::fail;
+                            }
 
-                    // Step 2. Find the range of the linear fractional transform.
-                    interval_type range = [&]() -> interval_type {
-                        // Single point [a:c].
-                        if (determinant_sign_ == 0) {
-                            return cyclic_interval<projective_rational<int_type, int_type>,
-                                                   cyclic_interval_type_t::single_point>{
-                                projective_rational<int_type, int_type>{coeff_.num_to_num,
-                                                                        coeff_.num_to_den}};
+                            util::constexpr_assert(itv.upper_bound() !=
+                                                   projective_rational<unity, unity>{});
+                            if (cyclic_order(lower_bound, projective_rational<unity, unity>{},
+                                             itv.upper_bound())) {
+                                lower_bound.numerator = 1;
+                                lower_bound.denominator = 1;
+                            }
                         }
 
-                        return cf_.current_interval().visit([&](auto&& itv) -> interval_type {
+                        // Compare the floor.
+                        using std::div;
+                        auto floor_lower = div_floor(std::move(lower_bound.numerator),
+                                                     std::move(lower_bound.denominator));
+                        auto floor_upper = upper_bound_inclusive
+                                               ? div_floor(itv.upper_bound().numerator,
+                                                           itv.upper_bound().denominator)
+                                               : (div_ceil(itv.upper_bound().numerator,
+                                                           itv.upper_bound().denominator) -
+                                                  1);
+
+                        if (floor_lower == floor_upper) {
+                            update_and_callback(static_cast<decltype(floor_lower)&&>(floor_lower));
+                            return final_result::success;
+                        }
+                        return final_result::fail;
+                    }
+                };
+
+                while (true) {
+                    // Step 2. Find the range of the linear fractional transform.
+                    auto const result =
+                        cf_.current_interval().visit([&](auto&& itv) -> final_result {
                             using enum cyclic_interval_type_t;
-                            static_assert(!interval_type::is_allowed_interval_type(empty));
-                            if constexpr (itv.interval_type() == single_point) {
-                                return cyclic_interval<projective_rational<int_type, int_type>,
-                                                       single_point>{coeff_(itv.lower_bound())};
+                            constexpr auto itv_type = itv.interval_type();
+                            static_assert(itv_type != empty);
+
+                            if constexpr (itv_type == entire) {
+                                // Range is the entire RP1, so we cannot proceed.
+                                util::constexpr_assert(determinant_sign_ != 0);
+                                return final_result::fail;
                             }
-                            else if constexpr (itv.interval_type() == entire) {
-                                return cyclic_interval<projective_rational<int_type, int_type>,
-                                                       entire>{};
+                            else if constexpr (itv_type == single_point) {
+                                return check_floor(
+                                    cyclic_interval<projective_rational<int_type, int_type>,
+                                                    single_point>{coeff_(itv.lower_bound())});
                             }
                             else {
+                                if (determinant_sign_ == 0) {
+                                    return check_floor(
+                                        cyclic_interval<projective_rational<int_type, int_type>,
+                                                        single_point>{coeff_(itv.lower_bound())});
+                                }
+
                                 auto first_end = coeff_(itv.lower_bound());
                                 auto second_end = coeff_(itv.upper_bound());
-                                if (determinant_sign_ < 0) {
-                                    using std::swap;
-                                    swap(first_end, second_end);
+
+                                if constexpr (itv_type == open || itv_type == closed) {
+                                    if (determinant_sign_ < 0) {
+                                        using std::swap;
+                                        swap(first_end, second_end);
+                                    }
+                                    return check_floor(
+                                        cyclic_interval<projective_rational<int_type, int_type>,
+                                                        itv_type>{first_end, second_end});
                                 }
-                                return cyclic_interval<projective_rational<int_type, int_type>,
-                                                       closed>{std::move(first_end),
-                                                               std::move(second_end)};
-                            }
-                        });
-                    }();
-
-                    // Step 3. See if the range is a bounded interval inside the real line.
-                    if (range.contains(projective_rational{unity{}, zero{}})) {
-                        // If infinity is the only point in the range, then terminate.
-                        if (range.interval_type() == cyclic_interval_type_t::single_point) {
-                            return false;
-                        }
-
-                        cf_.update();
-                        continue;
-                    }
-
-                    // Step 4. Check if the floors of the endpoints agree.
-                    int_type lower_floor{};
-                    if (range.visit([&](auto&& itv) {
-                            using enum cyclic_interval_type_t;
-                            if constexpr (itv.interval_type() == empty ||
-                                          itv.interval_type() == entire) {
-                                util::constexpr_assert(false);
-                                return false;
-                            }
-                            else {
-                                lower_floor = div_floor(itv.lower_bound().numerator,
-                                                        itv.lower_bound().denominator);
-                                if constexpr (itv.interval_type() == single_point) {
-                                    return true;
+                                else if constexpr (itv_type == left_open_right_closed) {
+                                    if (determinant_sign_ < 0) {
+                                        return check_floor(
+                                            cyclic_interval<projective_rational<int_type, int_type>,
+                                                            left_closed_right_open>{second_end,
+                                                                                    first_end});
+                                    }
+                                    else {
+                                        return check_floor(
+                                            cyclic_interval<projective_rational<int_type, int_type>,
+                                                            left_open_right_closed>{first_end,
+                                                                                    second_end});
+                                    }
                                 }
                                 else {
-                                    auto upper_floor = div_floor(itv.upper_bound().numerator,
-                                                                 itv.upper_bound().denominator);
-                                    return lower_floor == upper_floor;
+                                    if (determinant_sign_ < 0) {
+                                        return check_floor(
+                                            cyclic_interval<projective_rational<int_type, int_type>,
+                                                            left_open_right_closed>{second_end,
+                                                                                    first_end});
+                                    }
+                                    else {
+                                        return check_floor(
+                                            cyclic_interval<projective_rational<int_type, int_type>,
+                                                            left_closed_right_open>{first_end,
+                                                                                    second_end});
+                                    }
                                 }
                             }
-                        })) {
-                        // Found a new coefficient.
-                        coeff_.translate(-lower_floor);
-                        coeff_.reflect();
-                        determinant_sign_ *= -1;
-                        f(partial_fraction_type{Unity{}, static_cast<int_type&&>(lower_floor)});
-                        return true;
-                    }
+                        });
 
+                    switch (result) {
+                    case final_result::success:
+                    case final_result::terminate:
+                        return;
+                    case final_result::fail:;
+                    }
                     cf_.update();
                 }
             }
@@ -181,9 +296,29 @@ namespace jkj {
                                    MixinInitializer&& mixin_initializer = {})
                 : crtp_base{mixin_initializer}, cf_{static_cast<ContinuedFractionImpl>(cf)},
                   coeff_{static_cast<linear_fractional_transform<int_type>&&>(coeff)} {
-                determinant_sign_ =
-                    util::strong_order_to_int(coeff_.num_to_num * coeff_.den_to_den <=>
-                                              coeff_.den_to_num * coeff_.num_to_den);
+                determinant_sign_ = coeff_.determinant_sign();
+                // Step 1. Get away from singularities.
+                if (determinant_sign_ == 0) {
+                    // The degenerate case a = b = c = d = 0 is disallowed.
+                    util::constexpr_assert(!is_zero(coeff_.num_to_num) ||
+                                           !is_zero(coeff_.den_to_num));
+
+                    auto singularity =
+                        detail::gosper_util<int_type>::kernel_of_rank1_transform(coeff_);
+
+                    while (true) {
+                        // If the unique singularity is contained in the closure of the current
+                        // interval, then refine the interval.
+                        if (detail::gosper_util<int_type>::contains_in_closure(
+                                cf_.current_interval(), singularity)) {
+                            // We do not allow the input to be at the singularity.
+                            util::constexpr_assert(cf_.current_interval().interval_type() !=
+                                                   cyclic_interval_type_t::single_point);
+                            continue;
+                        }
+                        break;
+                    }
+                }
             }
         };
 
@@ -233,82 +368,7 @@ namespace jkj {
             XContinuedFractionImpl xcf_;
             YContinuedFractionImpl ycf_;
             bilinear_fractional_transform<int_type> coeff_;
-            int det_sign_num_bilinear_form_ = 0;
-            int nullity_num_bilinear_form_ = 0;
-            int det_sign_den_bilinear_form_ = 0;
-            int nullity_den_bilinear_form_ = 0;
-            struct sing_det_form_t {
-                int_type a, b, d;
-            } sing_det_form_{};
-            bool globally_well_defined_ = false;
-
-            constexpr void update_coeff_info() {
-                auto calculate_det_sign_nullity = [](auto&& a, auto&& b, auto&& c, auto&& d,
-                                                     auto& det_sign, auto& nullity) {
-                    auto const result = a * d <=> b * c;
-
-                    if (result < 0) {
-                        det_sign = -1;
-                        nullity = 0;
-                    }
-                    if (result > 0) {
-                        det_sign = 1;
-                        nullity = 0;
-                    }
-                    else {
-                        det_sign = 0;
-                        nullity = (is_zero(a) && is_zero(b) && is_zero(c) && is_zero(d) ? 2 : 1);
-                    }
-                };
-
-                calculate_det_sign_nullity(coeff_.xnum_ynum_to_num, coeff_.xnum_yden_to_num,
-                                           coeff_.xden_ynum_to_num, coeff_.xden_yden_to_num,
-                                           det_sign_num_bilinear_form_, nullity_num_bilinear_form_);
-
-                calculate_det_sign_nullity(coeff_.xnum_ynum_to_den, coeff_.xnum_yden_to_den,
-                                           coeff_.xden_ynum_to_den, coeff_.xden_yden_to_den,
-                                           det_sign_den_bilinear_form_, nullity_den_bilinear_form_);
-
-                // L = A^T RB - B^T RA = 2sym(ag-ce  ah-cf  \\ bg-de  bh-df).
-                sing_det_form_.a = ((coeff_.xnum_ynum_to_num * coeff_.xden_ynum_to_den -
-                                     coeff_.xden_ynum_to_num * coeff_.xnum_ynum_to_den)
-                                    << 1);
-                sing_det_form_.d = ((coeff_.xnum_yden_to_num * coeff_.xden_yden_to_den -
-                                     coeff_.xden_yden_to_num * coeff_.xnum_yden_to_den)
-                                    << 1);
-                sing_det_form_.b = coeff_.xnum_ynum_to_num * coeff_.xden_yden_to_den +
-                                   coeff_.xnum_yden_to_num * coeff_.xden_ynum_to_den -
-                                   coeff_.xden_ynum_to_num * coeff_.xnum_yden_to_den -
-                                   coeff_.xden_yden_to_num * coeff_.xnum_ynum_to_den;
-
-                globally_well_defined_ =
-                    ((sing_det_form_.a * sing_det_form_.d) > (sing_det_form_.b * sing_det_form_.b));
-
-                // Degenerate case A = B = 0 is disallowed.
-                util::constexpr_assert(nullity_num_bilinear_form_ != 2 ||
-                                       nullity_den_bilinear_form_ != 2);
-            }
-
-            // Find the kernel of a rank-1 linear fractional transform.
-            template <class NumNum, class DenNum, class NumDen, class DenDen>
-            static constexpr projective_rational<int_type, int_type> kernel_of_rank1_transform(
-                linear_fractional_transform<NumNum, DenNum, NumDen, DenDen> const& transform) {
-                return is_zero(transform.num_to_num) && is_zero(transform.den_to_num)
-                           ? projective_rational{-int_type{transform.den_to_den},
-                                                 int_type{transform.num_to_den}}
-                           : projective_rational{-int_type{transform.den_to_num},
-                                                 int_type{transform.num_to_num}};
-            }
-            // Find the range of a rank-1 linear fractional transform.
-            template <class NumNum, class DenNum, class NumDen, class DenDen>
-            static constexpr projective_rational<int_type, int_type> range_of_rank1_transform(
-                linear_fractional_transform<NumNum, DenNum, NumDen, DenDen> const& transform) {
-                return is_zero(transform.num_to_num) && is_zero(transform.num_to_den)
-                           ? projective_rational{int_type{transform.den_to_num},
-                                                 int_type{transform.den_to_den}}
-                           : projective_rational{int_type{transform.num_to_num},
-                                                 int_type{transform.num_to_den}};
-            }
+            bool is_first_ = true;
 
             // Precondition: itv is contained in the domain of transform.
             template <class NumNum, class DenNum, class NumDen, class DenDen,
@@ -351,7 +411,7 @@ namespace jkj {
                         }
                         else {
                             return cyclic_interval<value_type, single_point>{
-                                range_of_rank1_transform(transform)};
+                                detail::gosper_util<int_type>::range_of_rank1_transform(transform)};
                         }
                     }
                 });
@@ -364,10 +424,7 @@ namespace jkj {
             map_cyclic_interval(
                 linear_fractional_transform<NumNum, DenNum, NumDen, DenDen> const& transform,
                 InputIntervalType const& itv) {
-                return map_cyclic_interval(
-                    transform, itv,
-                    util::strong_order_to_int(transform.num_to_num * transform.den_to_den <=>
-                                              transform.den_to_num * transform.num_to_den));
+                return map_cyclic_interval(transform, itv, transform.determinant_sign());
             }
 
             // Check a predicate on each component. Assumes itv1, itv2 are both closed.
@@ -390,7 +447,8 @@ namespace jkj {
                         return itv2.visit(f);
                     }
                     else if constexpr (itv1_type == single_point) {
-                        if (itv2.contains(itv1.lower_bound())) {
+                        if (detail::gosper_util<int_type>::contains_in_closure(
+                                itv2, itv1.lower_bound())) {
                             return f(single_point_interval{itv1.lower_bound()});
                         }
                         else {
@@ -408,7 +466,8 @@ namespace jkj {
                                 return f(itv1);
                             }
                             else if constexpr (itv2_type == single_point) {
-                                if (itv1.contains(itv2.lower_bound())) {
+                                if (detail::gosper_util<int_type>::contains_in_closure(
+                                        itv1, itv2.lower_bound())) {
                                     return f(single_point_interval{itv2.lower_bound()});
                                 }
                                 else {
@@ -500,387 +559,82 @@ namespace jkj {
                 });
             }
 
-            // Check if there exists [x] in itv such that Ax and Bx are parallel.
-            // Assumes itv is closed.
-            template <class Value, cyclic_interval_type_t it>
-            constexpr bool has_parallel_output(cyclic_interval<Value, it> const& itv) const {
-                using enum cyclic_interval_type_t;
-                constexpr auto itv_type = itv.interval_type();
-
-                if constexpr (itv_type == empty) {
-                    return false;
-                }
-                else if constexpr (itv_type == entire) {
-                    return !globally_well_defined_;
-                }
-                else if constexpr (itv_type == single_point) {
-                    return is_zero(sing_det_form_.a * itv.lower_bound().numerator *
-                                       itv.lower_bound().numerator +
-                                   ((sing_det_form_.b * itv.lower_bound().numerator *
-                                     itv.lower_bound().denominator)
-                                    << 1) +
-                                   sing_det_form_.d * itv.lower_bound().denominator *
-                                       itv.lower_bound().denominator);
-                }
-                else {
-                    auto Luu = sing_det_form_.a * itv.lower_bound().numerator *
-                                   itv.lower_bound().numerator +
-                               ((sing_det_form_.b * itv.lower_bound().numerator *
-                                 itv.lower_bound().denominator)
-                                << 1) +
-                               sing_det_form_.d * itv.lower_bound().denominator *
-                                   itv.lower_bound().denominator;
-                    auto Lvv = sing_det_form_.a * itv.upper_bound().numerator *
-                                   itv.upper_bound().numerator +
-                               ((sing_det_form_.b * itv.upper_bound().numerator *
-                                 itv.upper_bound().denominator)
-                                << 1) +
-                               sing_det_form_.d * itv.upper_bound().denominator *
-                                   itv.upper_bound().denominator;
-
-                    int sign_Luu = is_zero(Luu) ? 0 : is_nonnegative(Luu) ? 1 : -1;
-                    int sign_Lvv = is_zero(Lvv) ? 0 : is_nonnegative(Lvv) ? 1 : -1;
-                    if (sign_Luu * sign_Lvv <= 0) {
-                        return true;
-                    }
-
-                    auto Luv = sing_det_form_.a * itv.lower_bound().numerator *
-                                   itv.upper_bound().numerator +
-                               sing_det_form_.b * itv.lower_bound().numerator *
-                                   itv.upper_bound().denominator +
-                               sing_det_form_.b * itv.lower_bound().denominator *
-                                   itv.upper_bound().numerator +
-                               sing_det_form_.d * itv.lower_bound().denominator *
-                                   itv.upper_bound().denominator;
-                    int sign_Luv = is_zero(Luv) ? 0 : is_nonnegative(Luv) ? 1 : -1;
-                    return sign_Luu * sign_Luv < 0;
-                }
-            }
-
-            constexpr bool has_singularity() const {
-                if (globally_well_defined_) {
-                    return false;
-                }
-
-                auto check_interval = [&](auto&& itv) -> bool { return has_parallel_output(itv); };
-
-                // Compute the set S = J \cap (T_RA^-1[I] \cup (dom(T_A))^c)
-                // \cap (T_RB^-1[I] \cup (dom(T_B))^c).
-                // We already ruled out the case A = 0 or B = 0 at the start of
-                // with_next_partial_fraction().
-
-                // A is invertible.
-                if (nullity_num_bilinear_form_ == 0) {
-                    // Can ignore the third term from the intersection.
-                    // RA^T = (b d \\ -a -c)
-                    return check_intersection(
-                        ycf_.current_interval(),
-                        map_cyclic_interval(linear_fractional_transform{coeff_.xnum_yden_to_num,
-                                                                        coeff_.xden_yden_to_num,
-                                                                        -coeff_.xnum_ynum_to_num,
-                                                                        -coeff_.xden_ynum_to_num},
-                                            xcf_.current_interval(), det_sign_num_bilinear_form_),
-                        check_interval);
-                }
-                // B is invertible.
-                else if (nullity_den_bilinear_form_ == 0) {
-                    // Can ignore the second term from the intersection.
-                    // RB^T = (f h \\ -e -g)
-                    return check_intersection(
-                        ycf_.current_interval(),
-                        map_cyclic_interval(linear_fractional_transform{coeff_.xnum_yden_to_den,
-                                                                        coeff_.xden_yden_to_den,
-                                                                        -coeff_.xnum_ynum_to_den,
-                                                                        -coeff_.xden_ynum_to_den},
-                                            xcf_.current_interval(), det_sign_den_bilinear_form_),
-                        check_interval);
-                }
-                // Both are not invertible.
-                else {
-                    util::constexpr_assert(nullity_num_bilinear_form_ == 1 &&
-                                           nullity_den_bilinear_form_ == 1);
-
-                    // RA = (c d \\ -a -b)
-                    if (xcf_.current_interval().contains(
-                            range_of_rank1_transform(linear_fractional_transform{
-                                coeff_.xden_ynum_to_num, coeff_.xden_yden_to_num,
-                                -coeff_.xnum_ynum_to_num, -coeff_.xnum_yden_to_num}))) {
-                        // The second interval is the entire RP1.
-                        // RB = (g h \\ -e -f)
-                        if (xcf_.current_interval().contains(
-                                range_of_rank1_transform(linear_fractional_transform{
-                                    coeff_.xden_ynum_to_den, coeff_.xden_yden_to_den,
-                                    -coeff_.xnum_ynum_to_den, -coeff_.xnum_yden_to_den}))) {
-                            // The third interval is also the entire RP1.
-                            return ycf_.current_interval().visit(check_interval);
-                        }
-                        else {
-                            // The third interval is a single point.
-                            return check_intersection(
-                                ycf_.current_interval(),
-                                cyclic_interval<projective_rational<int_type, int_type>,
-                                                cyclic_interval_type_t::single_point>{
-                                    kernel_of_rank1_transform(linear_fractional_transform{
-                                        coeff_.xnum_ynum_to_den, coeff_.xnum_yden_to_den,
-                                        coeff_.xden_ynum_to_den, coeff_.xden_yden_to_den})},
-                                check_interval);
-                        }
-                    }
-                    else {
-                        // The second interval is a single point.
-                        // RB = (g h \\ -e -f)
-                        if (xcf_.current_interval().contains(
-                                range_of_rank1_transform(linear_fractional_transform{
-                                    coeff_.xden_ynum_to_den, coeff_.xden_yden_to_den,
-                                    -coeff_.xnum_ynum_to_den, -coeff_.xnum_yden_to_den}))) {
-                            // The third interval is the entire RP1.
-                            return check_intersection(
-                                ycf_.current_interval(),
-                                cyclic_interval<projective_rational<int_type, int_type>,
-                                                cyclic_interval_type_t::single_point>{
-                                    kernel_of_rank1_transform(linear_fractional_transform{
-                                        coeff_.xnum_ynum_to_num, coeff_.xnum_yden_to_num,
-                                        coeff_.xden_ynum_to_num, coeff_.xden_yden_to_num})},
-                                check_interval);
-                        }
-                        else {
-                            // The third interval is also a single point.
-                            auto first_pt = kernel_of_rank1_transform(linear_fractional_transform{
-                                coeff_.xnum_ynum_to_num, coeff_.xnum_yden_to_num,
-                                coeff_.xden_ynum_to_num, coeff_.xden_yden_to_num});
-                            auto second_pt = kernel_of_rank1_transform(linear_fractional_transform{
-                                coeff_.xnum_ynum_to_den, coeff_.xnum_yden_to_den,
-                                coeff_.xden_ynum_to_den, coeff_.xden_yden_to_den});
-
-                            if (first_pt != second_pt) {
-                                return false;
-                            }
-                            else {
-                                return check_intersection(
-                                    ycf_.current_interval(),
-                                    cyclic_interval<projective_rational<int_type, int_type>,
-                                                    cyclic_interval_type_t::single_point>{first_pt},
-                                    check_interval);
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Assumes that itv1 and itv2 are not disjoint, and are both either single points,
-            // closed intervals, or entire RP1.
-            template <class InputIntervalType1, class InputIntervalType2, class Functor>
-            static constexpr decltype(auto) check_union(InputIntervalType1 const& itv1,
-                                                        InputIntervalType2 const& itv2,
-                                                        Functor&& f) {
-                return itv1.visit([&itv2, &f](auto&& itv1) {
-                    using enum cyclic_interval_type_t;
-                    using value_type = projective_rational<int_type, int_type>;
-                    using closed_interval = cyclic_interval<value_type, closed>;
-                    using entire_interval = cyclic_interval<value_type, entire>;
-
-                    constexpr auto itv1_type = itv1.interval_type();
-
-                    if constexpr (itv1_type == empty) {
-                        return itv2.visit(f);
-                    }
-                    else if constexpr (itv1_type == entire) {
-                        return f(entire_interval{});
-                    }
-                    else if constexpr (itv1_type == single_point) {
-
-                        util::constexpr_assert(itv2.contains(itv1.lower_bound()));
-                        return itv2.visit(f);
-                    }
-                    else {
-                        return itv2.visit([&itv1, &f](auto&& itv2) {
-                            constexpr auto itv2_type = itv2.interval_type();
-
-                            if constexpr (itv2_type == empty) {
-                                return f(itv1);
-                            }
-                            else if constexpr (itv2_type == entire) {
-                                return f(entire_interval{});
-                            }
-                            else if constexpr (itv2_type == single_point) {
-                                util::constexpr_assert(itv1.contains(itv2.lower_bound()));
-                                return f(itv1);
-                            }
-                            else {
-                                // 16 different cases.
-                                auto&& a = itv1.lower_bound();
-                                auto&& b = itv1.upper_bound();
-                                auto&& c = itv2.lower_bound();
-                                auto&& d = itv2.upper_bound();
-                                if (a == c) {
-                                    if (b == d) {
-                                        return f(closed_interval{a, b});
-                                    }
-                                    else if (cyclic_order(a, b, d)) {
-                                        return f(closed_interval{a, d});
-                                    }
-                                    else {
-                                        // [a,d,b]
-                                        return f(closed_interval{a, b});
-                                    }
-                                }
-                                else if (a == d) {
-                                    if (b == c) {
-                                        return f(entire_interval{});
-                                    }
-                                    else if (cyclic_order(a, b, c)) {
-                                        return f(closed_interval{c, b});
-                                    }
-                                    else {
-                                        // [a,c,b]
-                                        return f(entire_interval{});
-                                    }
-                                }
-                                else if (b == c) {
-                                    if (cyclic_order(a, b, d)) {
-                                        return f(closed_interval{a, d});
-                                    }
-                                    else {
-                                        // [a,d,b]
-                                        return f(entire_interval{});
-                                    }
-                                }
-                                else if (b == d) {
-                                    if (cyclic_order(a, b, c)) {
-                                        return f(closed_interval{c, b});
-                                    }
-                                    else {
-                                        // [a,c,b]
-                                        return f(closed_interval{a, b});
-                                    }
-                                }
-                                else if (cyclic_order(a, b, c)) {
-                                    util::constexpr_assert(cyclic_order(a, d, c));
-                                    if (cyclic_order(a, b, d)) {
-                                        // [a,b,d,c]
-                                        return f(closed_interval{c, d});
-                                    }
-                                    else {
-                                        // [a,d,b,c]
-                                        return f(closed_interval{c, b});
-                                    }
-                                }
-                                else {
-                                    if (cyclic_order(b, d, a)) {
-                                        // [a,c,b,d]
-                                        return f(closed_interval{a, d});
-                                    }
-                                    else if (cyclic_order(a, c, d)) {
-                                        // [a,c,d,b]
-                                        return f(closed_interval{a, b});
-                                    }
-                                    else {
-                                        // [a,d,c,b]
-                                        return f(entire_interval{});
-                                    }
-                                }
-                            }
-                        });
-                    }
-                });
-            }
-
             template <class Functor>
-            constexpr bool with_next_partial_fraction(Functor&& f) {
-                // Stops when the denominator coefficients are all zero.
-                // (x,y) being not located at a singularity is a precondition, so we do not check if
-                // the numerator is also zero.
-                if (nullity_den_bilinear_form_ == 2) {
-                    return false;
-                }
-
-                // If the numerator coefficients are all zero, then we output 0.
-                if (nullity_num_bilinear_form_ == 2) {
+            constexpr void with_next_partial_fraction(Functor&& f) {
+                // Step 3. Compare the floor of two endpoints and if they are equal, return.
+                auto update_and_callback = [&](auto&& common_floor) {
+                    is_first_ = false;
+                    coeff_.translate(-common_floor);
                     coeff_.reflect();
-                    update_coeff_info();
-                    f(partial_fraction_type{Unity{}, 0u});
-                    return true;
-                }
+                    f(partial_fraction_type{Unity{}, std::move(common_floor)});
+                };
+                enum class final_result { success, terminate, fail };
+                auto check_floor = [&](auto&& itv) -> final_result {
+                    using enum cyclic_interval_type_t;
+                    constexpr auto itv_type = itv.interval_type();
+                    static_assert(itv_type != empty && itv_type != entire);
+                    constexpr auto infinity = projective_rational{unity{}, zero{}};
 
-                while (true) {
-                    // Step 1. Get away from singularities.
-                    if (has_singularity()) {
-                        xcf_.update();
-                        ycf_.update();
-                        continue;
+                    if constexpr (itv_type == single_point) {
+                        // If infinity is the only element in the range, then there is no
+                        // further continued fraction coefficients.
+                        if (itv.lower_bound() == infinity) {
+                            return final_result::terminate;
+                        }
+                        else {
+                            // If a finite rational number is the only element in the range,
+                            // then just compute the continued fraction expansion of that
+                            // number.
+                            update_and_callback(div_floor(itv.lower_bound().numerator,
+                                                          itv.lower_bound().denominator));
+                            return final_result::success;
+                        }
                     }
+                    else {
+                        // Cannot do anything if the range estimate contains the infinity.
+                        if (itv.lower_bound() == infinity || itv.upper_bound() == infinity ||
+                            cyclic_order(itv.lower_bound(), infinity, itv.upper_bound())) {
+                            return final_result::fail;
+                        }
 
-                    // Step 3. Compare the floor of two endpoints and if they are equal, return.
-                    auto update_and_callback = [&](auto&& common_floor) {
-                        coeff_.translate(-common_floor);
-                        coeff_.reflect();
-                        update_coeff_info();
-                        f(partial_fraction_type{
-                            Unity{}, static_cast<decltype(common_floor)&&>(common_floor)});
-                    };
-                    enum class final_result { success, retry, fail };
-                    auto check_floor = [&](auto&& itv) -> final_result {
+                        // Otherwise, compare the floor.
+                        auto floor_lower =
+                            div_floor(itv.lower_bound().numerator, itv.lower_bound().denominator);
+                        auto floor_upper =
+                            div_floor(itv.upper_bound().numerator, itv.upper_bound().denominator);
+                        if (floor_lower == floor_upper) {
+                            update_and_callback(std::move(floor_lower));
+                            return final_result::success;
+                        }
+                        return final_result::fail;
+                    }
+                };
+
+                // Step 2. Find the range of the linear fractional transform.
+                auto compute_range = [this, &check_floor](auto&& x_itv,
+                                                          auto&& y_itv) -> final_result {
+                    static_assert(x_itv.interval_type() != cyclic_interval_type_t::empty &&
+                                  y_itv.interval_type() != cyclic_interval_type_t::empty);
+
+                    if constexpr (x_itv.interval_type() == cyclic_interval_type_t::entire ||
+                                  y_itv.interval_type() == cyclic_interval_type_t::entire) {
+                        // If one of x,y ranges from the entire RP1, then the range of
+                        // f(x,y) must be entire RP1.
+                        return final_result::fail;
+                    }
+                    else {
                         using enum cyclic_interval_type_t;
-                        constexpr auto itv_type = itv.interval_type();
-                        static_assert(itv_type != empty);
+                        using value_type = projective_rational<int_type, int_type>;
 
-                        if constexpr (itv_type == entire) {
-                            // Cannot do anything if the range estimate is the entire RP1.
-                            return final_result::retry;
-                        }
-                        else if constexpr (itv_type == single_point) {
-                            // If infinity is the only element in the range, then there is no
-                            // further continued fraction coefficients.
-                            if (itv.lower_bound() == projective_rational{unity{}, zero{}}) {
-                                return final_result::fail;
-                            }
-                            else {
-                                // If a finite rational number is the only element in the range,
-                                // then just compute the continued fraction expansion of that
-                                // number.
-                                update_and_callback(div_floor(itv.lower_bound().numerator,
-                                                              itv.lower_bound().denominator));
-                                return final_result::success;
-                            }
-                        }
-                        else {
-                            // Cannot do anything if the range estimate contains the infinity.
-                            if (itv.lower_bound() == projective_rational{unity{}, zero{}} ||
-                                itv.upper_bound() == projective_rational{unity{}, zero{}} ||
-                                cyclic_order(itv.lower_bound(),
-                                             projective_rational{unity{}, zero{}},
-                                             itv.upper_bound())) {
-                                return final_result::retry;
-                            }
-
-                            // Otherwise, compare the floor.
-                            auto floor_lower = div_floor(itv.lower_bound().numerator,
-                                                         itv.lower_bound().denominator);
-                            auto floor_upper = div_floor(itv.upper_bound().numerator,
-                                                         itv.upper_bound().denominator);
-                            if (floor_lower == floor_upper) {
-                                update_and_callback(
-                                    static_cast<decltype(floor_lower)&&>(floor_lower));
-                                return final_result::success;
-                            }
-                            return final_result::retry;
-                        }
-                    };
-
-                    // Step 2. Find the range of the linear fractional transform.
-                    auto compute_range = [this, &check_floor](auto&& x_itv,
-                                                              auto&& y_itv) -> final_result {
-                        static_assert(x_itv.interval_type() != cyclic_interval_type_t::empty &&
-                                      y_itv.interval_type() != cyclic_interval_type_t::empty);
-
-                        if constexpr (x_itv.interval_type() == cyclic_interval_type_t::entire ||
-                                      y_itv.interval_type() == cyclic_interval_type_t::entire) {
-                            // If one of x,y ranges from the entire RP1, just estimate the range of
-                            // f(x,y) as the entire RP1, although that is not a tight estimate.
-                            return final_result::retry;
-                        }
-                        else {
-                            auto itv1 = map_cyclic_interval(
+                        value_type const corners[4] = {
+                            coeff_(x_itv.lower_bound(), y_itv.lower_bound()), // left-bottom
+                            coeff_(x_itv.upper_bound(), y_itv.lower_bound()), // right-bottom
+                            coeff_(x_itv.upper_bound(), y_itv.upper_bound()), // right-top
+                            coeff_(x_itv.lower_bound(), y_itv.upper_bound())  // left-top
+                        };
+                        int const edge_directions[4] = {
+                            // bottom
+                            (x_itv.interval_type() == single_point ? 0 : 1) *
                                 linear_fractional_transform{
                                     coeff_.xnum_ynum_to_num * y_itv.lower_bound().numerator +
                                         coeff_.xnum_yden_to_num * y_itv.lower_bound().denominator,
@@ -889,9 +643,10 @@ namespace jkj {
                                     coeff_.xnum_ynum_to_den * y_itv.lower_bound().numerator +
                                         coeff_.xnum_yden_to_den * y_itv.lower_bound().denominator,
                                     coeff_.xden_ynum_to_den * y_itv.lower_bound().numerator +
-                                        coeff_.xden_yden_to_den * y_itv.lower_bound().denominator},
-                                x_itv);
-                            auto itv2 = map_cyclic_interval(
+                                        coeff_.xden_yden_to_den * y_itv.lower_bound().denominator}
+                                    .determinant_sign(),
+                            // right
+                            (y_itv.interval_type() == single_point ? 0 : 1) *
                                 linear_fractional_transform{
                                     coeff_.xnum_ynum_to_num * x_itv.upper_bound().numerator +
                                         coeff_.xden_ynum_to_num * x_itv.upper_bound().denominator,
@@ -900,9 +655,10 @@ namespace jkj {
                                     coeff_.xnum_ynum_to_den * x_itv.upper_bound().numerator +
                                         coeff_.xden_ynum_to_den * x_itv.upper_bound().denominator,
                                     coeff_.xnum_yden_to_den * x_itv.upper_bound().numerator +
-                                        coeff_.xden_yden_to_den * x_itv.upper_bound().denominator},
-                                y_itv);
-                            auto itv3 = map_cyclic_interval(
+                                        coeff_.xden_yden_to_den * x_itv.upper_bound().denominator}
+                                    .determinant_sign(),
+                            // top
+                            (x_itv.interval_type() == single_point ? 0 : -1) *
                                 linear_fractional_transform{
                                     coeff_.xnum_ynum_to_num * y_itv.upper_bound().numerator +
                                         coeff_.xnum_yden_to_num * y_itv.upper_bound().denominator,
@@ -911,9 +667,10 @@ namespace jkj {
                                     coeff_.xnum_ynum_to_den * y_itv.upper_bound().numerator +
                                         coeff_.xnum_yden_to_den * y_itv.upper_bound().denominator,
                                     coeff_.xden_ynum_to_den * y_itv.upper_bound().numerator +
-                                        coeff_.xden_yden_to_den * y_itv.upper_bound().denominator},
-                                x_itv);
-                            auto itv4 = map_cyclic_interval(
+                                        coeff_.xden_yden_to_den * y_itv.upper_bound().denominator}
+                                    .determinant_sign(),
+                            // left
+                            (y_itv.interval_type() == single_point ? 0 : -1) *
                                 linear_fractional_transform{
                                     coeff_.xnum_ynum_to_num * x_itv.lower_bound().numerator +
                                         coeff_.xden_ynum_to_num * x_itv.lower_bound().denominator,
@@ -922,36 +679,154 @@ namespace jkj {
                                     coeff_.xnum_ynum_to_den * x_itv.lower_bound().numerator +
                                         coeff_.xden_ynum_to_den * x_itv.lower_bound().denominator,
                                     coeff_.xnum_yden_to_den * x_itv.lower_bound().numerator +
-                                        coeff_.xden_yden_to_den * x_itv.lower_bound().denominator},
-                                y_itv);
+                                        coeff_.xden_yden_to_den * x_itv.lower_bound().denominator}
+                                    .determinant_sign()};
 
-                            return check_union(
-                                itv1, itv2, [&itv3, &itv4, &check_floor](auto&& joined_itv12) {
-                                    return check_union(
-                                        joined_itv12, itv3,
-                                        [&itv4, &check_floor](auto&& joined_itv123) {
-                                            return check_union(
-                                                joined_itv123, itv4,
-                                                [&check_floor](auto&& joined_itv1234) {
-                                                    return check_floor(joined_itv1234);
-                                                });
-                                        });
-                                });
+                        auto passes_through = [&corners, &edge_directions](
+                                                  unsigned int edge_idx, unsigned int corner_idx) {
+                            auto const& corner = corners[corner_idx % 4];
+                            auto const& first_end = corners[edge_idx % 4];
+                            auto const& second_end = corners[(edge_idx + 1) % 4];
+                            auto const& edge_direction = edge_directions[edge_idx % 4];
+
+                            if (edge_direction == 0) {
+                                return false;
+                            }
+                            if (edge_direction > 0) {
+                                return corner == first_end || corner == second_end ||
+                                       cyclic_order(first_end, corner, second_end);
+                            }
+                            else {
+                                return corner == first_end || corner == second_end ||
+                                       cyclic_order(second_end, corner, first_end);
+                            }
+                        };
+
+                        // Cases when f is constant on the region.
+                        if (edge_directions[0] == 0 && edge_directions[1] == 0 &&
+                            edge_directions[2] == 0 && edge_directions[3] == 0) {
+                            return check_floor(
+                                cyclic_interval<value_type const&, single_point>{corners[0]});
                         }
-                    };
 
-                    switch (xcf_.current_interval().visit([&](auto&& x_itv) -> final_result {
-                        return ycf_.current_interval().visit([&](auto&& y_itv) -> final_result {
-                            return compute_range(x_itv, y_itv);
+                        int const plus_count =
+                            (edge_directions[0] >= 0 ? 1 : 0) + (edge_directions[1] >= 0 ? 1 : 0) +
+                            (edge_directions[2] >= 0 ? 1 : 0) + (edge_directions[3] >= 0 ? 1 : 0);
+
+                        // (+,+,+,+) or (-,-,-,-)
+                        if (plus_count == 4 || plus_count == 0) {
+                            // The range must be RP1.
+                            return final_result::fail;
+                        }
+                        // (+,+,+,-)
+                        else if (plus_count == 3) {
+                            // Locate the unique negative at the end.
+                            unsigned starting_pos = edge_directions[0] < 0   ? 1
+                                                    : edge_directions[1] < 0 ? 2
+                                                    : edge_directions[2] < 0 ? 3
+                                                                             : 0;
+
+                            // Either [corners[0], corners[3]] or RP1.
+                            if (passes_through(starting_pos + 1, starting_pos) ||
+                                passes_through(starting_pos + 2, starting_pos)) {
+                                // The range must be RP1.
+                                return final_result::fail;
+                            }
+                            else {
+                                return check_floor(cyclic_interval<value_type const&, closed>{
+                                    corners[starting_pos], corners[(starting_pos + 3) % 4]});
+                            }
+                        }
+                        // (-,-,-,+)
+                        else if (plus_count == 1) {
+                            // Locate the unique positive at the end.
+                            unsigned int starting_pos = edge_directions[0] >= 0   ? 1
+                                                        : edge_directions[1] >= 0 ? 2
+                                                        : edge_directions[2] >= 0 ? 3
+                                                                                  : 0;
+
+                            // Either [corners[3], corners[0]] or RP1.
+                            if (passes_through(starting_pos + 1, starting_pos) ||
+                                passes_through(starting_pos + 2, starting_pos)) {
+                                // The range must be RP1.
+                                return final_result::fail;
+                            }
+                            else {
+                                return check_floor(cyclic_interval<value_type const&, closed>{
+                                    corners[(starting_pos + 3) % 4], corners[starting_pos]});
+                            }
+                        }
+                        // (+,+,-,-)
+                        else if (edge_directions[0] != edge_directions[2]) {
+                            // Locate two successive positive at the beginning.
+                            unsigned int starting_pos =
+                                (edge_directions[0] >= 0 && edge_directions[1] >= 0)   ? 0
+                                : (edge_directions[1] >= 0 && edge_directions[2] >= 0) ? 1
+                                : (edge_directions[2] >= 0 && edge_directions[3] >= 0) ? 2
+                                                                                       : 3;
+
+                            // Either [corners[0], corners[2]] or RP1.
+                            if (passes_through(starting_pos + 1, starting_pos) ||
+                                passes_through(starting_pos + 2, starting_pos)) {
+                                // The range must be RP1.
+                                return final_result::fail;
+                            }
+                            else {
+                                return check_floor(cyclic_interval<value_type const&, closed>{
+                                    corners[starting_pos], corners[(starting_pos + 2) % 4]});
+                            }
+                        }
+                        // (+,-,+,-)
+                        else {
+                            // Locate any positive at the beginning.
+                            unsigned int starting_pos = edge_directions[0] >= 0 ? 0 : 1;
+
+                            // 6 different cases.
+                            if (passes_through(starting_pos + 1, starting_pos)) {
+                                if (passes_through(starting_pos + 2, starting_pos + 1)) {
+                                    return check_floor(cyclic_interval<value_type const&, closed>{
+                                        corners[(starting_pos + 2) % 4],
+                                        corners[(starting_pos + 3) % 4]});
+                                }
+                                else if (passes_through(starting_pos + 2, starting_pos)) {
+                                    return check_floor(cyclic_interval<value_type const&, closed>{
+                                        corners[(starting_pos + 2) % 4],
+                                        corners[(starting_pos + 1) % 4]});
+                                }
+                                else {
+                                    // The range must be RP1.
+                                    return final_result::fail;
+                                }
+                            }
+                            else if (passes_through(starting_pos + 2, starting_pos)) {
+                                // The range must be RP1.
+                                return final_result::fail;
+                            }
+                            else if (passes_through(starting_pos + 2, starting_pos + 1)) {
+                                return check_floor(cyclic_interval<value_type const&, closed>{
+                                    corners[starting_pos], corners[(starting_pos + 3) % 4]});
+                            }
+                            else {
+                                return check_floor(cyclic_interval<value_type const&, closed>{
+                                    corners[starting_pos], corners[(starting_pos + 1) % 4]});
+                            }
+                        }
+                    }
+                };
+
+                while (true) {
+                    auto const result =
+                        xcf_.current_interval().visit([&](auto&& x_itv) -> final_result {
+                            return ycf_.current_interval().visit([&](auto&& y_itv) -> final_result {
+                                return compute_range(x_itv, y_itv);
+                            });
                         });
-                    })) {
+
+                    switch (result) {
                     case final_result::success:
-                        return true;
-
-                    case final_result::fail:
-                        return false;
-
-                    case final_result::retry:;
+                    case final_result::terminate:
+                        return;
+                    case final_result::fail:;
                     }
 
                     xcf_.update();
@@ -976,7 +851,271 @@ namespace jkj {
                 : crtp_base{mixin_initializer}, xcf_{static_cast<XContinuedFractionImpl>(xcf)},
                   ycf_{static_cast<XContinuedFractionImpl>(ycf)},
                   coeff_{static_cast<bilinear_fractional_transform<int_type>&&>(coeff)} {
-                update_coeff_info();
+                // Step 1. Get away from singularities.
+                int det_sign_num_bilinear_form = 0;
+                int rank_num_bilinear_form = 0;
+                int det_sign_den_bilinear_form = 0;
+                int rank_den_bilinear_form = 0;
+
+                auto calculate_det_sign_rank = [](auto&& a, auto&& b, auto&& c, auto&& d,
+                                                  auto& det_sign, auto& rank) {
+                    auto const result = a * d <=> b * c;
+
+                    if (result < 0) {
+                        det_sign = -1;
+                        rank = 2;
+                    }
+                    if (result > 0) {
+                        det_sign = 1;
+                        rank = 2;
+                    }
+                    else {
+                        det_sign = 0;
+                        rank = (is_zero(a) && is_zero(b) && is_zero(c) && is_zero(d) ? 0 : 1);
+                    }
+                };
+
+                calculate_det_sign_rank(coeff_.xnum_ynum_to_num, coeff_.xnum_yden_to_num,
+                                        coeff_.xden_ynum_to_num, coeff_.xden_yden_to_num,
+                                        det_sign_num_bilinear_form, rank_num_bilinear_form);
+
+                calculate_det_sign_rank(coeff_.xnum_ynum_to_den, coeff_.xnum_yden_to_den,
+                                        coeff_.xden_ynum_to_den, coeff_.xden_yden_to_den,
+                                        det_sign_den_bilinear_form, rank_den_bilinear_form);
+
+                // Degenerate case A = B = 0 is disallowed.
+                util::constexpr_assert(rank_num_bilinear_form != 0 || rank_den_bilinear_form != 0);
+
+                // L = A^T RB - B^T RA = 2sym(ag-ce  ah-cf  \\ bg-de  bh-df).
+                struct sing_det_form_t {
+                    int_type a, b, d;
+                } sing_det_form = {((coeff_.xnum_ynum_to_num * coeff_.xden_ynum_to_den -
+                                     coeff_.xden_ynum_to_num * coeff_.xnum_ynum_to_den)
+                                    << 1),
+                                   coeff_.xnum_ynum_to_num * coeff_.xden_yden_to_den +
+                                       coeff_.xnum_yden_to_num * coeff_.xden_ynum_to_den -
+                                       coeff_.xden_ynum_to_num * coeff_.xnum_yden_to_den -
+                                       coeff_.xden_yden_to_num * coeff_.xnum_ynum_to_den,
+                                   ((coeff_.xnum_yden_to_num * coeff_.xden_yden_to_den -
+                                     coeff_.xden_yden_to_num * coeff_.xnum_yden_to_den)
+                                    << 1)};
+
+                bool globally_well_defined =
+                    ((sing_det_form.a * sing_det_form.d) > (sing_det_form.b * sing_det_form.b));
+
+                if (globally_well_defined) {
+                    return;
+                }
+
+                // Check if there exists [x] in the closure of itv such that Ax and Bx are parallel.
+                auto has_parallel_output = [globally_well_defined,
+                                            &sing_det_form](auto&& itv) -> bool {
+                    using enum cyclic_interval_type_t;
+                    constexpr auto itv_type = itv.interval_type();
+
+                    if constexpr (itv_type == empty) {
+                        return false;
+                    }
+                    else if constexpr (itv_type == entire) {
+                        return !globally_well_defined;
+                    }
+                    else if constexpr (itv_type == single_point) {
+                        return is_zero(sing_det_form.a * itv.lower_bound().numerator *
+                                           itv.lower_bound().numerator +
+                                       ((sing_det_form.b * itv.lower_bound().numerator *
+                                         itv.lower_bound().denominator)
+                                        << 1) +
+                                       sing_det_form.d * itv.lower_bound().denominator *
+                                           itv.lower_bound().denominator);
+                    }
+                    else {
+                        auto Luu = sing_det_form.a * itv.lower_bound().numerator *
+                                       itv.lower_bound().numerator +
+                                   ((sing_det_form.b * itv.lower_bound().numerator *
+                                     itv.lower_bound().denominator)
+                                    << 1) +
+                                   sing_det_form.d * itv.lower_bound().denominator *
+                                       itv.lower_bound().denominator;
+                        auto Lvv = sing_det_form.a * itv.upper_bound().numerator *
+                                       itv.upper_bound().numerator +
+                                   ((sing_det_form.b * itv.upper_bound().numerator *
+                                     itv.upper_bound().denominator)
+                                    << 1) +
+                                   sing_det_form.d * itv.upper_bound().denominator *
+                                       itv.upper_bound().denominator;
+
+                        int sign_Luu = is_zero(Luu) ? 0 : is_nonnegative(Luu) ? 1 : -1;
+                        int sign_Lvv = is_zero(Lvv) ? 0 : is_nonnegative(Lvv) ? 1 : -1;
+                        if (sign_Luu * sign_Lvv <= 0) {
+                            return true;
+                        }
+
+                        auto Luv = sing_det_form.a * itv.lower_bound().numerator *
+                                       itv.upper_bound().numerator +
+                                   sing_det_form.b * itv.lower_bound().numerator *
+                                       itv.upper_bound().denominator +
+                                   sing_det_form.b * itv.lower_bound().denominator *
+                                       itv.upper_bound().numerator +
+                                   sing_det_form.d * itv.lower_bound().denominator *
+                                       itv.upper_bound().denominator;
+                        int sign_Luv = is_zero(Luv) ? 0 : is_nonnegative(Luv) ? 1 : -1;
+                        return sign_Luu * sign_Luv < 0;
+                    }
+                };
+
+                auto has_singularity = [&] {
+                    // Compute the set S = J \cap (T_RA^-1[I] \cup (dom(T_A))^c)
+                    // \cap (T_RB^-1[I] \cup (dom(T_B))^c).
+
+                    // A is invertible.
+                    if (rank_num_bilinear_form == 2) {
+                        // Can ignore the third term from the intersection.
+                        // RA^T = (b d \\ -a -c)
+                        return check_intersection(
+                            ycf_.current_interval(),
+                            map_cyclic_interval(
+                                linear_fractional_transform{
+                                    coeff_.xnum_yden_to_num, coeff_.xden_yden_to_num,
+                                    -coeff_.xnum_ynum_to_num, -coeff_.xden_ynum_to_num},
+                                xcf_.current_interval(), det_sign_num_bilinear_form),
+                            has_parallel_output);
+                    }
+                    // B is invertible.
+                    else if (rank_den_bilinear_form == 2) {
+                        // Can ignore the second term from the intersection.
+                        // RB^T = (f h \\ -e -g)
+                        return check_intersection(
+                            ycf_.current_interval(),
+                            map_cyclic_interval(
+                                linear_fractional_transform{
+                                    coeff_.xnum_yden_to_den, coeff_.xden_yden_to_den,
+                                    -coeff_.xnum_ynum_to_den, -coeff_.xden_ynum_to_den},
+                                xcf_.current_interval(), det_sign_den_bilinear_form),
+                            has_parallel_output);
+                    }
+                    // A is zero.
+                    else if (rank_num_bilinear_form == 0) {
+                        util::constexpr_assert(rank_den_bilinear_form == 1);
+                        // <u, Bv> = 0 if and only if v in ker B or u is in RB[R^2].
+                        return detail::gosper_util<int_type>::contains_in_closure(
+                                   xcf_.current_interval(),
+                                   detail::gosper_util<int_type>::range_of_rank1_transform(
+                                       linear_fractional_transform{
+                                           coeff_.xden_ynum_to_den, coeff_.xden_yden_to_den,
+                                           -coeff_.xnum_ynum_to_den, -coeff_.xnum_yden_to_den})) ||
+                               detail::gosper_util<int_type>::contains_in_closure(
+                                   ycf_.current_interval(),
+                                   detail::gosper_util<int_type>::kernel_of_rank1_transform(
+                                       linear_fractional_transform{
+                                           coeff_.xnum_ynum_to_den, coeff_.xnum_yden_to_den,
+                                           coeff_.xden_ynum_to_den, coeff_.xden_yden_to_den}));
+                    }
+                    // B is zero.
+                    else if (rank_den_bilinear_form == 0) {
+                        util::constexpr_assert(rank_num_bilinear_form == 1);
+                        // <u, Av> = 0 if and only if v in ker A or u is in RA[R^2].
+                        return detail::gosper_util<int_type>::contains_in_closure(
+                                   xcf_.current_interval(),
+                                   detail::gosper_util<int_type>::range_of_rank1_transform(
+                                       linear_fractional_transform{
+                                           coeff_.xden_ynum_to_num, coeff_.xden_yden_to_num,
+                                           -coeff_.xnum_ynum_to_num, -coeff_.xnum_yden_to_num})) ||
+                               detail::gosper_util<int_type>::contains_in_closure(
+                                   ycf_.current_interval(),
+                                   detail::gosper_util<int_type>::kernel_of_rank1_transform(
+                                       linear_fractional_transform{
+                                           coeff_.xnum_ynum_to_num, coeff_.xnum_yden_to_num,
+                                           coeff_.xden_ynum_to_num, coeff_.xden_yden_to_num}));
+                    }
+                    // Both are of rank 1.
+                    else {
+                        util::constexpr_assert(rank_num_bilinear_form == 1 &&
+                                               rank_den_bilinear_form == 1);
+
+                        // RA = (c d \\ -a -b)
+                        if (detail::gosper_util<int_type>::contains_in_closure(
+                                xcf_.current_interval(),
+                                detail::gosper_util<int_type>::range_of_rank1_transform(
+                                    linear_fractional_transform{
+                                        coeff_.xden_ynum_to_num, coeff_.xden_yden_to_num,
+                                        -coeff_.xnum_ynum_to_num, -coeff_.xnum_yden_to_num}))) {
+                            // The second interval is the entire RP1.
+                            // RB = (g h \\ -e -f)
+                            if (detail::gosper_util<int_type>::contains_in_closure(
+                                    xcf_.current_interval(),
+                                    detail::gosper_util<int_type>::range_of_rank1_transform(
+                                        linear_fractional_transform{
+                                            coeff_.xden_ynum_to_den, coeff_.xden_yden_to_den,
+                                            -coeff_.xnum_ynum_to_den, -coeff_.xnum_yden_to_den}))) {
+                                // The third interval is also the entire RP1.
+                                return ycf_.current_interval().visit(has_parallel_output);
+                            }
+                            else {
+                                // The third interval is a single point.
+                                return check_intersection(
+                                    ycf_.current_interval(),
+                                    cyclic_interval<projective_rational<int_type, int_type>,
+                                                    cyclic_interval_type_t::single_point>{
+                                        detail::gosper_util<int_type>::kernel_of_rank1_transform(
+                                            linear_fractional_transform{
+                                                coeff_.xnum_ynum_to_den, coeff_.xnum_yden_to_den,
+                                                coeff_.xden_ynum_to_den, coeff_.xden_yden_to_den})},
+                                    has_parallel_output);
+                            }
+                        }
+                        else {
+                            // The second interval is a single point.
+                            // RB = (g h \\ -e -f)
+                            if (detail::gosper_util<int_type>::contains_in_closure(
+                                    xcf_.current_interval(),
+                                    detail::gosper_util<int_type>::range_of_rank1_transform(
+                                        linear_fractional_transform{
+                                            coeff_.xden_ynum_to_den, coeff_.xden_yden_to_den,
+                                            -coeff_.xnum_ynum_to_den, -coeff_.xnum_yden_to_den}))) {
+                                // The third interval is the entire RP1.
+                                return check_intersection(
+                                    ycf_.current_interval(),
+                                    cyclic_interval<projective_rational<int_type, int_type>,
+                                                    cyclic_interval_type_t::single_point>{
+                                        detail::gosper_util<int_type>::kernel_of_rank1_transform(
+                                            linear_fractional_transform{
+                                                coeff_.xnum_ynum_to_num, coeff_.xnum_yden_to_num,
+                                                coeff_.xden_ynum_to_num, coeff_.xden_yden_to_num})},
+                                    has_parallel_output);
+                            }
+                            else {
+                                // The third interval is also a single point.
+                                auto first_pt =
+                                    detail::gosper_util<int_type>::kernel_of_rank1_transform(
+                                        linear_fractional_transform{
+                                            coeff_.xnum_ynum_to_num, coeff_.xnum_yden_to_num,
+                                            coeff_.xden_ynum_to_num, coeff_.xden_yden_to_num});
+                                auto second_pt =
+                                    detail::gosper_util<int_type>::kernel_of_rank1_transform(
+                                        linear_fractional_transform{
+                                            coeff_.xnum_ynum_to_den, coeff_.xnum_yden_to_den,
+                                            coeff_.xden_ynum_to_den, coeff_.xden_yden_to_den});
+
+                                if (first_pt != second_pt) {
+                                    return false;
+                                }
+                                else {
+                                    return check_intersection(
+                                        ycf_.current_interval(),
+                                        cyclic_interval<projective_rational<int_type, int_type>,
+                                                        cyclic_interval_type_t::single_point>{
+                                            first_pt},
+                                        has_parallel_output);
+                                }
+                            }
+                        }
+                    }
+                };
+
+                while (has_singularity()) {
+                    xcf_.update();
+                    ycf_.update();
+                }
             }
         };
     }
