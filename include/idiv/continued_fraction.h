@@ -35,7 +35,7 @@ namespace jkj {
 
     namespace cntfrc {
         template <class Impl, template <class, class> class... Mixins>
-        class continued_fraction : public Mixins<Impl, continued_fraction<Impl, Mixins...>>... {
+        class generator : public Mixins<Impl, generator<Impl, Mixins...>>... {
         public:
             using impl_type = Impl;
             using partial_fraction_type = typename Impl::partial_fraction_type;
@@ -48,28 +48,25 @@ namespace jkj {
 
             struct callback_type {
             private:
-                continued_fraction& generator_;
+                generator& gen_;
 
-                friend continued_fraction;
-                explicit constexpr callback_type(continued_fraction& generator) noexcept
-                    : generator_{generator} {}
+                friend generator;
+                explicit constexpr callback_type(generator& gen) noexcept : gen_{gen} {}
 
             public:
-                constexpr continued_fraction const& get_generator() const noexcept {
-                    return generator_;
-                }
+                constexpr generator const& get_generator() const noexcept { return gen_; }
 
                 constexpr void operator()(partial_fraction_type const& next_partial_fraction) {
-                    (static_cast<Mixins<Impl, continued_fraction>&>(generator_)
-                         .update(next_partial_fraction, generator_.impl_),
+                    (static_cast<Mixins<Impl, generator>&>(gen_).update(next_partial_fraction,
+                                                                        gen_.impl_),
                      ...);
-                    generator_.terminated_ = false;
+                    gen_.terminated_ = false;
                 }
             };
 
         public:
-            explicit constexpr continued_fraction(Impl impl)
-                : Mixins<Impl, continued_fraction>{static_cast<Impl const&>(impl)}...,
+            explicit constexpr generator(Impl impl)
+                : Mixins<Impl, generator>{static_cast<Impl const&>(impl)}...,
                   impl_{static_cast<Impl&&>(impl)} {}
 
             // Returns true if succeeded obtaining a further partial fraction.
@@ -84,8 +81,7 @@ namespace jkj {
                                 mixin.final_update(impl_);
                             }
                         };
-                        (invoke_final_update(static_cast<Mixins<Impl, continued_fraction>&>(*this)),
-                         ...);
+                        (invoke_final_update(static_cast<Mixins<Impl, generator>&>(*this)), ...);
                     }
                 }
                 return !terminated_;
@@ -95,9 +91,8 @@ namespace jkj {
         };
 
         template <template <class, class> class... Mixins, class Impl>
-        constexpr auto make_continued_fraction_generator(Impl&& impl) {
-            return continued_fraction<std::remove_cvref_t<Impl>, Mixins...>{
-                static_cast<Impl&&>(impl)};
+        constexpr auto make_generator(Impl&& impl) {
+            return generator<std::remove_cvref_t<Impl>, Mixins...>{static_cast<Impl&&>(impl)};
         }
 
         template <class Impl, class ContinuedFractionGenerator>
