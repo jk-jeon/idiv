@@ -475,6 +475,7 @@ int main() {
             expect(cf1.update() == cf2.update());
             expect(cf1.current_convergent() == cf2.current_convergent());
         }
+        expect(cf1.update() == cf2.update());
     };
 
     "[binary_gosper]"_test = [] {
@@ -503,6 +504,7 @@ int main() {
             expect(cf1.update() == cf2.update());
             expect(cf1.current_convergent() == cf2.current_convergent());
         }
+        expect(cf1.update() == cf2.update());
     };
 
     "[log_continued_fraction]"_test = [] {
@@ -510,10 +512,11 @@ int main() {
         using unsigned_frac_t = frac<bigint::uint_var, bigint::uint_var>;
 
         should("natural_log_calculator") = [] {
-            // Compute ln(2) up to 100 digits.
             unsigned_frac_t error_bound{
                 1u, bigint::uint_var(bigint::decimal_uint_const_v<1'000'000, 0, 0, 0, 0, 0>)};
+
             {
+                // Compute ln(2) up to 100 digits.
                 cntfrc::natural_log_calculator<bigint::int_var, bigint::uint_var,
                                                cntfrc::interval_tracker>
                     nlc{unsigned_frac_t{2u, 1u}};
@@ -678,6 +681,62 @@ int main() {
             expect(cf.current_convergent() == convergent_t{276'529'821, 62'233'595u});
             expect(cf.update() == true);
             expect(cf.current_convergent() == convergent_t{297'388'825, 66'927'956u});
+        };
+
+        should("additional_binary_gosper") = [] {
+            using log_calculator = cntfrc::natural_log_calculator<bigint::int_var, bigint::uint_var,
+                                                                  cntfrc::interval_tracker>;
+            using continued_fraction_t =
+                cntfrc::binary_gosper<log_calculator, log_calculator, cntfrc::unity,
+                                      cntfrc::convergent_tracker>;
+
+            continued_fraction_t cf{log_calculator{unsigned_frac_t{176u, 39u}},
+                                    log_calculator{unsigned_frac_t{95u, 771u}},
+                                    {// numerator
+                                     0, 0, -4, 1,
+                                     // denominator
+                                     7, 3, -1, 0}};
+
+            // First 20 convergents of
+            // (-4ln(95/771) + 1)/(7ln(176/39)ln(95/771) + 3ln(176/39) - ln(95/771)).
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{-1, 1u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{-1, 2u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{-2, 3u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{-3, 5u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{-20, 33u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{-163, 269u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{-346, 571u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{-509, 840u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{-855, 1411u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{-2'219, 3'662u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{-3'074, 5'073u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{-75'995, 125'414u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{-79'069, 130'487u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{-155'064, 255'901u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{-1'474'645, 2'433'596u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{-7'528'289, 12'423'881u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{-9'002'934, 14'857'477u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{-16'531'223, 27'281'358u});
+            expect(cf.update() == true);
+            expect(cf.current_convergent() == convergent_t{-25'534'157, 42'138'835u});
         };
     };
 }
