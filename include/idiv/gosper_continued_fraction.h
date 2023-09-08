@@ -176,7 +176,7 @@ namespace jkj {
                         else {
                             // Except for the first coefficient, the value must be in (1,infty].
                             // Still, we cannot do anything if infinity is strictly in the
-                            // interval or the upper bound is equal to infty.
+                            // interval or the upper bound is equal to infinity.
                             if (itv.upper_bound() == infinity ||
                                 cyclic_order(lower_bound, infinity, itv.upper_bound())) {
                                 return final_result::fail;
@@ -816,15 +816,44 @@ namespace jkj {
                         }
                     }
                     else {
-                        // Cannot do anything if the range estimate contains the infinity.
-                        if (itv.lower_bound() == infinity || itv.upper_bound() == infinity ||
-                            cyclic_order(itv.lower_bound(), infinity, itv.upper_bound())) {
-                            return final_result::fail;
+                        auto lower_bound = itv.lower_bound();
+                        if (is_first_) {
+                            // Cannot do anything if the range estimate contains the infinity.
+                            if (lower_bound == infinity || itv.upper_bound() == infinity ||
+                                cyclic_order(lower_bound, infinity, itv.upper_bound())) {
+                                return final_result::fail;
+                            }
+                        }
+                        else {
+                            // Except for the first coefficient, the value must be in (1,infty].
+                            // Still, we cannot do anything if infinity is strictly in the
+                            // interval or the upper bound is equal to infinity.
+                            if (itv.upper_bound() == infinity ||
+                                cyclic_order(lower_bound, infinity, itv.upper_bound())) {
+                                return final_result::fail;
+                            }
+                            // If lower bound is infinity, then the value might be infinity.
+                            if (lower_bound == infinity) {
+                                if (itv.upper_bound() == projective_rational<unity, unity>{} ||
+                                    cyclic_order(lower_bound, itv.upper_bound(),
+                                                 projective_rational<unity, unity>{})) {
+                                    return final_result::terminate;
+                                }
+                                return final_result::fail;
+                            }
+
+                            util::constexpr_assert(itv.upper_bound() !=
+                                                   projective_rational<unity, unity>{});
+                            if (cyclic_order(lower_bound, projective_rational<unity, unity>{},
+                                             itv.upper_bound())) {
+                                lower_bound.numerator = 1;
+                                lower_bound.denominator = 1;
+                            }
                         }
 
-                        // Otherwise, compare the floor.
+                        // Compare the floor.
                         auto floor_lower =
-                            div_floor(itv.lower_bound().numerator, itv.lower_bound().denominator);
+                            div_floor(lower_bound.numerator, lower_bound.denominator);
                         auto floor_upper =
                             div_floor(itv.upper_bound().numerator, itv.upper_bound().denominator);
                         if (floor_lower == floor_upper) {
