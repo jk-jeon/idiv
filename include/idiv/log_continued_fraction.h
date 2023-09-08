@@ -134,11 +134,10 @@ namespace jkj {
                     }
                 }
                 else if (crtp_base::current_index() == 1) {
-                    // |p|/q -> 2|p|^3/(2q(q^2 - p^2))
+                    // 2|p|/q -> 2|p|^3/(2q(q^2 - p^2))
                     previous_denominator = crtp_base::current_convergent_denominator();
                     current_error_bound_.numerator =
                         abs(crtp_base::current_convergent_numerator()) * p_square_;
-                    current_error_bound_.numerator <<= 1;
                     current_error_bound_.denominator = crtp_base::current_convergent_denominator();
                     current_error_bound_.denominator *= current_error_bound_.denominator;
                     current_error_bound_.denominator -= p_square_;
@@ -157,10 +156,14 @@ namespace jkj {
                 }
 
                 if (is_z_negative_) {
+                    auto lower_bound = linear_fractional_translation(
+                        to_negative(current_error_bound_.numerator),
+                        current_error_bound_.denominator)(crtp_base::current_convergent());
                     return cyclic_interval<convergent_type, cyclic_interval_type_t::open>{
-                        linear_fractional_translation(current_error_bound_.numerator,
-                                                      current_error_bound_.denominator)(
-                            crtp_base::current_convergent()),
+                        convergent_type{is_strictly_negative(lower_bound.denominator)
+                                            ? invert_sign(std::move(lower_bound.numerator))
+                                            : std::move(lower_bound.numerator),
+                                        std::move(lower_bound.denominator)},
                         crtp_base::current_convergent()};
                 }
                 else {
