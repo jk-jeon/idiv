@@ -56,18 +56,15 @@ namespace jkj {
             projective_rational<Int, UInt> fraction_;
 
             template <class Functor>
-            constexpr bool with_next_partial_fraction(Functor&& f) {
-                if (is_zero(fraction_.denominator)) {
-                    return false;
+            constexpr void with_next_partial_fraction(Functor&& f) {
+                if (!is_zero(fraction_.denominator)) {
+                    using std::div;
+                    auto div_result = div(fraction_.numerator, fraction_.denominator);
+                    fraction_.numerator = Int{static_cast<UInt&&>(fraction_.denominator)};
+                    fraction_.denominator = static_cast<UInt&&>(div_result.rem);
+
+                    f(partial_fraction_type{Unity{}, static_cast<Int&&>(div_result.quot)});
                 }
-
-                using std::div;
-                auto div_result = div(fraction_.numerator, fraction_.denominator);
-                fraction_.numerator = Int{static_cast<UInt&&>(fraction_.denominator)};
-                fraction_.denominator = static_cast<UInt&&>(div_result.rem);
-
-                f(partial_fraction_type{Unity{}, static_cast<Int&&>(div_result.quot)});
-                return true;
             }
 
         public:

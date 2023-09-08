@@ -55,11 +55,13 @@ namespace jkj {
             // Returns true if succeeded obtaining a further partial fraction.
             constexpr bool update() {
                 if (!terminated_) {
-                    terminated_ = !static_cast<Impl&>(*this).with_next_partial_fraction(
+                    terminated_ = true;
+                    static_cast<Impl&>(*this).with_next_partial_fraction(
                         [&](auto&& next_partial_fraction) {
                             (static_cast<Mixins<Impl>&>(*this).update(static_cast<Impl&>(*this),
                                                                       next_partial_fraction),
                              ...);
+                            terminated_ = false;
                         });
 
                     if (terminated_) {

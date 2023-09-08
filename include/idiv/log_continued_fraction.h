@@ -83,7 +83,7 @@ namespace jkj {
             bool is_z_negative_ = false;
 
             template <class Functor>
-            constexpr bool with_next_partial_fraction(Functor&& f) {
+            constexpr void with_next_partial_fraction(Functor&& f) {
                 if (crtp_base::current_index() == -1) {
                     f(partial_fraction_type{1, 0u});
                 }
@@ -102,7 +102,6 @@ namespace jkj {
                     result.denominator += two_q_;
                     f(static_cast<decltype(result)&&>(result));
                 }
-                return true;
             }
 
             constexpr interval_type next_interval() {
@@ -336,20 +335,16 @@ namespace jkj {
                   is_rational_{rational_check.is_rational} {}
 
             template <class Functor>
-            constexpr bool with_next_partial_fraction(Functor&& f) {
+            constexpr void with_next_partial_fraction(Functor&& f) {
                 if (is_rational_) {
                     if (rational_impl_.update()) {
                         f(rational_impl_.current_partial_fraction());
-                        return true;
                     }
-                    return false;
                 }
                 else {
                     if (irrational_impl_.update()) {
                         f(irrational_impl_.current_partial_fraction());
-                        return true;
                     }
-                    return false;
                 }
             }
 
