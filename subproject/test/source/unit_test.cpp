@@ -628,11 +628,8 @@ int main() {
         using convergent_t = cntfrc::projective_rational<bigint::int_var, bigint::uint_var>;
         using rational_continued_fraction_t =
             cntfrc::impl::rational<bigint::int_var, bigint::uint_var>;
-        using binary_gosper_t = cntfrc::impl::binary_gosper<
-            cntfrc::generator<rational_continued_fraction_t, cntfrc::index_tracker,
-                              cntfrc::convergent_tracker, cntfrc::interval_tracker>,
-            cntfrc::generator<rational_continued_fraction_t, cntfrc::index_tracker,
-                              cntfrc::convergent_tracker, cntfrc::interval_tracker>>;
+        using binary_gosper_t = cntfrc::impl::binary_gosper<rational_continued_fraction_t,
+                                                            rational_continued_fraction_t>;
 
         // Take x = 17/89, y = 31/125, and
         // z = (xy + 4x + 2y + 8)/(2x - 3y + 1) = 2655/182.
@@ -833,13 +830,8 @@ int main() {
         should("additional_binary_gosper") = [] {
             using log_calculator =
                 cntfrc::impl::natural_log_calculator<bigint::int_var, bigint::uint_var>;
-            using continued_fraction_t = cntfrc::impl::binary_gosper<
-                cntfrc::generator<log_calculator, cntfrc::index_tracker,
-                                  cntfrc::partial_fraction_tracker, cntfrc::convergent_tracker,
-                                  cntfrc::interval_tracker>,
-                cntfrc::generator<log_calculator, cntfrc::index_tracker,
-                                  cntfrc::partial_fraction_tracker, cntfrc::convergent_tracker,
-                                  cntfrc::interval_tracker>>;
+            using continued_fraction_t =
+                cntfrc::impl::binary_gosper<log_calculator, log_calculator>;
 
             auto cf = cntfrc::make_generator<cntfrc::convergent_tracker>(
                 continued_fraction_t{log_calculator{unsigned_frac_t{176u, 39u}},

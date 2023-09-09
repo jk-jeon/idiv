@@ -304,29 +304,26 @@ namespace jkj {
                 }
             };
 
-            template <class ContinuedFractionGeneratorX, class ContinuedFractionGeneratorY,
+            template <class ContinuedFractionImplX, class ContinuedFractionImplY,
                       class Unity = unity>
-                requires std::is_same_v<typename ContinuedFractionGeneratorX::convergent_type,
-                                        typename ContinuedFractionGeneratorY::convergent_type>
+                requires std::is_same_v<typename ContinuedFractionImplX::convergent_type,
+                                        typename ContinuedFractionImplY::convergent_type>
             class binary_gosper {
             public:
-                using int_type = decltype(ContinuedFractionGeneratorX::convergent_type::numerator);
-                using uint_type =
-                    decltype(ContinuedFractionGeneratorX::convergent_type::denominator);
+                using int_type = decltype(ContinuedFractionImplX::convergent_type::numerator);
+                using uint_type = decltype(ContinuedFractionImplX::convergent_type::denominator);
                 using partial_fraction_type = frac<Unity, int_type>;
-                using convergent_type = typename ContinuedFractionGeneratorX::convergent_type;
+                using convergent_type = typename ContinuedFractionImplX::convergent_type;
                 using interval_type = variable_shape_cyclic_interval<
                     convergent_type, cyclic_interval_type_t::single_point,
                     cyclic_interval_type_t::left_open_right_closed,
                     cyclic_interval_type_t::left_closed_right_open, cyclic_interval_type_t::entire>;
-                using first_internal_continued_fraction_impl_type =
-                    typename ContinuedFractionGeneratorX::impl_type;
-                using second_internal_continued_fraction_impl_type =
-                    typename ContinuedFractionGeneratorY::impl_type;
+                using first_internal_continued_fraction_impl_type = ContinuedFractionImplX;
+                using second_internal_continued_fraction_impl_type = ContinuedFractionImplY;
 
             private:
-                ContinuedFractionGeneratorX xcf_;
-                ContinuedFractionGeneratorY ycf_;
+                generator<ContinuedFractionImplX, interval_tracker> xcf_;
+                generator<ContinuedFractionImplY, interval_tracker> ycf_;
                 bilinear_fractional_transform<int_type> coeff_;
                 bool is_first_ = true;
 

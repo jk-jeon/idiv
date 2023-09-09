@@ -234,12 +234,8 @@ namespace jkj {
             class general_log {
                 using rational_impl_type = rational<Int, UInt, Unity>;
                 using irrational_internal_impl_type = natural_log_calculator<Int, UInt>;
-                using irrational_impl_type = binary_gosper<
-                    generator<irrational_internal_impl_type, index_tracker,
-                              partial_fraction_tracker, convergent_tracker, interval_tracker>,
-                    generator<irrational_internal_impl_type, index_tracker,
-                              partial_fraction_tracker, convergent_tracker, interval_tracker>,
-                    Unity>;
+                using irrational_impl_type = binary_gosper<irrational_internal_impl_type,
+                                                           irrational_internal_impl_type, Unity>;
 
             public:
                 using partial_fraction_type = typename rational_impl_type::partial_fraction_type;
