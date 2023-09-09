@@ -108,10 +108,7 @@ namespace jkj {
             // Template template parameters work not so nicely with metaprogramming, so we wrap
             // mixins into a unique type.
             template <template <class, class> class Mixin>
-            struct mixin_type_wrapper {
-                template <class Impl, class Generator>
-                using type = Mixin<Impl, Generator>;
-            };
+            struct mixin_type_wrapper {};
 
             // The alias template type in the above mixin_type_wrapper is a *different* template
             // from Mixin, thus mixin_traits<mixin_type_wrapper<Mixin>::template type> is a
@@ -409,6 +406,13 @@ namespace jkj {
                 return {};
             }
 
+            // Convert tmp::typelist<mixin_type_wrapper<>> back into mixin_list<>.
+            template <template <class, class> class... Mixins>
+            constexpr mixin_list<Mixins...>
+            unwrap_mixin_list(tmp::typelist<mixin_type_wrapper<Mixins>...>) noexcept {
+                return {};
+            }
+
             // Find the transitive closure of required mixins.
             template <class... WrappedMixins>
             constexpr auto
@@ -524,12 +528,12 @@ namespace jkj {
                 constexpr bool terminated() const noexcept { return terminated_; }
             };
 
-            template <class Impl, class WrappedMixinList>
+            template <class Impl, class MixinList>
             struct get_generator_type;
 
-            template <class Impl, class... WrappedMixins>
-            struct get_generator_type<Impl, tmp::typelist<WrappedMixins...>> {
-                using type = generator_impl<Impl, WrappedMixins::template type...>;
+            template <class Impl, template <class, class> class... Mixins>
+            struct get_generator_type<Impl, mixin_list<Mixins...>> {
+                using type = generator_impl<Impl, Mixins...>;
             };
         }
 
@@ -539,7 +543,8 @@ namespace jkj {
         // resulting list of mixins.
         template <class Impl, template <class, class> class... Mixins>
         using generator = typename detail::get_generator_type<
-            Impl, decltype(detail::find_sorted_mixin_list<Impl, Mixins...>())>::type;
+            Impl, decltype(detail::unwrap_mixin_list(
+                      detail::find_sorted_mixin_list<Impl, Mixins...>()))>::type;
 
         // A convenient factory function.
         template <template <class, class> class... Mixins, class Impl>
