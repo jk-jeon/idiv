@@ -553,12 +553,12 @@ namespace jkj {
         }
 
         // Mixin: stores the current index of the continued fraction expansion.
-        template <class Impl, class ContinuedFractionGenerator>
+        template <class Impl, class Generator>
         class index_tracker {
             using partial_fraction_type = typename Impl::partial_fraction_type;
             int current_index_ = -1;
 
-            friend ContinuedFractionGenerator;
+            friend Generator;
 
             explicit constexpr index_tracker(Impl const&) noexcept {}
 
@@ -571,13 +571,13 @@ namespace jkj {
         };
 
         // Mixin: stores the current partial fraction of the continued fraction expansion.
-        template <class Impl, class ContinuedFractionGenerator>
+        template <class Impl, class Generator>
         class partial_fraction_tracker {
             using partial_fraction_type = typename Impl::partial_fraction_type;
 
             partial_fraction_type current_partial_fraction_;
 
-            friend ContinuedFractionGenerator;
+            friend Generator;
 
             explicit constexpr partial_fraction_tracker(Impl const& impl)
                 : current_partial_fraction_{impl.initial_partial_fraction()} {}
@@ -594,7 +594,7 @@ namespace jkj {
 
         // Mixin: stores the previous and the current convergents of the continued fraction
         // expansion.
-        template <class Impl, class ContinuedFractionGenerator>
+        template <class Impl, class Generator>
         class convergent_tracker {
             using partial_fraction_type = typename Impl::partial_fraction_type;
             using convergent_type = typename Impl::convergent_type;
@@ -602,7 +602,7 @@ namespace jkj {
             convergent_type current_convergent_{1, 0u};
             convergent_type previous_convergent_{0, 1u};
 
-            friend ContinuedFractionGenerator;
+            friend Generator;
 
             explicit constexpr convergent_tracker(Impl const&) noexcept {}
 
@@ -641,8 +641,43 @@ namespace jkj {
             }
         };
 
+        // Mixin: stores the last three convergents (including the current one) of the continued
+        // fraction expansion.
+        template <class Impl, class Generator>
+        class convergent_triple_tracker {
+            using partial_fraction_type = typename Impl::partial_fraction_type;
+            using convergent_type = typename Impl::convergent_type;
+
+            convergent_type previous_previous_convergent_{1, 0u};
+
+            friend Generator;
+
+            explicit constexpr convergent_triple_tracker(Impl const&) noexcept {}
+
+            constexpr void update(partial_fraction_type const&, Impl const&) {
+                previous_previous_convergent_ =
+                    static_cast<Generator const&>(*this).previous_convergent();
+            }
+
+        public:
+            constexpr convergent_type const& previous_previous_convergent() const noexcept {
+                return previous_previous_convergent_;
+            }
+            constexpr auto const& previous_previous_convergent_numerator() const noexcept {
+                return previous_previous_convergent().numerator;
+            }
+            constexpr auto const& previous_previous_convergent_denominator() const noexcept {
+                return previous_previous_convergent().denominator;
+            }
+        };
+        template <>
+        struct mixin_traits<convergent_triple_tracker> {
+            using required_mixins = mixin_list<convergent_tracker>;
+            using before_than = mixin_list<convergent_tracker>;
+        };
+
         // Mixin: stores the current estimate of an interval where the true value should be in.
-        template <class Impl, class ContinuedFractionGenerator>
+        template <class Impl, class Generator>
         class interval_tracker {
             using partial_fraction_type = typename Impl::partial_fraction_type;
             using convergent_type = typename Impl::convergent_type;
@@ -650,13 +685,13 @@ namespace jkj {
 
             interval_type current_interval_;
 
-            friend ContinuedFractionGenerator;
+            friend Generator;
 
             explicit constexpr interval_tracker(Impl const& impl)
                 : current_interval_{impl.initial_interval()} {}
 
             constexpr void update(partial_fraction_type const&, Impl& impl) {
-                auto const& self = static_cast<ContinuedFractionGenerator const&>(*this);
+                auto const& self = static_cast<Generator const&>(*this);
                 if constexpr (requires { impl.next_interval(self); }) {
                     current_interval_ = impl.next_interval(self);
                 }
@@ -682,7 +717,7 @@ namespace jkj {
             constexpr void final_update(Impl const&) {
                 current_interval_ = cyclic_interval<typename interval_type::value_type,
                                                     cyclic_interval_type_t::single_point>{
-                    static_cast<ContinuedFractionGenerator const&>(*this).current_convergent()};
+                    static_cast<Generator const&>(*this).current_convergent()};
             }
 
         public:
@@ -717,9 +752,9 @@ namespace jkj {
                         return true;
                     }
                 })) {
-                    static_cast<ContinuedFractionGenerator&>(*this).update();
+                    static_cast<Generator&>(*this).update();
                 }
-                return static_cast<ContinuedFractionGenerator const&>(*this).current_convergent();
+                return static_cast<Generator const&>(*this).current_convergent();
             }
         };
         template <>
