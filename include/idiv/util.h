@@ -185,6 +185,189 @@ namespace jkj {
             std::size_t size_;
         };
     }
+
+    // Some metaprogramming utilities.
+    namespace tmp {
+        template <class... Types>
+        struct typelist {
+            static constexpr std::size_t size = sizeof...(Types);
+        };
+
+        template <class Type, class... Types>
+        constexpr std::size_t find_first_index(typelist<Types...>) noexcept {
+            bool found = false;
+            auto impl = [&](auto arg) -> std::size_t {
+                if (!found) {
+                    if (std::is_same_v<Type, typename decltype(arg)::type>) {
+                        found = true;
+                        return 0;
+                    }
+                    return 1;
+                }
+                return 0;
+            };
+            return (std::size_t(0) + ... + impl(std::type_identity<Types>{}));
+        }
+
+        namespace detail {
+            template <auto...>
+            struct value_placeholder {
+                template <class T>
+                constexpr value_placeholder(T&&) noexcept {}
+            };
+
+            template <std::size_t... I, class... Types>
+            constexpr auto get_type_helper(std::index_sequence<I...>, typelist<Types...>) noexcept {
+                return [](value_placeholder<I>..., auto nth, auto...) {
+                    return nth;
+                }(std::type_identity<Types>{}...);
+            }
+
+            template <class T, std::size_t index>
+            struct indexed_type_placeholder {
+                using type = T;
+
+                template <class U>
+                constexpr indexed_type_placeholder(U&&) noexcept {}
+            };
+
+            template <std::size_t... I, class... Types>
+            constexpr auto back_sublist_helper(std::index_sequence<I...>,
+                                               typelist<Types...>) noexcept {
+                return [](value_placeholder<I>..., auto... args) {
+                    return typelist<typename decltype(args)::type...>{};
+                }(std::type_identity<Types>{}...);
+            }
+        }
+
+        template <std::size_t N, class Typelist>
+        using get_type = typename decltype(detail::get_type_helper(std::make_index_sequence<N>{},
+                                                                   Typelist{}))::type;
+
+        template <std::size_t N, class Typelist>
+        using back_sublist = decltype(detail::back_sublist_helper(
+            std::make_index_sequence<Typelist::size - N>{}, Typelist{}));
+
+        namespace detail {
+            template <auto prefix_sum, class... Types>
+            constexpr auto prefix_sum_compaction(typelist<Types...>) noexcept {
+                if constexpr (sizeof...(Types) == 0) {
+                    return typelist<>{};
+                }
+                else {
+                    using list = typelist<Types...>;
+                    constexpr std::size_t size = prefix_sum[sizeof...(Types) - 1];
+                    constexpr auto index_array = [] {
+                        util::array<std::size_t, size> result{};
+                        for (std::size_t i = sizeof...(Types); i > 0; --i) {
+                            result[prefix_sum[i - 1] - 1] = i - 1;
+                        }
+                        return result;
+                    }();
+
+                    return [&index_array]<std::size_t... I>(std::index_sequence<I...>) {
+                        return typelist<get_type<index_array[I], list>...>{};
+                    }(std::make_index_sequence<size>{});
+                }
+            }
+
+            template <class... Types>
+            constexpr auto remove_duplicate_impl(typelist<Types...>) noexcept {
+                using list = typelist<Types...>;
+                constexpr auto prefix_sum = [] {
+                    std::size_t count = 0;
+                    std::size_t index = 0;
+                    auto impl = [&](auto arg) {
+                        if (find_first_index<typename decltype(arg)::type>(list{}) == index++) {
+                            return ++count;
+                        }
+                        else {
+                            return count;
+                        }
+                    };
+                    return util::array<std::size_t, sizeof...(Types)>{
+                        impl(std::type_identity<Types>{})...};
+                }();
+
+                return prefix_sum_compaction<prefix_sum>(list{});
+            }
+        }
+
+        // Guranteed to preserve the order.
+        template <class Typelist>
+        using remove_duplicate = decltype(detail::remove_duplicate_impl(Typelist{}));
+
+        template <class... Types>
+        constexpr bool has_duplicate(typelist<Types...>) noexcept {
+            using list = typelist<Types...>;
+            std::size_t index = 0;
+            auto impl = [&](auto arg) {
+                if (find_first_index<typename decltype(arg)::type>(list{}) == index++) {
+                    return false;
+                }
+                else {
+                    return true;
+                }
+            };
+            return (impl(std::type_identity<Types>{}) || ...);
+        }
+
+        namespace detail {
+            template <class Type, class... Types>
+            constexpr typelist<Types..., Type> push_back_impl(typelist<Types...>) noexcept {
+                return {};
+            }
+
+            constexpr typelist<> join_impl() noexcept { return {}; }
+            template <class... Types>
+            constexpr typelist<Types...> join_impl(typelist<Types...>) noexcept {
+                return {};
+            }
+            template <class... Types1, class... Types2>
+            constexpr typelist<Types1..., Types2...> join_impl(typelist<Types1...>,
+                                                               typelist<Types2...>) noexcept {
+                return {};
+            }
+            template <class... Types1, class... Types2, class... Typelists>
+            constexpr auto join_impl(typelist<Types1...> first, typelist<Types2...> second,
+                                     Typelists... remaining) noexcept {
+                return join_impl(join_impl(first, second), join_impl(remaining...));
+            }
+        }
+
+        template <class Typelist, class Type>
+        using push_back = decltype(detail::push_back_impl<Type>(Typelist{}));
+
+        template <class... Typelists>
+        using join = decltype(detail::join_impl(Typelists{}...));
+
+        namespace detail {
+            template <class Predicate, class... Types>
+            constexpr auto filter_impl(typelist<Types...>) noexcept {
+                using list = typelist<Types...>;
+                constexpr auto prefix_sum = [] {
+                    std::size_t count = 0;
+                    auto impl = [&](auto arg) {
+                        if (Predicate{}(arg)) {
+                            return ++count;
+                        }
+                        else {
+                            return count;
+                        }
+                    };
+                    return util::array<std::size_t, sizeof...(Types)>{
+                        impl(std::type_identity<Types>{})...};
+                }();
+
+                return prefix_sum_compaction<prefix_sum>(list{});
+            }
+        }
+
+        // Guranteed to preserve the order.
+        // The predicate is evaluated in the form Predicate{}(std::type_identity<T>{}) on type T.
+        template <class Typelist, class Predicate>
+        using filter = decltype(detail::filter_impl<Predicate>(Typelist{}));
+    }
 }
 
 #endif

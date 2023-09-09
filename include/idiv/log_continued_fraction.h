@@ -55,6 +55,12 @@ namespace jkj {
                     convergent_type, cyclic_interval_type_t::single_point,
                     cyclic_interval_type_t::open, cyclic_interval_type_t::entire>;
 
+                using required_mixins =
+                    mixin_list<index_tracker, partial_fraction_tracker, convergent_tracker>;
+                using local_mixin_ordering_constraints = mixin_ordering_constraint::constraint_list<
+                    mixin_ordering_constraint::before_after<index_tracker, interval_tracker>,
+                    mixin_ordering_constraint::before_after<convergent_tracker, interval_tracker>>;
+
             private:
                 // Used as a temporary storage for the quantity |p|/q for initial indices.
                 frac<UInt, UInt> current_error_bound_{1u, 0u};

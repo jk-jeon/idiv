@@ -6,6 +6,77 @@ int main() {
     using namespace boost::ut;
     using namespace jkj;
 
+    "[tmp]"_test = [] {
+        using typelist = tmp::typelist<int, double, float, char, float, double, unsigned int, long>;
+        should("find_first_index") = [] {
+            expect(tmp::find_first_index<int>(typelist{}) == 0);
+            expect(tmp::find_first_index<double>(typelist{}) == 1);
+            expect(tmp::find_first_index<float>(typelist{}) == 2);
+            expect(tmp::find_first_index<char>(typelist{}) == 3);
+            expect(tmp::find_first_index<unsigned int>(typelist{}) == 6);
+            expect(tmp::find_first_index<long>(typelist{}) == 7);
+            expect(tmp::find_first_index<short>(typelist{}) == 8);
+        };
+
+        should("get_type") = [] {
+            expect(std::is_same_v<tmp::get_type<0, typelist>, int>);
+            expect(std::is_same_v<tmp::get_type<1, typelist>, double>);
+            expect(std::is_same_v<tmp::get_type<2, typelist>, float>);
+            expect(std::is_same_v<tmp::get_type<3, typelist>, char>);
+            expect(std::is_same_v<tmp::get_type<4, typelist>, float>);
+            expect(std::is_same_v<tmp::get_type<5, typelist>, double>);
+            expect(std::is_same_v<tmp::get_type<6, typelist>, unsigned int>);
+            expect(std::is_same_v<tmp::get_type<7, typelist>, long>);
+        };
+
+        should("back_sublist") = [] {
+            expect(std::is_same_v<tmp::back_sublist<0, typelist>, tmp::typelist<>>);
+            expect(std::is_same_v<tmp::back_sublist<1, typelist>, tmp::typelist<long>>);
+            expect(
+                std::is_same_v<tmp::back_sublist<2, typelist>, tmp::typelist<unsigned int, long>>);
+            expect(std::is_same_v<tmp::back_sublist<3, typelist>,
+                                  tmp::typelist<double, unsigned int, long>>);
+            expect(std::is_same_v<tmp::back_sublist<4, typelist>,
+                                  tmp::typelist<float, double, unsigned int, long>>);
+            expect(std::is_same_v<tmp::back_sublist<5, typelist>,
+                                  tmp::typelist<char, float, double, unsigned int, long>>);
+            expect(std::is_same_v<tmp::back_sublist<6, typelist>,
+                                  tmp::typelist<float, char, float, double, unsigned int, long>>);
+            expect(std::is_same_v<
+                   tmp::back_sublist<7, typelist>,
+                   tmp::typelist<double, float, char, float, double, unsigned int, long>>);
+            expect(std::is_same_v<tmp::back_sublist<8, typelist>, typelist>);
+        };
+
+        should("remove_duplicate") = [] {
+            expect(std::is_same_v<tmp::remove_duplicate<typelist>,
+                                  tmp::typelist<int, double, float, char, unsigned int, long>>);
+        };
+
+        should("push_back") = [] {
+            expect(std::is_same_v<tmp::push_back<typelist, unsigned short>,
+                                  tmp::typelist<int, double, float, char, float, double,
+                                                unsigned int, long, unsigned short>>);
+        };
+
+        should("join") = [] {
+            expect(std::is_same_v<
+                   tmp::join<typelist, tmp::typelist<unsigned short, unsigned short>, typelist>,
+                   tmp::typelist<int, double, float, char, float, double, unsigned int, long,
+                                 unsigned short, unsigned short, int, double, float, char, float,
+                                 double, unsigned int, long>>);
+        };
+
+        should("filter") = [] {
+            auto predicate = [](auto arg) {
+                return std::is_integral_v<typename decltype(arg)::type>;
+            };
+
+            expect(std::is_same_v<tmp::filter<typelist, decltype(predicate)>,
+                                  tmp::typelist<int, char, unsigned int, long>>);
+        };
+    };
+
     "[wuint]"_test = [] {
         should("add_carry64") = [] {
             unsigned int carry = 0;
@@ -383,6 +454,53 @@ int main() {
         };
     };
 
+    "[topological_sort]"_test = [] {
+        {
+            //       --- 2 -
+            //      /       \
+            //      |  - 3 - 6 -
+            //      | /         \
+            // 0 -- 1 ------ 7 - 9
+            //      |\        \ /
+            //      |  - 4 - 8 -
+            //      \       /   \
+            //       --- 5 -     10
+            util::array<cntfrc::detail::graph_edge, 14> edges{{{0, 1},
+                                                               {1, 2},
+                                                               {1, 3},
+                                                               {1, 7},
+                                                               {1, 4},
+                                                               {1, 5},
+                                                               {2, 6},
+                                                               {3, 6},
+                                                               {4, 8},
+                                                               {5, 8},
+                                                               {6, 9},
+                                                               {7, 9},
+                                                               {8, 9},
+                                                               {7, 10}}};
+            auto result = cntfrc::detail::topological_sort<11>(edges);
+            expect(result.succeed == true);
+            expect(result.sorted_indices[0] == 0);
+            expect(result.sorted_indices[1] == 1);
+            expect(result.sorted_indices[2] == 5);
+            expect(result.sorted_indices[3] == 4);
+            expect(result.sorted_indices[4] == 8);
+            expect(result.sorted_indices[5] == 7);
+            expect(result.sorted_indices[6] == 10);
+            expect(result.sorted_indices[7] == 3);
+            expect(result.sorted_indices[8] == 2);
+            expect(result.sorted_indices[9] == 6);
+            expect(result.sorted_indices[10] == 9);
+        }
+        {
+            // Cyclic case.
+            util::array<cntfrc::detail::graph_edge, 14> edges{{{0, 1}, {1, 2}, {2, 3}, {3, 0}}};
+            auto result = cntfrc::detail::topological_sort<4>(edges);
+            expect(result.succeed == false);
+        }
+    };
+
     "[prime_factorization]"_test = [] {
         using uint_type = bigint::uint_var;
         auto prime_factors = prime_factorization(
@@ -397,6 +515,28 @@ int main() {
         expect(prime_factors[6] == prime_factor<uint_type>{5'861u, -1});
         expect(prime_factors[7] == prime_factor<uint_type>{342'547u, -1});
         expect(prime_factors.size() == 8);
+    };
+
+    "[find_sorted_mixin_list]"_test = [] {
+        struct dummy_type {
+            using required_mixins =
+                cntfrc::mixin_list<cntfrc::index_tracker, cntfrc::partial_fraction_tracker,
+                                   cntfrc::convergent_tracker>;
+            using local_mixin_ordering_constraints =
+                cntfrc::mixin_ordering_constraint::constraint_list<
+                    cntfrc::mixin_ordering_constraint::before_after<cntfrc::index_tracker,
+                                                                    cntfrc::interval_tracker>,
+                    cntfrc::mixin_ordering_constraint::before_after<cntfrc::convergent_tracker,
+                                                                    cntfrc::interval_tracker>>;
+        };
+        auto sorted_wrapped_mixin_list =
+            cntfrc::detail::find_sorted_mixin_list<dummy_type, cntfrc::interval_tracker>();
+        expect(std::is_same_v<
+               decltype(sorted_wrapped_mixin_list),
+               tmp::typelist<cntfrc::detail::mixin_type_wrapper<cntfrc::convergent_tracker>,
+                             cntfrc::detail::mixin_type_wrapper<cntfrc::partial_fraction_tracker>,
+                             cntfrc::detail::mixin_type_wrapper<cntfrc::index_tracker>,
+                             cntfrc::detail::mixin_type_wrapper<cntfrc::interval_tracker>>>);
     };
 
     "[rational_continued_fraction]"_test = [] {
