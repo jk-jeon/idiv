@@ -57,7 +57,7 @@ namespace jkj {
 
                 using required_mixins =
                     mixin_list<index_tracker, partial_fraction_tracker, convergent_tracker>;
-                using local_mixin_ordering_constraints = mixin_ordering_constraint::constraint_list<
+                using mixin_ordering_constraints = mixin_ordering_constraint::constraint_list<
                     mixin_ordering_constraint::before_after<index_tracker, interval_tracker>,
                     mixin_ordering_constraint::before_after<convergent_tracker, interval_tracker>>;
 
@@ -205,10 +205,7 @@ namespace jkj {
             template <class Int, class UInt, class Unity = unity>
             class natural_log {
                 using internal_impl_type = natural_log_calculator<Int, UInt>;
-                using impl_type = unary_gosper<
-                    generator<internal_impl_type, index_tracker, partial_fraction_tracker,
-                              convergent_tracker, interval_tracker>,
-                    Unity>;
+                using impl_type = unary_gosper<internal_impl_type, Unity>;
 
                 impl_type impl_;
 

@@ -72,25 +72,23 @@ namespace jkj {
                 };
             }
 
-            template <class InternalContinuedFractionGenerator, class Unity = unity>
+            template <class InternalContinuedFractionImpl, class Unity = unity>
             class unary_gosper {
             public:
                 using int_type =
-                    decltype(InternalContinuedFractionGenerator::convergent_type::numerator);
+                    decltype(InternalContinuedFractionImpl::convergent_type::numerator);
                 using uint_type =
-                    decltype(InternalContinuedFractionGenerator::convergent_type::denominator);
+                    decltype(InternalContinuedFractionImpl::convergent_type::denominator);
                 using partial_fraction_type = frac<Unity, int_type>;
-                using convergent_type =
-                    typename InternalContinuedFractionGenerator::convergent_type;
+                using convergent_type = typename InternalContinuedFractionImpl::convergent_type;
                 using interval_type = variable_shape_cyclic_interval<
                     projective_rational<int_type, int_type>, cyclic_interval_type_t::single_point,
                     cyclic_interval_type_t::left_open_right_closed,
                     cyclic_interval_type_t::left_closed_right_open, cyclic_interval_type_t::entire>;
-                using internal_continued_fraction_impl_type =
-                    typename InternalContinuedFractionGenerator::impl_type;
+                using internal_continued_fraction_impl_type = InternalContinuedFractionImpl;
 
             private:
-                InternalContinuedFractionGenerator cf_;
+                generator<InternalContinuedFractionImpl, interval_tracker> cf_;
                 linear_fractional_transform<int_type> coeff_;
                 int determinant_sign_ = 0;
                 bool is_first_ = true;

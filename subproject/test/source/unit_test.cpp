@@ -517,17 +517,28 @@ int main() {
         expect(prime_factors.size() == 8);
     };
 
+    "[get_transitive_required_mixin_list]"_test = [] {
+        auto list = cntfrc::detail::get_transitive_required_mixin_list(
+            tmp::typelist<cntfrc::detail::mixin_type_wrapper<cntfrc::interval_tracker>,
+                          cntfrc::detail::mixin_type_wrapper<cntfrc::convergent_tracker>>{});
+
+        expect(std::is_same_v<
+               decltype(list),
+               tmp::typelist<cntfrc::detail::mixin_type_wrapper<cntfrc::interval_tracker>,
+                             cntfrc::detail::mixin_type_wrapper<cntfrc::convergent_tracker>,
+                             cntfrc::detail::mixin_type_wrapper<cntfrc::index_tracker>>>);
+    };
+
     "[find_sorted_mixin_list]"_test = [] {
         struct dummy_type {
             using required_mixins =
                 cntfrc::mixin_list<cntfrc::index_tracker, cntfrc::partial_fraction_tracker,
                                    cntfrc::convergent_tracker>;
-            using local_mixin_ordering_constraints =
-                cntfrc::mixin_ordering_constraint::constraint_list<
-                    cntfrc::mixin_ordering_constraint::before_after<cntfrc::index_tracker,
-                                                                    cntfrc::interval_tracker>,
-                    cntfrc::mixin_ordering_constraint::before_after<cntfrc::convergent_tracker,
-                                                                    cntfrc::interval_tracker>>;
+            using mixin_ordering_constraints = cntfrc::mixin_ordering_constraint::constraint_list<
+                cntfrc::mixin_ordering_constraint::before_after<cntfrc::index_tracker,
+                                                                cntfrc::interval_tracker>,
+                cntfrc::mixin_ordering_constraint::before_after<cntfrc::convergent_tracker,
+                                                                cntfrc::interval_tracker>>;
         };
         auto sorted_wrapped_mixin_list =
             cntfrc::detail::find_sorted_mixin_list<dummy_type, cntfrc::interval_tracker>();
@@ -595,11 +606,9 @@ int main() {
 
     "[unary_gosper]"_test = [] {
         using convergent_t = cntfrc::projective_rational<bigint::int_var, bigint::uint_var>;
-        using unary_gosper_t = cntfrc::impl::unary_gosper<
-            cntfrc::generator<cntfrc::impl::rational<bigint::int_var, bigint::uint_var>,
-                              cntfrc::index_tracker, cntfrc::convergent_tracker,
-                              cntfrc::interval_tracker>,
-            cntfrc::unity>;
+        using unary_gosper_t =
+            cntfrc::impl::unary_gosper<cntfrc::impl::rational<bigint::int_var, bigint::uint_var>,
+                                       cntfrc::unity>;
 
         // 481/2245 = (-18*156 + 13*179)/(12*156 - 23*179)
         auto cf1 = cntfrc::make_generator<cntfrc::convergent_tracker>(unary_gosper_t{
@@ -780,10 +789,8 @@ int main() {
         };
 
         should("additional_unary_gosper") = [] {
-            using continued_fraction_t = cntfrc::impl::unary_gosper<cntfrc::generator<
-                cntfrc::impl::natural_log_calculator<bigint::int_var, bigint::uint_var>,
-                cntfrc::index_tracker, cntfrc::partial_fraction_tracker, cntfrc::convergent_tracker,
-                cntfrc::interval_tracker>>;
+            using continued_fraction_t = cntfrc::impl::unary_gosper<
+                cntfrc::impl::natural_log_calculator<bigint::int_var, bigint::uint_var>>;
 
             auto cf = cntfrc::make_generator<cntfrc::convergent_tracker>(
                 continued_fraction_t{continued_fraction_t::internal_continued_fraction_impl_type{

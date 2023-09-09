@@ -62,29 +62,30 @@ namespace jkj {
     // returns false. Once termination flag is set, now calling update() does not do anything.
     //
     // Some mixins may properly function only when some other mixins coexist inside the same
-    // generator. Such a dependency, if needed, is supposed to be specified by declaring a member
-    // type alias required_mixins as the list of required mixins. For representing a list of mixins,
-    // mixin_list type template should be used. Having no member type with the name required_mixins
-    // has the same effect as specifying an empty mixin_list<> as required_mixins. All the mixins
-    // required by the specified mixins are automatically and transitively added to the list of
-    // mixins the generator is deriving from, even if not explicltly requested by the user.
+    // generator. Such a dependency, if needed, is supposed to be specified by specializing a class
+    // template mixin_traits. All the mixins required by the specified mixins are automatically and
+    // transitively added to the list of mixins the generator is deriving from, even if not
+    // explicltly requested by the user. Some mixins may have ordering constraints; that is, to
+    // correctly function they may require certain constraints on the order of the calls to their
+    // update() member functions. Such a constraint is supposed to be also specified by specializing
+    // the template mixin_traits.
     //
-    // Some mixins may have ordering constraints; that is, to correctly function they may require
-    // certain constraints on the order of the calls to their update() member functions. Such a
-    // constraint is supposed to be specified by specializing the template
-    // global_mixin_ordering_constraints for that mixin. Each specialization of
-    // global_mixin_ordering_constraints is supposed to have two member types before_than and
-    // after_than, each is a mixin_list saying that the update() for the mixin should be called
-    // before/after the update() of all of the mixins appearing in the mixin_list's template
-    // arguments. If a mixin appearing in these lists is not in the list of mixins the generator
-    // is actually deriving from, then it is silently ignored.
+    // Each specialization of mixin_traits may have three member types: required_mixins, before_than
+    // and after_than. required_mixins specifies additional mixins required for the proper
+    // functioning of the mixin, and the other two specifies that the update() for the mixin should
+    // be called before/after the update() of all mixins specified there. Any list of mixins should
+    // be given by specializing the struct mixin_list. If a mixin appearing in
+    // before_than/after_than is not in the list of mixins the generator is actually deriving
+    // from, then it is silently ignored. Any of these three types required_mixins, before_than and
+    // after_than can be missing in the specialization of mixin_traits, which has the same effect as
+    // specifying an empty mixin_list.
     //
     // Also, some implementations may require some mixins to exist in the same generator. Such a
     // dependency can be also specified if needed by defining a member type alias required_mixins in
     // the implementation class. Any mixins specified there are automatically (and transitively)
     // added to the list of mixins the generator is deriving from, even if not explicitly requested
     // by the user. The implementation class can also specify an additional ordering constraint on
-    // mixins by defining a member type alias local_mixin_ordering_constraints. This alias should be
+    // mixins by defining a member type alias mixin_ordering_constraints. This alias should be
     // a specialization of the type alias template mixin_ordering_constraint::constraint_list.
     // There are several possible types of parameters for this template alias:
     //   - mixin_ordering_constraint::before_after<Before, After>: the update() of the mixin Before
@@ -101,7 +102,8 @@ namespace jkj {
         struct mixin_list {};
 
         template <template <class, class> class Mixin>
-        struct global_mixin_ordering_constraints {
+        struct mixin_traits {
+            using required_mixins = mixin_list<>;
             using before_than = mixin_list<>;
             using after_than = mixin_list<>;
         };
@@ -112,6 +114,16 @@ namespace jkj {
                 template <class Impl, class Generator>
                 using type = Mixin<Impl, Generator>;
             };
+
+            template <template <class, class> class Mixin>
+            constexpr mixin_traits<Mixin>
+            traits_from_wrapped_mixin_helper(mixin_type_wrapper<Mixin>) noexcept {
+                return {};
+            }
+
+            template <class WrappedMixin>
+            using traits_from_wrapped_mixin =
+                decltype(traits_from_wrapped_mixin_helper(WrappedMixin{}));
 
             template <template <class, class> class Before, template <class, class> class After>
             struct mixin_ordering_constraint_edge {};
@@ -255,6 +267,66 @@ namespace jkj {
                 }
             }
 
+            template <class T>
+            struct get_required_mixins;
+
+            template <class T>
+                requires requires { typename T::required_mixins; }
+            struct get_required_mixins<T> {
+                using type = typename T::required_mixins;
+            };
+
+            template <class T>
+                requires(!requires { typename T::required_mixins; })
+            struct get_required_mixins<T> {
+                using type = mixin_list<>;
+            };
+
+            template <class T>
+            struct get_before_than;
+
+            template <class T>
+                requires requires { typename T::before_than; }
+            struct get_before_than<T> {
+                using type = typename T::before_than;
+            };
+
+            template <class T>
+                requires(!requires { typename T::before_than; })
+            struct get_before_than<T> {
+                using type = mixin_list<>;
+            };
+
+            template <class T>
+            struct get_after_than;
+
+            template <class T>
+                requires requires { typename T::after_than; }
+            struct get_after_than<T> {
+                using type = typename T::after_than;
+            };
+
+            template <class T>
+                requires(!requires { typename T::after_than; })
+            struct get_after_than<T> {
+                using type = mixin_list<>;
+            };
+
+            template <class T>
+            struct get_mixin_ordering_constraints;
+
+            template <class T>
+                requires requires { typename T::mixin_ordering_constraints; }
+            struct get_mixin_ordering_constraints<T> {
+                using type = typename T::mixin_ordering_constraints;
+            };
+
+            template <class T>
+                requires(!requires { typename T::mixin_ordering_constraints; })
+            struct get_mixin_ordering_constraints<T> {
+                using type = tmp::typelist<>;
+            };
+
             template <class... WrappedMixins, class... Constraints>
             constexpr auto
             convert_local_mixin_ordering_constraints_list(tmp::typelist<WrappedMixins...>,
@@ -280,10 +352,9 @@ namespace jkj {
             template <class WrappedTargetMixin, class... WrappedMixins,
                       template <class, class> class... Before,
                       template <class, class> class... After>
-            constexpr auto
-            convert_single_global_mixin_ordering_constraints(tmp::typelist<WrappedMixins...>,
-                                                             mixin_list<Before...>,
-                                                             mixin_list<After...>) noexcept {
+            constexpr auto convert_single_mixin_traits(tmp::typelist<WrappedMixins...>,
+                                                       mixin_list<Before...>,
+                                                       mixin_list<After...>) noexcept {
                 constexpr std::size_t total_size = sizeof...(Before) + sizeof...(After);
 
                 if constexpr (total_size == 0) {
@@ -321,45 +392,13 @@ namespace jkj {
             }
 
             template <class... WrappedMixins>
-            constexpr auto convert_multiple_global_mixin_ordering_constraints(
-                tmp::typelist<WrappedMixins...> list) noexcept {
-                return merge_graphs(convert_single_global_mixin_ordering_constraints<WrappedMixins>(
+            constexpr auto
+            convert_multiple_mixin_traits(tmp::typelist<WrappedMixins...> list) noexcept {
+                return merge_graphs(convert_single_mixin_traits<WrappedMixins>(
                     list,
-                    typename global_mixin_ordering_constraints<
-                        WrappedMixins::template type>::before_than{},
-                    typename global_mixin_ordering_constraints<
-                        WrappedMixins::template type>::after_than{})...);
+                    typename get_before_than<traits_from_wrapped_mixin<WrappedMixins>>::type{},
+                    typename get_after_than<traits_from_wrapped_mixin<WrappedMixins>>::type{})...);
             }
-
-            template <class T>
-            struct get_required_mixins;
-
-            template <class T>
-                requires requires { typename T::required_mixins; }
-            struct get_required_mixins<T> {
-                using type = typename T::required_mixins;
-            };
-
-            template <class T>
-                requires(!requires { typename T::required_mixins; })
-            struct get_required_mixins<T> {
-                using type = mixin_list<>;
-            };
-
-            template <class T>
-            struct get_local_mixin_ordering_constraints;
-
-            template <class T>
-                requires requires { typename T::local_mixin_ordering_constraints; }
-            struct get_local_mixin_ordering_constraints<T> {
-                using type = typename T::local_mixin_ordering_constraints;
-            };
-
-            template <class T>
-                requires(!requires { typename T::local_mixin_ordering_constraints; })
-            struct get_local_mixin_ordering_constraints<T> {
-                using type = tmp::typelist<>;
-            };
 
             template <template <class, class> class... Mixins>
             constexpr tmp::typelist<mixin_type_wrapper<Mixins>...>
@@ -373,13 +412,14 @@ namespace jkj {
                 using original_list = tmp::typelist<WrappedMixins...>;
                 using augmented_list = tmp::remove_duplicate<tmp::join<
                     original_list, decltype(wrap_mixin_list(
-                                       typename get_required_mixins<WrappedMixins>::type{}))...>>;
+                                       typename get_required_mixins<
+                                           traits_from_wrapped_mixin<WrappedMixins>>::type{}))...>>;
 
                 if constexpr (std::is_same_v<augmented_list, original_list>) {
                     return augmented_list{};
                 }
                 else {
-                    return get_transitive_required_mixin_list_impl(augmented_list{});
+                    return get_transitive_required_mixin_list(augmented_list{});
                 }
             }
 
@@ -393,10 +433,10 @@ namespace jkj {
 
                     ));
 
-                constexpr auto mixin_dependency_graph = merge_graphs(
-                    convert_local_mixin_ordering_constraints_list(wrapped_mixin_list{},
-                                                                  LocalConstraintList{}),
-                    convert_multiple_global_mixin_ordering_constraints(wrapped_mixin_list{}));
+                constexpr auto mixin_dependency_graph =
+                    merge_graphs(convert_local_mixin_ordering_constraints_list(
+                                     wrapped_mixin_list{}, LocalConstraintList{}),
+                                 convert_multiple_mixin_traits(wrapped_mixin_list{}));
 
                 constexpr auto sorted_mixin_indices =
                     topological_sort<wrapped_mixin_list::size>(mixin_dependency_graph);
@@ -413,7 +453,7 @@ namespace jkj {
             template <class Impl, template <class, class> class... AdditionalMixins>
             constexpr auto find_sorted_mixin_list() noexcept {
                 return find_sorted_mixin_list_impl<
-                    typename get_local_mixin_ordering_constraints<Impl>::type>(
+                    typename get_mixin_ordering_constraints<Impl>::type>(
                     typename get_required_mixins<Impl>::type{}, mixin_list<AdditionalMixins...>{});
             }
 
@@ -589,11 +629,6 @@ namespace jkj {
             using convergent_type = typename Impl::convergent_type;
             using interval_type = typename Impl::interval_type;
 
-            using required_mixins =
-                std::conditional_t<requires(Impl impl, ContinuedFractionGenerator const& self) {
-                    impl.next_interval(self);
-                }, mixin_list<>, mixin_list<index_tracker, convergent_tracker>>;
-
             interval_type current_interval_;
 
             friend ContinuedFractionGenerator;
@@ -669,7 +704,8 @@ namespace jkj {
             }
         };
         template <>
-        struct global_mixin_ordering_constraints<interval_tracker> {
+        struct mixin_traits<interval_tracker> {
+            using required_mixins = mixin_list<index_tracker, convergent_tracker>;
             using before_than = mixin_list<>;
             using after_than = mixin_list<index_tracker, convergent_tracker>;
         };
