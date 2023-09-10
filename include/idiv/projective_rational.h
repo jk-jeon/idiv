@@ -18,10 +18,7 @@
 #ifndef JKJ_HEADER_PROJECTIVE_RATIONAL
 #define JKJ_HEADER_PROJECTIVE_RATIONAL
 
-#include <compare>
-#include <concepts>
-#include <type_traits>
-#include <utility>
+#include "util.h"
 
 namespace jkj {
     namespace cntfrc {
@@ -131,13 +128,13 @@ namespace jkj {
             }
             template <class T>
             friend constexpr bool operator==(zero, T&& x) noexcept {
-                return is_zero(x);
+                return util::is_zero(x);
             }
             template <class T>
             friend constexpr auto operator<=>(zero, T&& x) noexcept {
-                return is_strictly_negative(x) ? std::strong_ordering::greater
-                       : is_zero(x)            ? std::strong_ordering::equal
-                                               : std::strong_ordering::less;
+                return util::is_strictly_negative(x) ? std::strong_ordering::greater
+                       : util::is_zero(x)            ? std::strong_ordering::equal
+                                                     : std::strong_ordering::less;
             }
         };
 

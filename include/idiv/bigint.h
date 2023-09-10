@@ -40,7 +40,7 @@ namespace jkj {
         static_assert(std::numeric_limits<block_type>::max() >= largest_pow10_in_block);
 
         // Represents sign.
-        enum class sign_t : bool { positive = false, negative = true };
+        using sign_t = util::sign_t;
 
         constexpr sign_t invert_sign(sign_t s) noexcept {
             return s == sign_t::positive ? sign_t::negative : sign_t::positive;
@@ -1569,10 +1569,7 @@ namespace jkj {
         constexpr uint_var operator%(uint_view, uint_const_t<1u>) { return {}; }
         constexpr uint_var operator%(uint_view, uint_const_t<>) = delete;
 
-        struct uint_var_div_t {
-            uint_var quot;
-            uint_var rem;
-        };
+        using uint_var_div_t = util::div_t<uint_var>;
         constexpr uint_var_div_t div(uint_view x, uint_view y) {
             uint_var_div_t ret;
             ret.rem = uint_var(x);
@@ -3017,10 +3014,7 @@ namespace jkj {
         constexpr int_var operator%(int_view, uint_const_t<1u>) { return {}; }
         constexpr int_var operator%(int_view, uint_const_t<>) = delete;
 
-        struct int_var_div_t {
-            int_var quot;
-            uint_var rem;
-        };
+        using int_var_div_t = util::div_t<int_var, uint_var>;
         constexpr int_var_div_t div(int_view x, uint_view y) {
             int_var_div_t ret;
             auto temp = int_var(x);

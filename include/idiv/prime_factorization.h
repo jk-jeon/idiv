@@ -48,7 +48,6 @@ namespace jkj {
 
         UInt divisor{3u};
         while (true) {
-            using std::div;
             using util::max;
 
             auto const& larger_one = max(n.numerator, n.denominator);
@@ -58,8 +57,8 @@ namespace jkj {
 
             int exponent = 0;
             while (true) {
-                auto div_result = div(n.numerator, divisor);
-                if (is_zero(div_result.rem)) {
+                auto div_result = util::div(n.numerator, divisor);
+                if (util::is_zero(div_result.rem)) {
                     ++exponent;
                     n.numerator = std::move(div_result.quot);
                     continue;
@@ -67,8 +66,8 @@ namespace jkj {
                 break;
             }
             while (true) {
-                auto div_result = div(n.denominator, divisor);
-                if (is_zero(div_result.rem)) {
+                auto div_result = util::div(n.denominator, divisor);
+                if (util::is_zero(div_result.rem)) {
                     --exponent;
                     n.denominator = std::move(div_result.quot);
                     continue;

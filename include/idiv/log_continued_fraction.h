@@ -79,15 +79,15 @@ namespace jkj {
 
                 explicit constexpr natural_log_calculator(
                     frac<UInt, UInt> const& positive_rational) {
-                    util::constexpr_assert(!is_zero(positive_rational.denominator) &&
-                                           !is_zero(positive_rational.numerator));
+                    util::constexpr_assert(!util::is_zero(positive_rational.denominator) &&
+                                           !util::is_zero(positive_rational.numerator));
 
                     // For given input x, we find the reduced form of z s.t. x = (1+z)/(1-z), i.e.,
                     // z = (x-1)/(x+1). Note that z always lies in (-1,1) for x in (0,infty).
                     auto z = [&] {
                         auto cf = make_generator<convergent_tracker>(
                             rational{projective_rational<Int, UInt>{
-                                to_signed(positive_rational.numerator) -
+                                util::to_signed(positive_rational.numerator) -
                                     positive_rational.denominator,
                                 positive_rational.numerator + positive_rational.denominator}});
 
@@ -97,11 +97,11 @@ namespace jkj {
                         return cf.current_convergent();
                     }();
 
-                    is_z_negative_ = is_strictly_negative(z.numerator);
-                    current_error_bound_.numerator = abs(z.numerator);
+                    is_z_negative_ = util::is_strictly_negative(z.numerator);
+                    current_error_bound_.numerator = util::abs(z.numerator);
                     current_error_bound_.denominator = z.denominator;
                     two_q_ = (z.denominator << 1);
-                    p_square_ = abs(static_cast<Int&&>(z.numerator));
+                    p_square_ = util::abs(static_cast<Int&&>(z.numerator));
                     p_square_ *= p_square_;
                 }
 
@@ -114,9 +114,10 @@ namespace jkj {
                     else if (gen.current_index() == 0) {
                         current_error_bound_.numerator <<= 1;
                         callback(partial_fraction_type{
-                            is_z_negative_
-                                ? to_negative(static_cast<UInt&&>(current_error_bound_.numerator))
-                                : to_signed(static_cast<UInt&&>(current_error_bound_.numerator)),
+                            is_z_negative_ ? util::to_negative(static_cast<UInt&&>(
+                                                 current_error_bound_.numerator))
+                                           : util::to_signed(static_cast<UInt&&>(
+                                                 current_error_bound_.numerator)),
                             Int{static_cast<UInt&&>(current_error_bound_.denominator)}});
                     }
                     else {
@@ -131,7 +132,7 @@ namespace jkj {
                 constexpr interval_type next_interval(ContinuedFractionGenerator const& gen) {
                     util::constexpr_assert(gen.current_index() >= 0);
                     // When p = 0.
-                    if (is_zero(p_square_)) {
+                    if (util::is_zero(p_square_)) {
                         return cyclic_interval<convergent_type,
                                                cyclic_interval_type_t::single_point>{
                             convergent_type{0, 1u}};
@@ -148,7 +149,7 @@ namespace jkj {
                         if (is_z_negative_) {
                             return cyclic_interval<convergent_type, cyclic_interval_type_t::open>{
                                 convergent_type{
-                                    to_negative(static_cast<UInt&&>(error_bound.numerator)),
+                                    util::to_negative(static_cast<UInt&&>(error_bound.numerator)),
                                     static_cast<UInt&&>(error_bound.denominator)},
                                 convergent_type{0, 1u}};
                         }
@@ -156,7 +157,7 @@ namespace jkj {
                             return cyclic_interval<convergent_type, cyclic_interval_type_t::open>{
                                 convergent_type{0, 1u},
                                 convergent_type{
-                                    to_signed(static_cast<UInt&&>(error_bound.numerator)),
+                                    util::to_signed(static_cast<UInt&&>(error_bound.numerator)),
                                     static_cast<UInt&&>(error_bound.denominator)}};
                         }
                     }
@@ -183,13 +184,14 @@ namespace jkj {
 
                     if (is_z_negative_) {
                         auto lower_bound = linear_fractional_translation(
-                            to_negative(current_error_bound_.numerator),
+                            util::to_negative(current_error_bound_.numerator),
                             current_error_bound_.denominator)(gen.current_convergent());
                         return cyclic_interval<convergent_type, cyclic_interval_type_t::open>{
-                            convergent_type{is_strictly_negative(lower_bound.denominator)
-                                                ? invert_sign(std::move(lower_bound.numerator))
-                                                : std::move(lower_bound.numerator),
-                                            std::move(lower_bound.denominator)},
+                            convergent_type{
+                                util::is_strictly_negative(lower_bound.denominator)
+                                    ? util::invert_sign(std::move(lower_bound.numerator))
+                                    : std::move(lower_bound.numerator),
+                                std::move(lower_bound.denominator)},
                             gen.current_convergent()};
                     }
                     else {
@@ -262,8 +264,10 @@ namespace jkj {
                 static constexpr check_rational_return check_rational(frac<UInt, UInt> const& base,
                                                                       frac<UInt, UInt> const& x) {
                     // Both base and x must lie in the interval (0, infinity).
-                    util::constexpr_assert(!is_zero(base.numerator) && !is_zero(base.denominator));
-                    util::constexpr_assert(!is_zero(x.numerator) && !is_zero(x.denominator));
+                    util::constexpr_assert(!util::is_zero(base.numerator) &&
+                                           !util::is_zero(base.denominator));
+                    util::constexpr_assert(!util::is_zero(x.numerator) &&
+                                           !util::is_zero(x.denominator));
 
                     // Log with base 1 does not make sense.
                     util::constexpr_assert(base.numerator != base.denominator);

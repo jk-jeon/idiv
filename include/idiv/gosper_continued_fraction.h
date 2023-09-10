@@ -19,6 +19,7 @@
 #define JKJ_HEADER_GOSPER_CONTINUED_FRACTION
 
 #include "continued_fraction.h"
+#include "frac.h"
 #include <cstdlib>
 
 namespace jkj {
@@ -32,7 +33,8 @@ namespace jkj {
                     static constexpr projective_rational<Int, Int> kernel_of_rank1_transform(
                         linear_fractional_transform<NumNum, DenNum, NumDen, DenDen> const&
                             transform) {
-                        return is_zero(transform.num_to_num) && is_zero(transform.den_to_num)
+                        return util::is_zero(transform.num_to_num) &&
+                                       util::is_zero(transform.den_to_num)
                                    ? projective_rational{-Int{transform.den_to_den},
                                                          Int{transform.num_to_den}}
                                    : projective_rational{-Int{transform.den_to_num},
@@ -43,7 +45,8 @@ namespace jkj {
                     static constexpr projective_rational<Int, Int>
                     range_of_rank1_transform(linear_fractional_transform<NumNum, DenNum, NumDen,
                                                                          DenDen> const& transform) {
-                        return is_zero(transform.num_to_num) && is_zero(transform.num_to_den)
+                        return util::is_zero(transform.num_to_num) &&
+                                       util::is_zero(transform.num_to_den)
                                    ? projective_rational{Int{transform.den_to_num},
                                                          Int{transform.den_to_den}}
                                    : projective_rational{Int{transform.num_to_num},
@@ -109,8 +112,8 @@ namespace jkj {
                     // Step 1. Get away from singularities.
                     if (determinant_sign_ == 0) {
                         // The degenerate case a = b = c = d = 0 is disallowed.
-                        util::constexpr_assert(!is_zero(coeff_.num_to_num) ||
-                                               !is_zero(coeff_.den_to_num));
+                        util::constexpr_assert(!util::is_zero(coeff_.num_to_num) ||
+                                               !util::is_zero(coeff_.den_to_num));
 
                         auto singularity =
                             detail::gosper_util<int_type>::kernel_of_rank1_transform(coeff_);
@@ -158,8 +161,8 @@ namespace jkj {
                                 // If a finite rational number is the only element in the range,
                                 // then just compute the continued fraction expansion of that
                                 // number.
-                                update_and_callback(div_floor(itv.lower_bound().numerator,
-                                                              itv.lower_bound().denominator));
+                                update_and_callback(util::div_floor(itv.lower_bound().numerator,
+                                                                    itv.lower_bound().denominator));
                                 return final_result::success;
                             }
                         }
@@ -206,15 +209,15 @@ namespace jkj {
                             }
 
                             // Compare the floor.
-                            using std::div;
-                            auto floor_lower = div_floor(std::move(lower_bound.numerator),
-                                                         std::move(lower_bound.denominator));
-                            auto floor_upper = upper_bound_inclusive
-                                                   ? div_floor(itv.upper_bound().numerator,
-                                                               itv.upper_bound().denominator)
-                                                   : (div_ceil(itv.upper_bound().numerator,
-                                                               itv.upper_bound().denominator) -
-                                                      1);
+                            auto floor_lower = util::div_floor(std::move(lower_bound.numerator),
+                                                               std::move(lower_bound.denominator));
+                            auto floor_upper =
+                                upper_bound_inclusive
+                                    ? util::div_floor(itv.upper_bound().numerator,
+                                                      itv.upper_bound().denominator)
+                                    : (util::div_ceil(itv.upper_bound().numerator,
+                                                      itv.upper_bound().denominator) -
+                                       1);
 
                             if (floor_lower == floor_upper) {
                                 update_and_callback(
@@ -543,7 +546,10 @@ namespace jkj {
                         }
                         else {
                             det_sign = 0;
-                            rank = (is_zero(a) && is_zero(b) && is_zero(c) && is_zero(d) ? 0 : 1);
+                            rank = (util::is_zero(a) && util::is_zero(b) && util::is_zero(c) &&
+                                            util::is_zero(d)
+                                        ? 0
+                                        : 1);
                         }
                     };
 
@@ -594,13 +600,13 @@ namespace jkj {
                             return !globally_well_defined;
                         }
                         else if constexpr (itv_type == single_point) {
-                            return is_zero(sing_det_form.a * itv.lower_bound().numerator *
-                                               itv.lower_bound().numerator +
-                                           ((sing_det_form.b * itv.lower_bound().numerator *
-                                             itv.lower_bound().denominator)
-                                            << 1) +
-                                           sing_det_form.d * itv.lower_bound().denominator *
-                                               itv.lower_bound().denominator);
+                            return util::is_zero(sing_det_form.a * itv.lower_bound().numerator *
+                                                     itv.lower_bound().numerator +
+                                                 ((sing_det_form.b * itv.lower_bound().numerator *
+                                                   itv.lower_bound().denominator)
+                                                  << 1) +
+                                                 sing_det_form.d * itv.lower_bound().denominator *
+                                                     itv.lower_bound().denominator);
                         }
                         else {
                             auto Luu = sing_det_form.a * itv.lower_bound().numerator *
@@ -618,8 +624,12 @@ namespace jkj {
                                        sing_det_form.d * itv.upper_bound().denominator *
                                            itv.upper_bound().denominator;
 
-                            int sign_Luu = is_zero(Luu) ? 0 : is_nonnegative(Luu) ? 1 : -1;
-                            int sign_Lvv = is_zero(Lvv) ? 0 : is_nonnegative(Lvv) ? 1 : -1;
+                            int sign_Luu = util::is_zero(Luu)          ? 0
+                                           : util::is_nonnegative(Luu) ? 1
+                                                                       : -1;
+                            int sign_Lvv = util::is_zero(Lvv)          ? 0
+                                           : util::is_nonnegative(Lvv) ? 1
+                                                                       : -1;
                             if (sign_Luu * sign_Lvv <= 0) {
                                 return true;
                             }
@@ -632,7 +642,9 @@ namespace jkj {
                                            itv.upper_bound().numerator +
                                        sing_det_form.d * itv.lower_bound().denominator *
                                            itv.upper_bound().denominator;
-                            int sign_Luv = is_zero(Luv) ? 0 : is_nonnegative(Luv) ? 1 : -1;
+                            int sign_Luv = util::is_zero(Luv)          ? 0
+                                           : util::is_nonnegative(Luv) ? 1
+                                                                       : -1;
                             return sign_Luu * sign_Luv < 0;
                         }
                     };
@@ -828,8 +840,8 @@ namespace jkj {
                                 // If a finite rational number is the only element in the range,
                                 // then just compute the continued fraction expansion of that
                                 // number.
-                                update_and_callback(div_floor(itv.lower_bound().numerator,
-                                                              itv.lower_bound().denominator));
+                                update_and_callback(util::div_floor(itv.lower_bound().numerator,
+                                                                    itv.lower_bound().denominator));
                                 return final_result::success;
                             }
                         }
@@ -871,9 +883,9 @@ namespace jkj {
 
                             // Compare the floor.
                             auto floor_lower =
-                                div_floor(lower_bound.numerator, lower_bound.denominator);
-                            auto floor_upper = div_floor(itv.upper_bound().numerator,
-                                                         itv.upper_bound().denominator);
+                                util::div_floor(lower_bound.numerator, lower_bound.denominator);
+                            auto floor_upper = util::div_floor(itv.upper_bound().numerator,
+                                                               itv.upper_bound().denominator);
                             if (floor_lower == floor_upper) {
                                 update_and_callback(std::move(floor_lower));
                                 return final_result::success;

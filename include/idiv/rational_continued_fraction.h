@@ -52,9 +52,8 @@ namespace jkj {
 
                 template <class Callback>
                 constexpr void with_next_partial_fraction(Callback&& callback) {
-                    if (!is_zero(fraction_.denominator)) {
-                        using std::div;
-                        auto div_result = div(fraction_.numerator, fraction_.denominator);
+                    if (!util::is_zero(fraction_.denominator)) {
+                        auto div_result = util::div(fraction_.numerator, fraction_.denominator);
                         fraction_.numerator = Int{static_cast<UInt&&>(fraction_.denominator)};
                         fraction_.denominator = static_cast<UInt&&>(div_result.rem);
 

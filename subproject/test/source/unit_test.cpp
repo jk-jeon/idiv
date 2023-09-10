@@ -1,5 +1,6 @@
 #include <idiv/bigint.h>
 #include <idiv/log_continued_fraction.h>
+#include <idiv/best_rational_approx.h>
 #include <boost/ut.hpp>
 
 int main() {
@@ -882,5 +883,21 @@ int main() {
             expect(cf.update() == true);
             expect(cf.current_convergent() == convergent_t{-25'534'157, 42'138'835u});
         };
+    };
+
+    "[best_rational_approx]"_test = [] {
+        using convergent_t = cntfrc::projective_rational<bigint::int_var, bigint::uint_var>;
+        {
+            // Effectively rational case.
+            auto cf = cntfrc::make_generator<cntfrc::index_tracker,
+                                             cntfrc::previous_previous_convergent_tracker>(
+                cntfrc::impl::rational<bigint::int_var, bigint::uint_var>{
+                    convergent_t{137, 129u}});
+
+            auto result = idiv::find_best_rational_approx(cf, 150);
+            expect(result.below == convergent_t{137, 129u});
+            expect(result.above == convergent_t{137, 129u});
+        }
+
     };
 }

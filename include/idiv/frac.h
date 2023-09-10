@@ -18,8 +18,7 @@
 #ifndef JKJ_HEADER_FRAC
 #define JKJ_HEADER_FRAC
 
-#include <compare>
-#include <type_traits>
+#include "util.h"
 
 namespace jkj {
     // Num: supposed to be jkj::bigint::uint_var/uint_const_t/int_var/int_const_t.
@@ -77,24 +76,25 @@ namespace jkj {
     constexpr auto operator/(frac<Num1, Den1> const& x, frac<Num2, Den2> const& y) {
         auto num = x.numerator * y.denominator;
         auto den = x.denominator * y.numerator;
-        if (is_strictly_negative(den)) {
-            return frac{invert_sign(static_cast<decltype(num)&&>(num)),
-                        abs(static_cast<decltype(den)&&>(den))};
+        if (util::is_strictly_negative(den)) {
+            return frac{util::invert_sign(static_cast<decltype(num)&&>(num)),
+                        util::abs(static_cast<decltype(den)&&>(den))};
         }
         else {
-            return frac{static_cast<decltype(num)&&>(num), abs(static_cast<decltype(den)&&>(den))};
+            return frac{static_cast<decltype(num)&&>(num),
+                        util::abs(static_cast<decltype(den)&&>(den))};
         }
     }
 
     // Performs no reduction.
     template <class Num, class Den>
     constexpr auto make_frac_from_signed(Num&& numerator, Den&& denominator) {
-        if (is_strictly_negative(denominator)) {
-            return frac{invert_sign(static_cast<Num&&>(numerator)),
-                        abs(static_cast<Den&&>(denominator))};
+        if (util::is_strictly_negative(denominator)) {
+            return frac{util::invert_sign(static_cast<Num&&>(numerator)),
+                        util::abs(static_cast<Den&&>(denominator))};
         }
         else {
-            return frac{static_cast<Num&&>(numerator), abs(static_cast<Den&&>(denominator))};
+            return frac{static_cast<Num&&>(numerator), util::abs(static_cast<Den&&>(denominator))};
         }
     }
 }
