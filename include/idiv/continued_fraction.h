@@ -615,8 +615,8 @@ namespace jkj {
                     next_partial_fraction.numerator * previous_convergent_denominator();
 
                 previous_convergent_ = static_cast<convergent_type&&>(current_convergent_);
-                current_convergent_ =
-                    convergent_type{std::move(next_numerator), abs(std::move(next_denominator))};
+                current_convergent_ = convergent_type{std::move(next_numerator),
+                                                      util::abs(std::move(next_denominator))};
             }
 
         public:
@@ -641,10 +641,11 @@ namespace jkj {
             }
         };
 
-        // Mixin: stores the last three convergents (including the current one) of the continued
-        // fraction expansion.
+        // Mixin: stores the previous previous convergent of the continued fraction expansion.
+        // Depends on convergent_tracker's presence, so including this mixin results in tracking the
+        // last three convergents.
         template <class Impl, class Generator>
-        class convergent_triple_tracker {
+        class previous_previous_convergent_tracker {
             using partial_fraction_type = typename Impl::partial_fraction_type;
             using convergent_type = typename Impl::convergent_type;
 
@@ -652,7 +653,7 @@ namespace jkj {
 
             friend Generator;
 
-            explicit constexpr convergent_triple_tracker(Impl const&) noexcept {}
+            explicit constexpr previous_previous_convergent_tracker(Impl const&) noexcept {}
 
             constexpr void update(partial_fraction_type const&, Impl const&) {
                 previous_previous_convergent_ =
@@ -671,7 +672,7 @@ namespace jkj {
             }
         };
         template <>
-        struct mixin_traits<convergent_triple_tracker> {
+        struct mixin_traits<previous_previous_convergent_tracker> {
             using required_mixins = mixin_list<convergent_tracker>;
             using before_than = mixin_list<convergent_tracker>;
         };
