@@ -20,7 +20,9 @@
 #define JKJ_HEADER_IDIV_UTIL
 
 #include <cassert>
+#include <concepts>
 #include <cstddef>
+#include <limits>
 #include <type_traits>
 #include <utility>
 
@@ -184,6 +186,277 @@ namespace jkj {
             value_type* ptr_;
             std::size_t size_;
         };
+
+        // Some utilities for dealing with primitive integer types.
+        enum class sign_t : bool { positive = false, negative = true };
+        template <class MaybeSigned, class Remainder = MaybeSigned>
+        struct div_t {
+            MaybeSigned quot;
+            Remainder rem;
+        };
+        namespace detail {
+            // Conversion between unsigned entities and signed entities.
+            constexpr auto to_signed(std::unsigned_integral auto n) noexcept {
+                using unsigned_t = decltype(n);
+                using signed_t = std::make_signed_t<unsigned_t>;
+                // There should be no UB here.
+                util::constexpr_assert(
+                    n <= static_cast<unsigned_t>(std::numeric_limits<signed_t>::max()));
+                return static_cast<signed_t>(n);
+            }
+            constexpr auto to_signed(std::signed_integral auto n) noexcept { return n; }
+            struct to_signed_impl {
+                constexpr decltype(auto) operator()(auto&& n) const {
+                    return to_signed(static_cast<decltype(n)&&>(n));
+                }
+            };
+
+            constexpr auto to_negative(std::unsigned_integral auto n) noexcept {
+                using unsigned_t = decltype(n);
+                using signed_t = std::make_signed_t<unsigned_t>;
+                // There should be no UB here.
+                util::constexpr_assert(
+                    static_cast<unsigned_t>(-n) >=
+                    static_cast<unsigned_t>(std::numeric_limits<signed_t>::min()));
+                return static_cast<signed_t>(-n);
+            }
+            struct to_negative_impl {
+                constexpr decltype(auto) operator()(auto&& n) const {
+                    return to_negative(static_cast<decltype(n)&&>(n));
+                }
+            };
+
+            constexpr auto abs(std::unsigned_integral auto n) noexcept { return n; }
+            constexpr auto abs(std::signed_integral auto n) noexcept {
+                using unsigned_t = std::make_unsigned_t<decltype(n)>;
+                return n >= 0 ? static_cast<unsigned_t>(n)
+                              : static_cast<unsigned_t>(-static_cast<unsigned_t>(n));
+            }
+            struct abs_impl {
+                constexpr decltype(auto) operator()(auto&& n) const {
+                    return abs(static_cast<decltype(n)&&>(n));
+                }
+            };
+
+            // Some inspection functions.
+            constexpr bool is_zero(std::unsigned_integral auto n) noexcept { return n == 0; }
+            constexpr bool is_zero(std::signed_integral auto n) noexcept { return n == 0; }
+            struct is_zero_impl {
+                constexpr decltype(auto) operator()(auto&& n) const {
+                    return is_zero(static_cast<decltype(n)&&>(n));
+                }
+            };
+
+            constexpr bool is_even(std::unsigned_integral auto n) noexcept { return n % 2 == 0; }
+            constexpr bool is_even(std::signed_integral auto n) noexcept { return n % 2 == 0; }
+            struct is_even_impl {
+                constexpr decltype(auto) operator()(auto&& n) const {
+                    return is_even(static_cast<decltype(n)&&>(n));
+                }
+            };
+
+            constexpr bool is_strictly_positive(std::unsigned_integral auto n) noexcept {
+                return n > 0;
+            }
+            constexpr bool is_strictly_positive(std::signed_integral auto n) noexcept {
+                return n > 0;
+            }
+            struct is_strictly_positive_impl {
+                constexpr decltype(auto) operator()(auto&& n) const {
+                    return is_strictly_positive(static_cast<decltype(n)&&>(n));
+                }
+            };
+
+            constexpr bool is_strictly_negative(std::unsigned_integral auto) noexcept {
+                return false;
+            }
+            constexpr bool is_strictly_negative(std::signed_integral auto n) noexcept {
+                return n < 0;
+            }
+            struct is_strictly_negative_impl {
+                constexpr decltype(auto) operator()(auto&& n) const {
+                    return is_strictly_negative(static_cast<decltype(n)&&>(n));
+                }
+            };
+
+            constexpr bool is_nonnegative(std::unsigned_integral auto) noexcept { return true; }
+            constexpr bool is_nonnegative(std::signed_integral auto n) noexcept { return n >= 0; }
+            struct is_nonnegative_impl {
+                constexpr decltype(auto) operator()(auto&& n) const {
+                    return is_nonnegative(static_cast<decltype(n)&&>(n));
+                }
+            };
+
+            constexpr bool is_nonpositive(std::unsigned_integral auto n) noexcept { return n == 0; }
+            constexpr bool is_nonpositive(std::signed_integral auto n) noexcept { return n <= 0; }
+            struct is_nonpositive_impl {
+                constexpr decltype(auto) operator()(auto&& n) const {
+                    return is_nonpositive(static_cast<decltype(n)&&>(n));
+                }
+            };
+
+            constexpr sign_t sign(std::unsigned_integral auto) noexcept { return sign_t::positive; }
+            constexpr sign_t sign(std::signed_integral auto n) noexcept {
+                return n >= 0 ? sign_t::positive : sign_t::negative;
+            }
+            struct sign_impl {
+                constexpr decltype(auto) operator()(auto&& n) const {
+                    return sign(static_cast<decltype(n)&&>(n));
+                }
+            };
+
+            // Sign inversion functions.
+            constexpr auto invert_sign(std::signed_integral auto n) noexcept {
+                using signed_t = decltype(n);
+                using unsigned_t = std::make_unsigned_t<signed_t>;
+                auto const unsigned_negative_n =
+                    static_cast<unsigned_t>(-static_cast<unsigned_t>(n));
+
+                // There should be no UB here.
+                util::constexpr_assert(
+                    (n >= 0 && unsigned_negative_n >=
+                                   static_cast<unsigned_t>(std::numeric_limits<signed_t>::min())) ||
+                    (n < 0 && unsigned_negative_n <=
+                                  static_cast<unsigned_t>(std::numeric_limits<signed_t>::max())));
+                return static_cast<signed_t>(unsigned_negative_n);
+            }
+            struct invert_sign_impl {
+                constexpr decltype(auto) operator()(auto&& n) const {
+                    return invert_sign(static_cast<decltype(n)&&>(n));
+                }
+            };
+
+            // Divisions.
+            template <std::unsigned_integral UInt>
+            constexpr div_t<UInt> div(UInt x, UInt y) noexcept {
+                return {static_cast<UInt>(x / y), static_cast<UInt>(x % y)};
+            }
+            // Follows the convention 0 <= r < q, where q is the divisor and r is the remainder.
+            template <std::signed_integral Int, std::unsigned_integral UInt>
+            constexpr auto div(Int x, UInt y) noexcept {
+                using common_uint = std::common_type_t<std::make_unsigned_t<Int>, UInt>;
+
+                auto const abs_x = static_cast<common_uint>(abs(x));
+                auto div_result = div(abs_x, y);
+                if (x < 0 && div_result.rem != 0) {
+                    ++div_result.quot;
+                    div_result.rem = static_cast<common_uint>(y - div_result.rem);
+                }
+                return div_t<std::make_signed_t<common_uint>, common_uint>{
+                    to_negative(div_result.quot), div_result.rem};
+            }
+            struct div_impl {
+                constexpr decltype(auto) operator()(auto&& x, auto&& y) const {
+                    return div(static_cast<decltype(x)&&>(x), static_cast<decltype(y)&&>(y));
+                }
+            };
+
+            template <std::unsigned_integral UInt>
+            constexpr UInt div_floor(UInt x, UInt y) noexcept {
+                return static_cast<UInt>(x / y);
+            }
+            template <std::signed_integral Int, std::unsigned_integral UInt>
+            constexpr auto div_floor(Int x, UInt y) noexcept {
+                return div(x, y).quot;
+            }
+            template <std::unsigned_integral UInt, std::signed_integral Int>
+            constexpr auto div_floor(UInt x, Int y) noexcept {
+                using common_uint = std::common_type_t<UInt, std::make_unsigned_t<Int>>;
+
+                if (y > 0) {
+                    return static_cast<common_uint>(x / static_cast<common_uint>(y));
+                }
+                else {
+                    auto const abs_y = static_cast<common_uint>(abs(y));
+                    auto div_result = div(x, abs_y);
+                    if (div_result.rem != 0) {
+                        ++div_result.quot;
+                    }
+                    return to_negative(div_result.quot);
+                }
+            }
+            template <std::signed_integral Int>
+            constexpr Int div_floor(Int x, Int y) noexcept {
+                auto const abs_x = abs(x);
+                auto const abs_y = abs(y);
+                if (sign(x) == sign(y)) {
+                    return abs_x / abs_y;
+                }
+                else {
+                    auto div_result = div(abs_x, abs_y);
+                    if (div_result.rem != 0) {
+                        ++div_result.quot;
+                    }
+                    return to_negative(div_result.quot);
+                }
+            }
+            struct div_floor_impl {
+                constexpr decltype(auto) operator()(auto&& x, auto&& y) const {
+                    return div_floor(static_cast<decltype(x)&&>(x), static_cast<decltype(y)&&>(y));
+                }
+            };
+
+            template <std::unsigned_integral UInt>
+            constexpr UInt div_ceil(UInt x, UInt y) noexcept {
+                auto div_result = div(x, y);
+                if (div_result.rem != 0) {
+                    ++div_result.quot;
+                }
+                return div_result.quot;
+            }
+            template <std::signed_integral Int, std::unsigned_integral UInt>
+            constexpr auto div_ceil(Int x, UInt y) noexcept {
+                using common_uint = std::common_type_t<std::make_unsigned_t<Int>, UInt>;
+                auto const abs_x = static_cast<common_uint>(abs(x));
+                if (x > 0) {
+                    return to_signed(div_ceil(abs_x, y));
+                }
+                else {
+                    return to_negative(abs_x / y);
+                }
+            }
+            template <std::unsigned_integral UInt, std::signed_integral Int>
+            constexpr auto div_ceil(UInt x, Int y) noexcept {
+                using common_uint = std::common_type_t<UInt, std::make_unsigned_t<Int>>;
+                auto const abs_y = static_cast<common_uint>(abs(y));
+                if (y > 0) {
+                    return to_signed(div_ceil(x, abs_y));
+                }
+                else {
+                    return to_negative(x / abs_y);
+                }
+            }
+            template <std::signed_integral Int>
+            constexpr Int div_ceil(Int x, Int y) noexcept {
+                auto const abs_x = abs(x);
+                auto const abs_y = abs(y);
+                if (sign(x) == sign(y)) {
+                    return to_signed(div_ceil(abs_x, abs_y));
+                }
+                else {
+                    return to_negative(abs_x / abs_y);
+                }
+            }
+            struct div_ceil_impl {
+                constexpr decltype(auto) operator()(auto&& x, auto&& y) const {
+                    return div_ceil(static_cast<decltype(x)&&>(x), static_cast<decltype(y)&&>(y));
+                }
+            };
+        }
+        inline constexpr auto to_signed = detail::to_signed_impl{};
+        inline constexpr auto to_negative = detail::to_negative_impl{};
+        inline constexpr auto abs = detail::abs_impl{};
+        inline constexpr auto is_zero = detail::is_zero_impl{};
+        inline constexpr auto is_even = detail::is_even_impl{};
+        inline constexpr auto is_strictly_positive = detail::is_strictly_positive_impl{};
+        inline constexpr auto is_strictly_negative = detail::is_strictly_negative_impl{};
+        inline constexpr auto is_nonnegative = detail::is_nonnegative_impl{};
+        inline constexpr auto is_nonpositive = detail::is_nonpositive_impl{};
+        inline constexpr auto sign = detail::sign_impl{};
+        inline constexpr auto invert_sign = detail::invert_sign_impl{};
+        inline constexpr auto div = detail::div_impl{};
+        inline constexpr auto div_floor = detail::div_floor_impl{};
+        inline constexpr auto div_ceil = detail::div_ceil_impl{};
     }
 
     // Some metaprogramming utilities.
