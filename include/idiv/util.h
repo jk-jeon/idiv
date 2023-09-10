@@ -338,12 +338,18 @@ namespace jkj {
 
                 auto const abs_x = static_cast<common_uint>(abs(x));
                 auto div_result = div(abs_x, y);
-                if (x < 0 && div_result.rem != 0) {
-                    ++div_result.quot;
-                    div_result.rem = static_cast<common_uint>(y - div_result.rem);
+                if (x < 0) {
+                    if (div_result.rem != 0) {
+                        ++div_result.quot;
+                        div_result.rem = static_cast<common_uint>(y - div_result.rem);
+                    }
+                    return div_t<std::make_signed_t<common_uint>, common_uint>{
+                        to_negative(div_result.quot), div_result.rem};
                 }
-                return div_t<std::make_signed_t<common_uint>, common_uint>{
-                    to_negative(div_result.quot), div_result.rem};
+                else {
+                    return div_t<std::make_signed_t<common_uint>, common_uint>{
+                        to_signed(div_result.quot), div_result.rem};
+                }
             }
             struct div_impl {
                 constexpr decltype(auto) operator()(auto&& x, auto&& y) const {
@@ -364,7 +370,8 @@ namespace jkj {
                 using common_uint = std::common_type_t<UInt, std::make_unsigned_t<Int>>;
 
                 if (y > 0) {
-                    return static_cast<common_uint>(x / static_cast<common_uint>(y));
+                    return static_cast<std::make_signed_t<common_uint>>(
+                        x / static_cast<common_uint>(y));
                 }
                 else {
                     auto const abs_y = static_cast<common_uint>(abs(y));
@@ -372,7 +379,8 @@ namespace jkj {
                     if (div_result.rem != 0) {
                         ++div_result.quot;
                     }
-                    return to_negative(div_result.quot);
+                    return static_cast<std::make_signed_t<common_uint>>(
+                        to_negative(div_result.quot));
                 }
             }
             template <std::signed_integral Int>
@@ -380,7 +388,7 @@ namespace jkj {
                 auto const abs_x = abs(x);
                 auto const abs_y = abs(y);
                 if (sign(x) == sign(y)) {
-                    return abs_x / abs_y;
+                    return to_signed(abs_x / abs_y);
                 }
                 else {
                     auto div_result = div(abs_x, abs_y);

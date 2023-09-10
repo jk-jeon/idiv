@@ -7,6 +7,137 @@ int main() {
     using namespace boost::ut;
     using namespace jkj;
 
+    "[integer_util]"_test = [] {
+        auto to_signed_from_unsigned = util::to_signed(3u);
+        auto to_signed_from_signed = util::to_signed(3);
+        auto to_negative_from_unsigned = util::to_negative(2147483647u);
+        auto abs_from_unsigned = util::abs(4294967295u);
+        auto abs_from_signed = util::abs(static_cast<int>(-2147483648ll));
+        auto invert_sign = util::invert_sign(2147483647);
+        expect(std::is_same_v<decltype(to_signed_from_unsigned), int> &&
+               to_signed_from_unsigned == 3);
+        expect(std::is_same_v<decltype(to_signed_from_signed), int> && to_signed_from_signed == 3);
+        expect(std::is_same_v<decltype(to_negative_from_unsigned), int> &&
+               to_negative_from_unsigned == -2147483647);
+        expect(std::is_same_v<decltype(abs_from_unsigned), unsigned int> &&
+               abs_from_unsigned == 4294967295u);
+        expect(std::is_same_v<decltype(abs_from_signed), unsigned int> &&
+               abs_from_signed == 2147483648u);
+        expect(std::is_same_v<decltype(invert_sign), int> && invert_sign == -2147483647);
+
+        auto div_uint_uint = util::div(18u, 7u);
+        auto div_int_uint_positive = util::div(37, 9u);
+        auto div_int_uint_positive_divisible = util::div(36, 9u);
+        auto div_int_uint_negative = util::div(-37, 9u);
+        auto div_int_uint_negative_divisible = util::div(-36, 9u);
+        expect(std::is_same_v<decltype(div_uint_uint.quot), unsigned int> &&
+               div_uint_uint.quot == 2u &&
+               std::is_same_v<decltype(div_uint_uint.rem), unsigned int> &&
+               div_uint_uint.rem == 4u);
+        expect(std::is_same_v<decltype(div_int_uint_positive.quot), int> &&
+               div_int_uint_positive.quot == 4 &&
+               std::is_same_v<decltype(div_int_uint_positive.rem), unsigned int> &&
+               div_int_uint_positive.rem == 1u);
+        expect(std::is_same_v<decltype(div_int_uint_positive_divisible.quot), int> &&
+               div_int_uint_positive_divisible.quot == 4 &&
+               std::is_same_v<decltype(div_int_uint_positive_divisible.rem), unsigned int> &&
+               div_int_uint_positive_divisible.rem == 0u);
+        expect(std::is_same_v<decltype(div_int_uint_negative.quot), int> &&
+               div_int_uint_negative.quot == -5 &&
+               std::is_same_v<decltype(div_int_uint_negative.rem), unsigned int> &&
+               div_int_uint_negative.rem == 8u);
+        expect(std::is_same_v<decltype(div_int_uint_negative_divisible.quot), int> &&
+               div_int_uint_negative_divisible.quot == -4 &&
+               std::is_same_v<decltype(div_int_uint_negative_divisible.rem), unsigned int> &&
+               div_int_uint_negative_divisible.rem == 0u);
+
+        auto div_floor_uint_uint = util::div_floor(71u, 9u);
+        auto div_floor_uint_uint_divisible = util::div_floor(72u, 9u);
+        auto div_floor_int_uint_positive = util::div_floor(71, 9u);
+        auto div_floor_int_uint_positive_divisible = util::div_floor(72, 9u);
+        auto div_floor_int_uint_negative = util::div_floor(-71, 9u);
+        auto div_floor_int_uint_negative_divisible = util::div_floor(-72, 9u);
+        auto div_floor_uint_int_positive = util::div_floor(71u, 9);
+        auto div_floor_uint_int_positive_divisible = util::div_floor(72u, 9);
+        auto div_floor_uint_int_negative = util::div_floor(71u, -9);
+        auto div_floor_uint_int_negative_divisible = util::div_floor(72u, -9);
+        auto div_floor_int_int_positive = util::div_floor(71, 9);
+        auto div_floor_int_int_positive_divisible = util::div_floor(72, 9);
+        auto div_floor_int_int_negative = util::div_floor(71, -9);
+        auto div_floor_int_int_negative_divisible = util::div_floor(72, -9);
+        expect(std::is_same_v<decltype(div_floor_uint_uint), unsigned int> &&
+               div_floor_uint_uint == 7u);
+        expect(std::is_same_v<decltype(div_floor_uint_uint_divisible), unsigned int> &&
+               div_floor_uint_uint_divisible == 8u);
+        expect(std::is_same_v<decltype(div_floor_int_uint_positive), int> &&
+               div_floor_int_uint_positive == 7);
+        expect(std::is_same_v<decltype(div_floor_int_uint_positive_divisible), int> &&
+               div_floor_int_uint_positive_divisible == 8);
+        expect(std::is_same_v<decltype(div_floor_int_uint_negative), int> &&
+               div_floor_int_uint_negative == -8);
+        expect(std::is_same_v<decltype(div_floor_int_uint_negative_divisible), int> &&
+               div_floor_int_uint_negative_divisible == -8);
+        expect(std::is_same_v<decltype(div_floor_uint_int_positive), int> &&
+               div_floor_uint_int_positive == 7);
+        expect(std::is_same_v<decltype(div_floor_uint_int_positive_divisible), int> &&
+               div_floor_uint_int_positive_divisible == 8);
+        expect(std::is_same_v<decltype(div_floor_uint_int_negative), int> &&
+               div_floor_uint_int_negative == -8);
+        expect(std::is_same_v<decltype(div_floor_uint_int_negative_divisible), int> &&
+               div_floor_uint_int_negative_divisible == -8);
+        expect(std::is_same_v<decltype(div_floor_int_int_positive), int> &&
+               div_floor_int_int_positive == 7);
+        expect(std::is_same_v<decltype(div_floor_int_int_positive_divisible), int> &&
+               div_floor_int_int_positive_divisible == 8);
+        expect(std::is_same_v<decltype(div_floor_int_int_negative), int> &&
+               div_floor_int_int_negative == -8);
+        expect(std::is_same_v<decltype(div_floor_int_int_negative_divisible), int> &&
+               div_floor_int_int_negative_divisible == -8);
+
+        auto div_ceil_uint_uint = util::div_ceil(71u, 9u);
+        auto div_ceil_uint_uint_divisible = util::div_ceil(72u, 9u);
+        auto div_ceil_int_uint_positive = util::div_ceil(71, 9u);
+        auto div_ceil_int_uint_positive_divisible = util::div_ceil(72, 9u);
+        auto div_ceil_int_uint_negative = util::div_ceil(-71, 9u);
+        auto div_ceil_int_uint_negative_divisible = util::div_ceil(-72, 9u);
+        auto div_ceil_uint_int_positive = util::div_ceil(71u, 9);
+        auto div_ceil_uint_int_positive_divisible = util::div_ceil(72u, 9);
+        auto div_ceil_uint_int_negative = util::div_ceil(71u, -9);
+        auto div_ceil_uint_int_negative_divisible = util::div_ceil(72u, -9);
+        auto div_ceil_int_int_positive = util::div_ceil(71, 9);
+        auto div_ceil_int_int_positive_divisible = util::div_ceil(72, 9);
+        auto div_ceil_int_int_negative = util::div_ceil(71, -9);
+        auto div_ceil_int_int_negative_divisible = util::div_ceil(72, -9);
+        expect(std::is_same_v<decltype(div_ceil_uint_uint), unsigned int> &&
+               div_ceil_uint_uint == 8u);
+        expect(std::is_same_v<decltype(div_ceil_uint_uint_divisible), unsigned int> &&
+               div_ceil_uint_uint_divisible == 8u);
+        expect(std::is_same_v<decltype(div_ceil_int_uint_positive), int> &&
+               div_ceil_int_uint_positive == 8);
+        expect(std::is_same_v<decltype(div_ceil_int_uint_positive_divisible), int> &&
+               div_ceil_int_uint_positive_divisible == 8);
+        expect(std::is_same_v<decltype(div_ceil_int_uint_negative), int> &&
+               div_ceil_int_uint_negative == -7);
+        expect(std::is_same_v<decltype(div_ceil_int_uint_negative_divisible), int> &&
+               div_ceil_int_uint_negative_divisible == -8);
+        expect(std::is_same_v<decltype(div_ceil_uint_int_positive), int> &&
+               div_ceil_uint_int_positive == 8);
+        expect(std::is_same_v<decltype(div_ceil_uint_int_positive_divisible), int> &&
+               div_ceil_uint_int_positive_divisible == 8);
+        expect(std::is_same_v<decltype(div_ceil_uint_int_negative), int> &&
+               div_ceil_uint_int_negative == -7);
+        expect(std::is_same_v<decltype(div_ceil_uint_int_negative_divisible), int> &&
+               div_ceil_uint_int_negative_divisible == -8);
+        expect(std::is_same_v<decltype(div_ceil_int_int_positive), int> &&
+               div_ceil_int_int_positive == 8);
+        expect(std::is_same_v<decltype(div_ceil_int_int_positive_divisible), int> &&
+               div_ceil_int_int_positive_divisible == 8);
+        expect(std::is_same_v<decltype(div_ceil_int_int_negative), int> &&
+               div_ceil_int_int_negative == -7);
+        expect(std::is_same_v<decltype(div_ceil_int_int_negative_divisible), int> &&
+               div_ceil_int_int_negative_divisible == -8);
+    };
+
     "[tmp]"_test = [] {
         using typelist = tmp::typelist<int, double, float, char, float, double, unsigned int, long>;
         should("find_first_index") = [] {
@@ -891,13 +1022,11 @@ int main() {
             // Effectively rational case.
             auto cf = cntfrc::make_generator<cntfrc::index_tracker,
                                              cntfrc::previous_previous_convergent_tracker>(
-                cntfrc::impl::rational<bigint::int_var, bigint::uint_var>{
-                    convergent_t{137, 129u}});
+                cntfrc::impl::rational<bigint::int_var, bigint::uint_var>{convergent_t{137, 129u}});
 
             auto result = idiv::find_best_rational_approx(cf, 150);
             expect(result.below == convergent_t{137, 129u});
             expect(result.above == convergent_t{137, 129u});
         }
-
     };
 }
