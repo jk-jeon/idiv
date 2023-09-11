@@ -1469,6 +1469,11 @@ namespace jkj {
         constexpr uint_var operator-(uint_var&& x, uint_const_t<>) {
             return static_cast<uint_var&&>(x);
         }
+        constexpr uint_var operator-(convertible_to_block_type auto x, uint_view y) {
+            auto r = uint_var(x);
+            r -= y;
+            return r;
+        }
 
         constexpr uint_var operator*(uint_view x, uint_view y) {
             uint_var r;
