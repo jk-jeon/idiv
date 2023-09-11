@@ -3133,6 +3133,12 @@ namespace jkj {
         }
         constexpr int_var div_ceil(int_view x, int_const_t<>) = delete;
 
+        // Find the largest power of 2 dividing n, divide n by that power, and return
+        // the exponent.
+        constexpr std::size_t factor_out_power_of_2(int_var& n) noexcept {
+            return n.factor_out_power_of_2();
+        }
+
         // Operations on int_const.
         namespace detail {
             // Used for converting int_var into int_const.
