@@ -21,91 +21,9 @@
 
 #include "best_rational_approx.h"
 #include "bigint.h"
-#include "caching_continued_fraction.h"
-#include "interval.h"
-#include "rational_continued_fraction.h"
 
 namespace jkj {
     namespace idiv {
-        // For a given real number x and a positive integer nmax, find the interval
-        // [max_n floor(nx)/n, min_n (floor(nx)+1)/n), where n ranges from {1, ... , nmax}.
-        // The number x is given in terms of its continued fractions. The first parameter cf is the
-        // continued fractions calculator for x. It must be initialized, i.e., it should start with
-        // the "convergent" 1/0 when evaluated.
-        template <class ConvergentGenerator, class UInt>
-        constexpr interval<typename ConvergentGenerator::convergent_type,
-                           interval_type_t::bounded_left_closed_right_open>
-        find_floor_quotient_range(ConvergentGenerator& cf, UInt const& nmax) {
-            util::constexpr_assert(is_strictly_positive(nmax));
-
-            using convergent_type = typename ConvergentGenerator::convergent_type;
-
-            // First, find the last convergent and the last semiconvergent whose denominator is
-            // bounded above by nmax.
-            convergent_type previous_previous_convergent;
-
-            // This lambda replaces previous_previous_convergent to the last semiconvergent, and
-            // return it as an rvalue reference.
-            auto get_last_semiconvergent = [&]() -> decltype(auto) {
-                auto semiconvergent_coeff = (nmax - previous_previous_convergent.denominator) /
-                                            cf.previous_convergent_denominator();
-
-                previous_previous_convergent.numerator +=
-                    semiconvergent_coeff * cf.previous_convergent_numerator();
-                previous_previous_convergent.denominator +=
-                    semiconvergent_coeff * cf.previous_convergent_denominator();
-
-                return static_cast<convergent_type&&>(previous_previous_convergent);
-            };
-
-            while (cf.current_convergent_denominator() <= nmax) {
-                // If we reach to the perfect approximation, then we have to find the largest
-                // positive integer v <= nmax such that vp == -1 (mod q), where x = p/q. Then the
-                // lower bound is p/q, while the upper bound is ((vp+1)/q) / v.
-                if (cf.is_terminated()) {
-                    // To compute v, we find the modular inverse b of -p. This can be done by
-                    // observing that the best rational approximation from above whose denominator
-                    // is strictly less than q must be precisely ((bp+1)/q) / b. Then
-                    //        v = b + floor((nmax - b)/q)q and
-                    // (vp+1)/q = (bp+1)/q + floor((nmax - b)/q)p.
-
-                    // If we ended at an even convergent, the last convergent is the best rational
-                    // approximation from above. Otherwise, the last semiconvergent is the best
-                    // rational approximation from above.
-                    auto upper_bound = cf.current_index() % 2 == 0 ? cf.previous_convergent()
-                                                                   : get_last_semiconvergent();
-
-                    // At this point, upper_bound is ((bp+1)/q) / b, so we adjust the numerator and
-                    // the denominator by floor((nmax - b)/q).
-                    auto max_quotient =
-                        (nmax - upper_bound.denominator) / cf.current_convergent().denominator;
-                    upper_bound.numerator += max_quotient * cf.current_convergent().numerator;
-                    upper_bound.denominator += max_quotient * cf.current_convergent().denominator;
-
-                    return {cf.current_convergent(), static_cast<convergent_type&&>(upper_bound)};
-                }
-
-                // Obtain the next convergent.
-                previous_previous_convergent = cf.previous_convergent();
-                cf.update();
-            }
-
-            // If there the last convergent is still not a perfect approximation, then we return
-            // the last semiconvergent and the convergent as the bounds. Which one is the lower
-            // bound and which one is the upper bound is determined by the parity of
-            // cf.current_index(). Note that cf.current_index() is the index of the first
-            // convergent with the denominator strictly larger than nmax, so if this index is
-            // even, then the semiconvergent is the lower bound and the convergent is the upepr
-            // bound, and if the index is odd, then the other way around.
-            if (cf.current_index() % 2 == 0) {
-                return {get_last_semiconvergent(), cf.previous_convergent()};
-            }
-            else {
-                return {cf.previous_convergent(), get_last_semiconvergent()};
-            }
-        }
-
-
         struct multiply_shift_info {
             bigint::int_var multiplier;
             std::size_t shift_amount;
@@ -114,29 +32,30 @@ namespace jkj {
         // For a given real number x and a positive integer nmax, find the smallest nonnegative
         // integer k such that there exists an integer m satisfying
         // floor(nx) = floor(nm/2^k) for all n = 1, ... , nmax.
-        // The number x is given in terms of its continued fractions. The first parameter cf is the
-        // continued fractions calculator for x. It must be initialized, i.e., it should start with
-        // the "convergent" 1/0 when evaluated.
-        template <class ConvergentGenerator>
-        constexpr multiply_shift_info convert_to_multiply_shift(ConvergentGenerator& cf,
-                                                                bigint::uint_var const& nmax) {
+        // The number x is specified in terms of a continued fraction generator giving its continued
+        // fraction expansion. The generator needs to have index_tracker and
+        // previous_previous_convergent_tracker within it, and it also needs to be at its initial
+        // stage, i.e., the call to current_index() without calling update() should return -1.
+        template <class ContinuedFractionGenerator>
+        constexpr multiply_shift_info find_optimal_multiply_shift(ContinuedFractionGenerator& cf,
+                                                                  bigint::uint_var const& nmax) {
             multiply_shift_info ret_value{};
             auto range = find_floor_quotient_range(cf, nmax);
 
             // k0 = ceil(log2(1/Delta)).
             auto k0 = [&] {
                 auto const delta = range.upper_bound() - range.lower_bound();
-                util::constexpr_assert(is_strictly_positive(delta.numerator));
+                util::constexpr_assert(util::is_strictly_positive(delta.numerator));
 
-                return trunc_ceil_log2_div(delta.denominator, abs(delta.numerator));
+                return trunc_ceil_log2_div(delta.denominator, util::abs(delta.numerator));
             }();
 
-            ret_value.multiplier =
-                div_ceil((range.lower_bound().numerator << k0), range.lower_bound().denominator);
+            ret_value.multiplier = util::div_ceil((range.lower_bound().numerator << k0),
+                                                  range.lower_bound().denominator);
             ret_value.shift_amount = k0;
 
-            if (ret_value.multiplier.is_even()) {
-                ret_value.shift_amount -= ret_value.multiplier.factor_out_power_of_2();
+            if (util::is_even(ret_value.multiplier)) {
+                ret_value.shift_amount -= factor_out_power_of_2(ret_value.multiplier);
             }
             else {
                 auto left_end_plus_1 = ret_value.multiplier + 1u;
@@ -146,13 +65,14 @@ namespace jkj {
                     (range.upper_bound().numerator << k0)) {
                     ret_value.multiplier =
                         static_cast<decltype(left_end_plus_1)&&>(left_end_plus_1);
-                    ret_value.shift_amount -= ret_value.multiplier.factor_out_power_of_2();
+                    ret_value.shift_amount -= factor_out_power_of_2(ret_value.multiplier);
                 }
             }
 
             return ret_value;
         }
-
+#if 0
+				
         struct multiply_add_shift_info {
             bool succeeded = false;
             bigint::uint_var multiplier = {};
@@ -166,8 +86,8 @@ namespace jkj {
             util::constexpr_assert<util::error_msgs::divide_by_zero>(!x.denominator.is_zero());
             util::constexpr_assert(x.denominator <= nmax);
 
-            using continued_fractions_calculator_type = caching_continued_fraction<
-                rational_continued_fraction<bigint::uint_var, bigint::uint_var>>;
+            using continued_fractions_calculator_type =
+                caching_continued_fraction<rational<bigint::uint_var, bigint::uint_var>>;
 
             multiply_add_shift_info ret_value;
             continued_fractions_calculator_type continued_fractions_calculator{x};
@@ -418,6 +338,8 @@ namespace jkj {
 
             return ret_value;
         }
+#endif // 0
+
     }
 }
 

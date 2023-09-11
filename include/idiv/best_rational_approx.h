@@ -19,6 +19,7 @@
 #define JKJ_HEADER_BEST_RATIONAL_APPROX
 
 #include "projective_rational.h"
+#include "interval.h"
 #include <cassert>
 #include <cstdlib>
 
@@ -147,6 +148,30 @@ namespace jkj {
                     return return_type{project_to_rational(cf.current_convergent()),
                                        std::move(upper_bound)};
                 });
+        }
+
+        template <class UInt>
+        struct extrema_of_fractional_part_output {
+            UInt smallest_minimizer;
+            UInt largest_maximizer;
+        };
+
+        // For a given real number x and a positive integer nmax, find
+        // min argmin_n (nx - floor(nx)) and max argmax_n (nx - floor(nx)). The number x is
+        // specified in terms of a continued fraction generator giving its continued fraction
+        // expansion. The generator needs to have index_tracker and
+        // previous_previous_convergent_tracker within it, and it also needs to be at its initial
+        // stage, i.e., the call to current_index() without calling update() should return -1.
+        template <class ContinuedFractionGenerator, class UInt>
+        constexpr auto find_extrema_of_fractional_part(ContinuedFractionGenerator& cf,
+                                                       UInt const& nmax) {
+            using convergent_type = typename ContinuedFractionGenerator::convergent_type;
+            using return_type =
+                extrema_of_fractional_part_output<decltype(convergent_type::denominator)>;
+
+            auto floor_quotient_range = find_floor_quotient_range(cf, nmax);
+            return return_type{floor_quotient_range.lower_bound().denominator,
+                               floor_quotient_range.upper_bound().denominator};
         }
     }
 }

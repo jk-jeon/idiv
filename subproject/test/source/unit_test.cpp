@@ -1,4 +1,4 @@
-#include <idiv/bigint.h>
+#include <idiv/idiv.h>
 #include <idiv/log_continued_fraction.h>
 #include <idiv/best_rational_approx.h>
 #include <boost/ut.hpp>
@@ -1020,8 +1020,8 @@ int main() {
         using projective_rational_t =
             cntfrc::projective_rational<bigint::int_var, bigint::uint_var>;
         using rational_t = frac<bigint::int_var, bigint::uint_var>;
-        auto test = [](bigint::int_var const& numerator, bigint::uint_var const& denominator,
-                       std::size_t nmax) {
+        auto perform_test = [](bigint::int_var const& numerator,
+                               bigint::uint_var const& denominator, std::size_t nmax) {
             auto cf = cntfrc::make_generator<cntfrc::index_tracker,
                                              cntfrc::previous_previous_convergent_tracker>(
                 cntfrc::impl::rational<bigint::int_var, bigint::uint_var>{
@@ -1047,17 +1047,17 @@ int main() {
             expect(result.above == from_above);
         };
         // Effectively rational case.
-        test(137, 1290u, 1500);
+        perform_test(137, 1290u, 1500);
         // Effectively irrational case.
-        test(6614777, 12961230u, 1500);
+        perform_test(6614777, 12961230u, 1500);
     };
 
     "[find_floor_quotient_range]"_test = [] {
         using projective_rational_t =
             cntfrc::projective_rational<bigint::int_var, bigint::uint_var>;
         using rational_t = frac<bigint::int_var, bigint::uint_var>;
-        auto test = [](bigint::int_var const& numerator, bigint::uint_var const& denominator,
-                       std::size_t nmax) {
+        auto perform_test = [](bigint::int_var const& numerator,
+                               bigint::uint_var const& denominator, std::size_t nmax) {
             auto cf = cntfrc::make_generator<cntfrc::index_tracker,
                                              cntfrc::previous_previous_convergent_tracker>(
                 cntfrc::impl::rational<bigint::int_var, bigint::uint_var>{
@@ -1084,8 +1084,48 @@ int main() {
             expect(result.upper_bound() == from_above);
         };
         // Effectively rational case.
-        test(137, 1290u, 1500);
+        perform_test(137, 1290u, 1500);
         // Effectively irrational case.
-        test(6614777, 12961230u, 1500);
+        perform_test(6614777, 12961230u, 1500);
+    };
+
+    "[find_optimal_multiply_shift]"_test = [] {
+        using projective_rational_t =
+            cntfrc::projective_rational<bigint::int_var, bigint::uint_var>;
+        auto perform_test = [](bigint::int_var const& numerator,
+                               bigint::uint_var const& denominator, std::size_t nmax) {
+            auto cf = cntfrc::make_generator<cntfrc::index_tracker,
+                                             cntfrc::previous_previous_convergent_tracker>(
+                cntfrc::impl::rational<bigint::int_var, bigint::uint_var>{
+                    projective_rational_t{numerator, denominator}});
+
+            auto result = idiv::find_optimal_multiply_shift(cf, nmax);
+
+            std::size_t k = 0;
+            bigint::uint_var m = 0u;
+            while (true) {
+                bool success = true;
+                for (std::size_t n = 1; n <= nmax; ++n) {
+                    if (util::div_floor(n * numerator, denominator) != ((n * m) >> k)) {
+                        success = false;
+                        break;
+                    }
+                }
+                if (!success) {
+                    if (++m == bigint::uint_var::power_of_2(k)) {
+                        m = 0u;
+                        ++k;
+                    }
+                }
+                else {
+                    break;
+                }
+            }
+            expect(k == result.shift_amount && m == result.multiplier);
+        };
+        // Effectively rational case.
+        perform_test(17, 129u, 150);
+        // Effectively irrational case.
+        perform_test(6614777, 12961230u, 150);
     };
 }
