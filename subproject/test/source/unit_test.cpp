@@ -1089,6 +1089,45 @@ int main() {
         perform_test(6614777, 12961230u, 1500);
     };
 
+    "[find_extrema_of_fractional_part]"_test = [] {
+        using projective_rational_t =
+            cntfrc::projective_rational<bigint::int_var, bigint::uint_var>;
+        auto perform_test = [](bigint::int_var const& numerator, bigint::uint_var const& denominator,
+                       std::size_t nmax) {
+            auto cf = cntfrc::make_generator<cntfrc::index_tracker,
+                                             cntfrc::previous_previous_convergent_tracker>(
+                cntfrc::impl::rational<bigint::int_var, bigint::uint_var>{
+                    projective_rational_t{numerator, denominator}});
+
+            auto result = idiv::find_extrema_of_fractional_part(cf, nmax);
+
+            auto smallest_remainder = denominator - 1u;
+            auto smallest_minimizer = nmax;
+            auto largest_remainder = bigint::uint_var{0u};
+            auto largest_maximizer = std::size_t(1);
+            for (std::size_t i = 1; i <= nmax; ++i) {
+                auto remainder = i * numerator;
+                remainder.long_division(denominator);
+
+                if (smallest_remainder > remainder) {
+                    smallest_remainder = util::abs(remainder);
+                    smallest_minimizer = i;
+                }
+                if (largest_remainder <= remainder) {
+                    largest_remainder = util::abs(remainder);
+                    largest_maximizer = i;
+                }
+            }
+
+            expect(result.smallest_minimizer == smallest_minimizer);
+            expect(result.largest_maximizer == largest_maximizer);
+        };
+        // Effectively rational case.
+        perform_test(137, 1290u, 1500);
+        // Effectively irrational case.
+        perform_test(6614777, 12961230u, 1500);
+    };
+
     "[find_optimal_multiply_shift]"_test = [] {
         using projective_rational_t =
             cntfrc::projective_rational<bigint::int_var, bigint::uint_var>;
