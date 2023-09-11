@@ -1017,26 +1017,28 @@ int main() {
     };
 
     "[best_rational_approx]"_test = [] {
-        using convergent_t = cntfrc::projective_rational<bigint::int_var, bigint::uint_var>;
+        using projective_rational_t =
+            cntfrc::projective_rational<bigint::int_var, bigint::uint_var>;
+        using rational_t = frac<bigint::int_var, bigint::uint_var>;
         auto test = [](bigint::int_var const& numerator, bigint::uint_var const& denominator,
                        std::size_t nmax) {
             auto cf = cntfrc::make_generator<cntfrc::index_tracker,
                                              cntfrc::previous_previous_convergent_tracker>(
                 cntfrc::impl::rational<bigint::int_var, bigint::uint_var>{
-                    convergent_t{numerator, denominator}});
+                    projective_rational_t{numerator, denominator}});
 
             auto result = idiv::find_best_rational_approx(cf, nmax);
 
-            auto from_below = convergent_t{util::div_floor(numerator, denominator), 1u};
-            auto from_above = convergent_t{util::div_ceil(numerator, denominator), 1u};
+            auto from_below = rational_t{util::div_floor(numerator, denominator), 1u};
+            auto from_above = rational_t{util::div_ceil(numerator, denominator), 1u};
             for (std::size_t i = 1; i <= nmax; ++i) {
-                auto low = convergent_t{util::div_floor(i * numerator, denominator), unsigned(i)};
-                auto high = convergent_t{util::div_ceil(i * numerator, denominator), unsigned(i)};
+                auto low = rational_t{util::div_floor(i * numerator, denominator), unsigned(i)};
+                auto high = rational_t{util::div_ceil(i * numerator, denominator), unsigned(i)};
 
-                if (cyclic_order(from_below, low, convergent_t{1, 0u})) {
+                if (from_below < low) {
                     from_below = low;
                 }
-                if (cyclic_order(high, from_above, convergent_t{1, 0u})) {
+                if (high < from_above) {
                     from_above = high;
                 }
             }
@@ -1051,27 +1053,29 @@ int main() {
     };
 
     "[find_floor_quotient_range]"_test = [] {
-        using convergent_t = cntfrc::projective_rational<bigint::int_var, bigint::uint_var>;
+        using projective_rational_t =
+            cntfrc::projective_rational<bigint::int_var, bigint::uint_var>;
+        using rational_t = frac<bigint::int_var, bigint::uint_var>;
         auto test = [](bigint::int_var const& numerator, bigint::uint_var const& denominator,
                        std::size_t nmax) {
             auto cf = cntfrc::make_generator<cntfrc::index_tracker,
                                              cntfrc::previous_previous_convergent_tracker>(
                 cntfrc::impl::rational<bigint::int_var, bigint::uint_var>{
-                    convergent_t{numerator, denominator}});
+                    projective_rational_t{numerator, denominator}});
 
             auto result = idiv::find_floor_quotient_range(cf, nmax);
 
-            auto from_below = convergent_t{util::div_floor(numerator, denominator), 1u};
-            auto from_above = convergent_t{util::div_floor(numerator, denominator) + 1, 1u};
+            auto from_below = rational_t{util::div_floor(numerator, denominator), 1u};
+            auto from_above = rational_t{util::div_floor(numerator, denominator) + 1, 1u};
             for (std::size_t i = 1; i <= nmax; ++i) {
-                auto low = convergent_t{util::div_floor(i * numerator, denominator), unsigned(i)};
+                auto low = rational_t{util::div_floor(i * numerator, denominator), unsigned(i)};
                 auto high =
-                    convergent_t{util::div_floor(i * numerator, denominator) + 1, unsigned(i)};
+                    rational_t{util::div_floor(i * numerator, denominator) + 1, unsigned(i)};
 
-                if (cyclic_order(from_below, low, convergent_t{1, 0u})) {
+                if (from_below < low) {
                     from_below = low;
                 }
-                if (cyclic_order(high, from_above, convergent_t{1, 0u})) {
+                if (high < from_above) {
                     from_above = high;
                 }
             }

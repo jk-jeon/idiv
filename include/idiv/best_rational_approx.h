@@ -18,7 +18,7 @@
 #ifndef JKJ_HEADER_BEST_RATIONAL_APPROX
 #define JKJ_HEADER_BEST_RATIONAL_APPROX
 
-#include "continued_fraction.h"
+#include "projective_rational.h"
 #include <cassert>
 #include <cstdlib>
 
@@ -34,13 +34,27 @@ namespace jkj {
                 util::constexpr_assert(util::is_strictly_positive(nmax));
 
                 using convergent_type = typename ContinuedFractionGenerator::convergent_type;
+                using rational_type =
+                    decltype(project_to_rational(std::declval<convergent_type>()));
+
+                auto get_last_semiconvergent = [&cf](auto const& denominator_bound) {
+                    auto semiconvergent_coeff =
+                        (denominator_bound - cf.previous_previous_convergent_denominator()) /
+                        cf.previous_convergent_denominator();
+
+                    return rational_type{
+                        cf.previous_previous_convergent_numerator() +
+                            semiconvergent_coeff * cf.previous_convergent_numerator(),
+                        util::abs(cf.previous_previous_convergent_denominator() +
+                                  semiconvergent_coeff * cf.previous_convergent_denominator())};
+                };
 
                 // First, find the last convergent and the last semiconvergent whose denominator is
                 // bounded above by nmax.
 
                 while (cf.current_convergent_denominator() <= nmax) {
                     if (cf.terminated()) {
-                        return after_terminate();
+                        return after_terminate(get_last_semiconvergent);
                     }
 
                     cf.update();
@@ -54,31 +68,21 @@ namespace jkj {
                 // even, then the semiconvergent is the lower bound and the convergent is the upepr
                 // bound, and if the index is odd, then the other way around.
 
-                auto get_last_semiconvergent = [&]() {
-                    auto semiconvergent_coeff =
-                        (nmax - cf.previous_previous_convergent_denominator()) /
-                        cf.previous_convergent_denominator();
-
-                    return convergent_type{
-                        cf.previous_previous_convergent_numerator() +
-                            semiconvergent_coeff * cf.previous_convergent_numerator(),
-                        util::abs(cf.previous_previous_convergent_denominator() +
-                                  semiconvergent_coeff * cf.previous_convergent_denominator())};
-                };
-
                 if (cf.current_index() % 2 == 0) {
-                    return ReturnType{get_last_semiconvergent(), cf.previous_convergent()};
+                    return ReturnType{get_last_semiconvergent(nmax),
+                                      project_to_rational(cf.previous_convergent())};
                 }
                 else {
-                    return ReturnType{cf.previous_convergent(), get_last_semiconvergent()};
+                    return ReturnType{project_to_rational(cf.previous_convergent()),
+                                      get_last_semiconvergent(nmax)};
                 }
             }
         }
 
-        template <class ConvergentType>
+        template <class Rational>
         struct best_rational_approx_output {
-            ConvergentType below;
-            ConvergentType above;
+            Rational below;
+            Rational above;
         };
 
         // For a given real number x and a positive integer nmax, find the best rational
@@ -88,14 +92,15 @@ namespace jkj {
         // previous_previous_convergent_tracker within it, and it also needs to be at its initial
         // stage, i.e., the call to current_index() without calling update() should return -1.
         template <class ContinuedFractionGenerator, class UInt>
-        constexpr best_rational_approx_output<typename ContinuedFractionGenerator::convergent_type>
-        find_best_rational_approx(ContinuedFractionGenerator& cf, UInt const& nmax) {
+        constexpr auto find_best_rational_approx(ContinuedFractionGenerator& cf, UInt const& nmax) {
             using convergent_type = typename ContinuedFractionGenerator::convergent_type;
-            using return_type = best_rational_approx_output<convergent_type>;
+            using rational_type = decltype(project_to_rational(std::declval<convergent_type>()));
+            using return_type = best_rational_approx_output<rational_type>;
 
             return detail::find_best_rational_approx_impl<return_type>(
-                cf, nmax, [&] -> return_type {
-                    return {cf.current_convergent(), cf.current_convergent()};
+                cf, nmax, [&](auto&&) -> return_type {
+                    return {project_to_rational(cf.current_convergent()),
+                            project_to_rational(cf.current_convergent())};
                 });
         }
 
@@ -106,15 +111,14 @@ namespace jkj {
         // previous_previous_convergent_tracker within it, and it also needs to be at its initial
         // stage, i.e., the call to current_index() without calling update() should return -1.
         template <class ContinuedFractionGenerator, class UInt>
-        constexpr cyclic_interval<typename ContinuedFractionGenerator::convergent_type,
-                                  cyclic_interval_type_t::left_closed_right_open>
-        find_floor_quotient_range(ContinuedFractionGenerator& cf, UInt const& nmax) {
+        constexpr auto find_floor_quotient_range(ContinuedFractionGenerator& cf, UInt const& nmax) {
             using convergent_type = typename ContinuedFractionGenerator::convergent_type;
+            using rational_type = decltype(project_to_rational(std::declval<convergent_type>()));
             using return_type =
-                cyclic_interval<convergent_type, cyclic_interval_type_t::left_closed_right_open>;
+                interval<rational_type, interval_type_t::bounded_left_closed_right_open>;
 
             return detail::find_best_rational_approx_impl<return_type>(
-                cf, nmax, [&] -> return_type {
+                cf, nmax, [&](auto&& get_last_semiconvergent) -> return_type {
                     // If we reach to the perfect approximation, then we have to find the largest
                     // positive integer v <= nmax such that vp == -1 (mod q), where x = p/q. Then
                     // the lower bound is p/q, while the upper bound is ((vp+1)/q) / v.
@@ -128,24 +132,10 @@ namespace jkj {
                     // approximation from above. Otherwise, the last semiconvergent is the best
                     // rational approximation from above.
 
-                    auto upper_bound = [&] {
-                        if (cf.current_index() % 2 == 0) {
-                            return cf.previous_convergent();
-                        }
-                        else {
-                            auto semiconvergent_coeff =
-                                (cf.current_convergent_denominator() - 1 -
-                                 cf.previous_previous_convergent_denominator()) /
-                                cf.previous_convergent_denominator();
-
-                            return convergent_type{
-                                cf.previous_previous_convergent_numerator() +
-                                    semiconvergent_coeff * cf.previous_convergent_numerator(),
-                                util::abs(cf.previous_previous_convergent_denominator() +
-                                          semiconvergent_coeff *
-                                              cf.previous_convergent_denominator())};
-                        }
-                    }();
+                    auto upper_bound =
+                        cf.current_index() % 2 == 0
+                            ? project_to_rational(cf.previous_convergent())
+                            : get_last_semiconvergent(cf.current_convergent_denominator() - 1);
 
                     // At this point, upper_bound is ((bp+1)/q) / b, so we adjust the numerator and
                     // the denominator by floor((nmax - b)/q).
@@ -154,8 +144,8 @@ namespace jkj {
                     upper_bound.numerator += max_quotient * cf.current_convergent().numerator;
                     upper_bound.denominator += max_quotient * cf.current_convergent().denominator;
 
-                    return return_type{cf.current_convergent(),
-                                       static_cast<convergent_type&&>(upper_bound)};
+                    return return_type{project_to_rational(cf.current_convergent()),
+                                       std::move(upper_bound)};
                 });
         }
     }

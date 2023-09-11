@@ -18,7 +18,7 @@
 #ifndef JKJ_HEADER_PROJECTIVE_RATIONAL
 #define JKJ_HEADER_PROJECTIVE_RATIONAL
 
-#include "util.h"
+#include "frac.h"
 
 namespace jkj {
     namespace cntfrc {
@@ -78,6 +78,15 @@ namespace jkj {
                                                         z.denominator * x.numerator);
 
             return sign1 * sign2 * sign3 > 0;
+        }
+
+        template <class Num, class Den>
+        constexpr frac<Num, Den> project_to_rational(projective_rational<Num, Den> const& x) {
+            return frac{x.numerator, x.denominator};
+        }
+        template <class Num, class Den>
+        constexpr frac<Num, Den> project_to_rational(projective_rational<Num, Den>&& x) {
+            return frac{std::move(x).numerator, std::move(x).denominator};
         }
 
         // May use this type to replace constant 0.
