@@ -1018,15 +1018,70 @@ int main() {
 
     "[best_rational_approx]"_test = [] {
         using convergent_t = cntfrc::projective_rational<bigint::int_var, bigint::uint_var>;
-        {
-            // Effectively rational case.
+        auto test = [](bigint::int_var const& numerator, bigint::uint_var const& denominator,
+                       std::size_t nmax) {
             auto cf = cntfrc::make_generator<cntfrc::index_tracker,
                                              cntfrc::previous_previous_convergent_tracker>(
-                cntfrc::impl::rational<bigint::int_var, bigint::uint_var>{convergent_t{137, 129u}});
+                cntfrc::impl::rational<bigint::int_var, bigint::uint_var>{
+                    convergent_t{numerator, denominator}});
 
-            auto result = idiv::find_best_rational_approx(cf, 150);
-            expect(result.below == convergent_t{137, 129u});
-            expect(result.above == convergent_t{137, 129u});
-        }
+            auto result = idiv::find_best_rational_approx(cf, nmax);
+
+            auto from_below = convergent_t{util::div_floor(numerator, denominator), 1u};
+            auto from_above = convergent_t{util::div_ceil(numerator, denominator), 1u};
+            for (std::size_t i = 1; i <= nmax; ++i) {
+                auto low = convergent_t{util::div_floor(i * numerator, denominator), unsigned(i)};
+                auto high = convergent_t{util::div_ceil(i * numerator, denominator), unsigned(i)};
+
+                if (cyclic_order(from_below, low, convergent_t{1, 0u})) {
+                    from_below = low;
+                }
+                if (cyclic_order(high, from_above, convergent_t{1, 0u})) {
+                    from_above = high;
+                }
+            }
+
+            expect(result.below == from_below);
+            expect(result.above == from_above);
+        };
+        // Effectively rational case.
+        test(137, 1290u, 1500);
+        // Effectively irrational case.
+        test(6614777, 12961230u, 1500);
+    };
+
+    "[find_floor_quotient_range]"_test = [] {
+        using convergent_t = cntfrc::projective_rational<bigint::int_var, bigint::uint_var>;
+        auto test = [](bigint::int_var const& numerator, bigint::uint_var const& denominator,
+                       std::size_t nmax) {
+            auto cf = cntfrc::make_generator<cntfrc::index_tracker,
+                                             cntfrc::previous_previous_convergent_tracker>(
+                cntfrc::impl::rational<bigint::int_var, bigint::uint_var>{
+                    convergent_t{numerator, denominator}});
+
+            auto result = idiv::find_floor_quotient_range(cf, nmax);
+
+            auto from_below = convergent_t{util::div_floor(numerator, denominator), 1u};
+            auto from_above = convergent_t{util::div_floor(numerator, denominator) + 1, 1u};
+            for (std::size_t i = 1; i <= nmax; ++i) {
+                auto low = convergent_t{util::div_floor(i * numerator, denominator), unsigned(i)};
+                auto high =
+                    convergent_t{util::div_floor(i * numerator, denominator) + 1, unsigned(i)};
+
+                if (cyclic_order(from_below, low, convergent_t{1, 0u})) {
+                    from_below = low;
+                }
+                if (cyclic_order(high, from_above, convergent_t{1, 0u})) {
+                    from_above = high;
+                }
+            }
+
+            expect(result.lower_bound() == from_below);
+            expect(result.upper_bound() == from_above);
+        };
+        // Effectively rational case.
+        test(137, 1290u, 1500);
+        // Effectively irrational case.
+        test(6614777, 12961230u, 1500);
     };
 }

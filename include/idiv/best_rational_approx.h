@@ -38,21 +38,9 @@ namespace jkj {
                 // First, find the last convergent and the last semiconvergent whose denominator is
                 // bounded above by nmax.
 
-                auto get_last_semiconvergent = [&]() {
-                    auto semiconvergent_coeff =
-                        (nmax - cf.previous_previous_convergent_denominator()) /
-                        cf.previous_convergent_denominator();
-
-                    return convergent_type{
-                        cf.previous_previous_convergent_numerator() +
-                            semiconvergent_coeff * cf.previous_convergent_numerator(),
-                        util::abs(cf.previous_previous_convergent_denominator() +
-                                  semiconvergent_coeff * cf.previous_convergent_denominator())};
-                };
-
                 while (cf.current_convergent_denominator() <= nmax) {
                     if (cf.terminated()) {
-                        return after_terminate(get_last_semiconvergent);
+                        return after_terminate();
                     }
 
                     cf.update();
@@ -65,11 +53,24 @@ namespace jkj {
                 // convergent with the denominator strictly larger than nmax, so if this index is
                 // even, then the semiconvergent is the lower bound and the convergent is the upepr
                 // bound, and if the index is odd, then the other way around.
+
+                auto get_last_semiconvergent = [&]() {
+                    auto semiconvergent_coeff =
+                        (nmax - cf.previous_previous_convergent_denominator()) /
+                        cf.previous_convergent_denominator();
+
+                    return convergent_type{
+                        cf.previous_previous_convergent_numerator() +
+                            semiconvergent_coeff * cf.previous_convergent_numerator(),
+                        util::abs(cf.previous_previous_convergent_denominator() +
+                                  semiconvergent_coeff * cf.previous_convergent_denominator())};
+                };
+
                 if (cf.current_index() % 2 == 0) {
-                    return {get_last_semiconvergent(), cf.previous_convergent()};
+                    return ReturnType{get_last_semiconvergent(), cf.previous_convergent()};
                 }
                 else {
-                    return {cf.previous_convergent(), get_last_semiconvergent()};
+                    return ReturnType{cf.previous_convergent(), get_last_semiconvergent()};
                 }
             }
         }
@@ -93,7 +94,7 @@ namespace jkj {
             using return_type = best_rational_approx_output<convergent_type>;
 
             return detail::find_best_rational_approx_impl<return_type>(
-                cf, nmax, [&](auto&&) -> return_type {
+                cf, nmax, [&] -> return_type {
                     return {cf.current_convergent(), cf.current_convergent()};
                 });
         }
@@ -105,15 +106,15 @@ namespace jkj {
         // previous_previous_convergent_tracker within it, and it also needs to be at its initial
         // stage, i.e., the call to current_index() without calling update() should return -1.
         template <class ContinuedFractionGenerator, class UInt>
-        constexpr interval<typename ContinuedFractionGenerator::convergent_type,
-                           interval_type_t::bounded_left_closed_right_open>
+        constexpr cyclic_interval<typename ContinuedFractionGenerator::convergent_type,
+                                  cyclic_interval_type_t::left_closed_right_open>
         find_floor_quotient_range(ContinuedFractionGenerator& cf, UInt const& nmax) {
             using convergent_type = typename ContinuedFractionGenerator::convergent_type;
             using return_type =
-                interval<convergent_type, interval_type_t::bounded_left_closed_right_open>;
+                cyclic_interval<convergent_type, cyclic_interval_type_t::left_closed_right_open>;
 
             return detail::find_best_rational_approx_impl<return_type>(
-                cf, nmax, [&](auto&& get_last_semiconvergent) -> return_type {
+                cf, nmax, [&] -> return_type {
                     // If we reach to the perfect approximation, then we have to find the largest
                     // positive integer v <= nmax such that vp == -1 (mod q), where x = p/q. Then
                     // the lower bound is p/q, while the upper bound is ((vp+1)/q) / v.
@@ -126,8 +127,25 @@ namespace jkj {
                     // If we ended at an even convergent, the last convergent is the best rational
                     // approximation from above. Otherwise, the last semiconvergent is the best
                     // rational approximation from above.
-                    auto upper_bound = cf.current_index() % 2 == 0 ? cf.previous_convergent()
-                                                                   : get_last_semiconvergent();
+
+                    auto upper_bound = [&] {
+                        if (cf.current_index() % 2 == 0) {
+                            return cf.previous_convergent();
+                        }
+                        else {
+                            auto semiconvergent_coeff =
+                                (cf.current_convergent_denominator() - 1 -
+                                 cf.previous_previous_convergent_denominator()) /
+                                cf.previous_convergent_denominator();
+
+                            return convergent_type{
+                                cf.previous_previous_convergent_numerator() +
+                                    semiconvergent_coeff * cf.previous_convergent_numerator(),
+                                util::abs(cf.previous_previous_convergent_denominator() +
+                                          semiconvergent_coeff *
+                                              cf.previous_convergent_denominator())};
+                        }
+                    }();
 
                     // At this point, upper_bound is ((bp+1)/q) / b, so we adjust the numerator and
                     // the denominator by floor((nmax - b)/q).
@@ -136,7 +154,8 @@ namespace jkj {
                     upper_bound.numerator += max_quotient * cf.current_convergent().numerator;
                     upper_bound.denominator += max_quotient * cf.current_convergent().denominator;
 
-                    return {cf.current_convergent(), static_cast<convergent_type&&>(upper_bound)};
+                    return return_type{cf.current_convergent(),
+                                       static_cast<convergent_type&&>(upper_bound)};
                 });
         }
     }
