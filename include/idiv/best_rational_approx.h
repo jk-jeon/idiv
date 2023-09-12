@@ -92,6 +92,8 @@ namespace jkj {
         // fraction expansion. The generator needs to have index_tracker and
         // previous_previous_convergent_tracker within it, and it also needs to be at its initial
         // stage, i.e., the call to current_index() without calling update() should return -1.
+        // After the function returns, the generator is terminated if x is rational and its
+        // denominator is at most nmax.
         template <class ContinuedFractionGenerator, class UInt>
         constexpr auto find_best_rational_approx(ContinuedFractionGenerator& cf, UInt const& nmax) {
             using convergent_type = typename ContinuedFractionGenerator::convergent_type;
@@ -111,6 +113,8 @@ namespace jkj {
         // fraction expansion. The generator needs to have index_tracker and
         // previous_previous_convergent_tracker within it, and it also needs to be at its initial
         // stage, i.e., the call to current_index() without calling update() should return -1.
+        // After the function returns, the generator is terminated if x is rational and its
+        // denominator is at most nmax.
         template <class ContinuedFractionGenerator, class UInt>
         constexpr auto find_floor_quotient_range(ContinuedFractionGenerator& cf, UInt const& nmax) {
             using convergent_type = typename ContinuedFractionGenerator::convergent_type;
@@ -162,6 +166,8 @@ namespace jkj {
         // expansion. The generator needs to have index_tracker and
         // previous_previous_convergent_tracker within it, and it also needs to be at its initial
         // stage, i.e., the call to current_index() without calling update() should return -1.
+        // After the function returns, the generator is terminated if x is rational and its
+        // denominator is at most nmax.
         template <class ContinuedFractionGenerator, class UInt>
         constexpr auto find_extrema_of_fractional_part(ContinuedFractionGenerator& cf,
                                                        UInt const& nmax) {
