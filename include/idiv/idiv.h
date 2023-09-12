@@ -29,6 +29,141 @@ namespace jkj {
             std::size_t shift_amount;
         };
 
+        // Given an interval of rational numbers, find the smallest nonnegative integer k such that
+        // at least one number of the form m/2^k for an integer m belongs to the interval, find
+        // such m with the smallest absolute value, and then return (m,k).
+        template <class RationalInterval>
+        constexpr multiply_shift_info find_optimal_multiply_shift(RationalInterval const& itv) {
+            return itv.visit([](auto&& itv) -> multiply_shift_info {
+                using enum interval_type_t;
+                constexpr auto itv_type = itv.interval_type();
+                static_assert(itv_type != empty);
+
+                if constexpr (itv_type == entire) {
+                    return {0u, 0u};
+                }
+                else if constexpr (itv_type == bounded_below_open ||
+                                   itv_type == bounded_below_closed) {
+                    if (util::is_strictly_negative(itv.lower_bound().numerator)) {
+                        return {0u, 0u};
+                    }
+
+                    auto multiplier = itv.left_endpoint_type() == endpoint_type_t::open
+                                          ? util::div_floor(itv.lower_bound().numerator,
+                                                            itv.lower_bound().denominator) +
+                                                1u
+                                          : util::div_ceil(itv.lower_bound().numerator,
+                                                           itv.lower_bound().denominator);
+                    return {std::move(multiplier), 0u};
+                }
+                else if constexpr (itv_type == bounded_above_open ||
+                                   itv_type == bounded_above_closed) {
+                    if (util::is_strictly_positive(itv.upper_bound().numerator)) {
+                        return {0u, 0u};
+                    }
+
+                    auto multiplier = itv.right_endpoint_type() == endpoint_type_t::open
+                                          ? util::div_ceil(itv.upper_bound().numerator,
+                                                           itv.upper_bound().denominator) -
+                                                1u
+                                          : util::div_floor(itv.upper_bound().numerator,
+                                                            itv.upper_bound().denominator);
+                    return {std::move(multiplier), 0u};
+                }
+                else {
+                    bigint::sign_t interval_sign = bigint::sign_t::positive;
+                    if (util::is_zero(itv.lower_bound().numerator)) {
+                        if constexpr (itv.left_endpoint_type() == endpoint_type_t::closed) {
+                            return {0u, 0u};
+                        }
+                    }
+                    else if (util::is_zero(itv.upper_bound().numerator)) {
+                        if constexpr (itv.right_endpoint_type() == endpoint_type_t::closed) {
+                            return {0u, 0u};
+                        }
+                        interval_sign = bigint::sign_t::negative;
+                    }
+                    else if (util::is_strictly_negative(itv.lower_bound().numerator) &&
+                             util::is_strictly_positive(itv.upper_bound().numerator)) {
+                        return {0u, 0u};
+                    }
+
+                    // k = ceil(log2(1/Delta))       if itv is not open,
+                    // k = floor(log2(1/Delta)) + 1  if itv is open.
+                    auto k = [&] {
+                        auto const delta = itv.upper_bound() - itv.lower_bound();
+                        util::constexpr_assert(util::is_strictly_positive(delta.numerator));
+
+                        return itv_type == bounded_open
+                                   ? trunc_floor_log2_div(delta.denominator,
+                                                          util::abs(delta.numerator)) +
+                                         1u
+                                   : trunc_ceil_log2_div(delta.denominator,
+                                                         util::abs(delta.numerator));
+                    }();
+
+                    auto multiplier = [&] {
+                        if (interval_sign == bigint::sign_t::positive) {
+                            // Take the left-most lattice point.
+                            if constexpr (itv.left_endpoint_type() == endpoint_type_t::open) {
+                                return util::div_floor((itv.lower_bound().numerator << k),
+                                                       itv.lower_bound().denominator) +
+                                       1u;
+                            }
+                            else {
+                                return util::div_ceil((itv.lower_bound().numerator << k),
+                                                      itv.lower_bound().denominator);
+                            }
+                        }
+                        else {
+                            // Take the right-most lattice point.
+                            if constexpr (itv.right_endpoint_type() == endpoint_type_t::open) {
+                                return util::div_ceil((itv.upper_bound().numerator << k),
+                                                      itv.upper_bound().denominator) -
+                                       1u;
+                            }
+                            else {
+                                return util::div_floor((itv.upper_bound().numerator << k),
+                                                       itv.upper_bound().denominator);
+                            }
+                        }
+                    }();
+
+                    if (util::is_even(multiplier)) {
+                        k -= factor_out_power_of_2(multiplier);
+                    }
+                    else {
+                        if (interval_sign == bigint::sign_t::positive) {
+                            auto next_lattice_point = multiplier + 1u;
+                            if ((itv.right_endpoint_type() == endpoint_type_t::open &&
+                                 next_lattice_point * itv.upper_bound().denominator <
+                                     (itv.upper_bound().numerator << k)) ||
+                                (itv.right_endpoint_type() == endpoint_type_t::closed &&
+                                 next_lattice_point * itv.upper_bound().denominator <=
+                                     (itv.upper_bound().numerator << k))) {
+                                multiplier = std::move(next_lattice_point);
+                                k -= factor_out_power_of_2(multiplier);
+                            }
+                        }
+                        else {
+                            auto next_lattice_point = multiplier - 1u;
+                            if ((itv.left_endpoint_type() == endpoint_type_t::open &&
+                                 next_lattice_point * itv.lower_bound().denominator >
+                                     (itv.lower_bound().numerator << k)) ||
+                                (itv.left_endpoint_type() == endpoint_type_t::closed &&
+                                 next_lattice_point * itv.lower_bound().denominator <=
+                                     (itv.lower_bound().numerator << k))) {
+                                multiplier = std::move(next_lattice_point);
+                                k -= factor_out_power_of_2(multiplier);
+                            }
+                        }
+                    }
+
+                    return {std::move(multiplier), k};
+                }
+            });
+        }
+
         // For a given real number x and a positive integer nmax, find the smallest nonnegative
         // integer k such that there exists an integer m satisfying
         // floor(nx) = floor(nm/2^k) for all n = 1, ... , nmax.
@@ -39,37 +174,7 @@ namespace jkj {
         template <class ContinuedFractionGenerator>
         constexpr multiply_shift_info find_optimal_multiply_shift(ContinuedFractionGenerator& cf,
                                                                   bigint::uint_var const& nmax) {
-            multiply_shift_info ret_value{};
-            auto range = find_floor_quotient_range(cf, nmax);
-
-            // k0 = ceil(log2(1/Delta)).
-            auto k0 = [&] {
-                auto const delta = range.upper_bound() - range.lower_bound();
-                util::constexpr_assert(util::is_strictly_positive(delta.numerator));
-
-                return trunc_ceil_log2_div(delta.denominator, util::abs(delta.numerator));
-            }();
-
-            ret_value.multiplier = util::div_ceil((range.lower_bound().numerator << k0),
-                                                  range.lower_bound().denominator);
-            ret_value.shift_amount = k0;
-
-            if (util::is_even(ret_value.multiplier)) {
-                ret_value.shift_amount -= factor_out_power_of_2(ret_value.multiplier);
-            }
-            else {
-                auto left_end_plus_1 = ret_value.multiplier + 1u;
-
-                // If the left_end_plus_1 is still in the interval, take that instead.
-                if (left_end_plus_1 * range.upper_bound().denominator <
-                    (range.upper_bound().numerator << k0)) {
-                    ret_value.multiplier =
-                        static_cast<decltype(left_end_plus_1)&&>(left_end_plus_1);
-                    ret_value.shift_amount -= factor_out_power_of_2(ret_value.multiplier);
-                }
-            }
-
-            return ret_value;
+            return find_optimal_multiply_shift(find_floor_quotient_range(cf, nmax));
         }
 #if 0
 				
