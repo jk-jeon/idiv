@@ -2,6 +2,37 @@
 #include <idiv/log_continued_fraction.h>
 #include <idiv/best_rational_approx.h>
 #include <boost/ut.hpp>
+#include <format>
+#include <iostream>
+
+namespace jkj {
+    namespace bigint {
+        std::ostream& operator<<(std::ostream& out, jkj::bigint::uint_var const& n) {
+            auto digits = n.to_decimal();
+            if (digits.empty()) {
+                out << "0";
+            }
+            else {
+                auto itr = digits.cbegin();
+                out << std::format("{}", *itr);
+
+                for (++itr; itr != digits.cend(); ++itr) {
+                    out << std::format("{:019d}", *itr);
+                }
+            }
+
+            return out;
+        }
+
+        std::ostream& operator<<(std::ostream& out, jkj::bigint::int_var const& n) {
+            if (n.is_strictly_negative()) {
+                out << "-";
+            }
+            out << n.abs();
+            return out;
+        }
+    }
+}
 
 int main() {
     using namespace boost::ut;
@@ -1092,8 +1123,8 @@ int main() {
     "[find_extrema_of_fractional_part]"_test = [] {
         using projective_rational_t =
             cntfrc::projective_rational<bigint::int_var, bigint::uint_var>;
-        auto perform_test = [](bigint::int_var const& numerator, bigint::uint_var const& denominator,
-                       std::size_t nmax) {
+        auto perform_test = [](bigint::int_var const& numerator,
+                               bigint::uint_var const& denominator, std::size_t nmax) {
             auto cf = cntfrc::make_generator<cntfrc::index_tracker,
                                              cntfrc::previous_previous_convergent_tracker>(
                 cntfrc::impl::rational<bigint::int_var, bigint::uint_var>{
@@ -1166,5 +1197,36 @@ int main() {
         perform_test(17, 129u, 150);
         // Effectively irrational case.
         perform_test(6614777, 12961230u, 150);
+    };
+
+    "[find_suboptimal_multiply_add_shift]"_test = [] {
+        using projective_rational_t =
+            cntfrc::projective_rational<bigint::int_var, bigint::uint_var>;
+        using nrange_t = interval<bigint::int_var, interval_type_t::bounded_closed>;
+        auto perform_test = [](projective_rational_t const& x, projective_rational_t y,
+                               nrange_t const& nrange) {
+            auto xcf = cntfrc::make_generator<cntfrc::index_tracker,
+                                              cntfrc::previous_previous_convergent_tracker>(
+                cntfrc::impl::rational<bigint::int_var, bigint::uint_var>{x});
+            auto ycf = cntfrc::make_generator<cntfrc::index_tracker,
+                                              cntfrc::previous_previous_convergent_tracker>(
+                cntfrc::impl::rational<bigint::int_var, bigint::uint_var>{y});
+
+            auto result = idiv::find_suboptimal_multiply_add_shift(xcf, ycf, nrange);
+
+            auto const xdyd = x.denominator * y.denominator;
+            auto const xnyd = x.numerator * y.denominator;
+            auto const ynxd = y.numerator * x.denominator;
+            for (auto n = nrange.lower_bound(); n <= nrange.upper_bound(); ++n) {
+                auto true_answer = util::div_floor(xnyd * n + ynxd, xdyd);
+                auto answer = (n * result.multiplier + result.adder) >> result.shift_amount;
+
+                expect(answer == true_answer) << "n = " << n;
+            }
+        };
+        perform_test(projective_rational_t{17, 129u}, projective_rational_t{39, 176u},
+                     nrange_t{-150, 150});
+        perform_test(projective_rational_t{1'936'274, 6'432'163u},
+                     projective_rational_t{-4'206'456, 33'668'149u}, nrange_t{-1000, 1000});
     };
 }
