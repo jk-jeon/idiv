@@ -3005,7 +3005,8 @@ namespace jkj {
             return r;
         }
         constexpr int_var operator%(int_var&& x, uint_view y) {
-            return static_cast<int_var&&>(x.long_division(y));
+            x.long_division(y);
+            return static_cast<int_var&&>(x);
         }
         constexpr int_var operator%(int_view x, convertible_to_block_type auto y) {
             auto r = int_var(x);
@@ -3013,8 +3014,8 @@ namespace jkj {
             return r;
         }
         constexpr int_var operator%(int_var&& x, convertible_to_block_type auto y) {
-            return static_cast<int_var&&>(
-                x.long_division(uint_view::make_view_from_single_block(y)));
+            x.long_division(uint_view::make_view_from_single_block(y));
+            return static_cast<int_var&&>(x);
         }
         constexpr int_var operator%(int_view, uint_const_t<1u>) { return {}; }
         constexpr int_var operator%(int_view, uint_const_t<>) = delete;
