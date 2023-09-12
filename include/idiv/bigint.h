@@ -2146,6 +2146,9 @@ namespace jkj {
                 }
                 else {
                     --abs_;
+                    if (abs_.is_zero()) {
+                        sign_ = sign_t::positive;
+                    }
                 }
                 return *this;
             }
@@ -2167,6 +2170,9 @@ namespace jkj {
                 else {
                     if (abs_ >= n) {
                         abs_ -= n;
+                        if (abs_.is_zero()) {
+                            sign_ = sign_t::positive;
+                        }
                     }
                     else {
                         abs_ = n - abs_;
@@ -2188,6 +2194,9 @@ namespace jkj {
                 else {
                     if (abs_ >= n) {
                         abs_ -= n;
+                        if (abs_.is_zero()) {
+                            sign_ = sign_t::positive;
+                        }
                     }
                     else {
                         if (is_zero()) {
@@ -2242,6 +2251,9 @@ namespace jkj {
                 }
                 else {
                     --abs_;
+                    if (abs_.is_zero()) {
+                        sign_ = sign_t::positive;
+                    }
                 }
                 return *this;
             }
@@ -2318,6 +2330,7 @@ namespace jkj {
                     auto quotient = dividend.long_division(n);
                     abs_ = static_cast<uint_var&&>(q_m1);
                     abs_ -= dividend;
+                    sign_ = sign_t::positive;
 
                     return int_var{sign_t::negative, static_cast<uint_var&&>(quotient)};
                 }
@@ -2379,7 +2392,7 @@ namespace jkj {
                     }();
 
                     abs_ >>= k;
-                    if (divisible) {
+                    if (!divisible) {
                         ++abs_;
                     }
                     return *this;
