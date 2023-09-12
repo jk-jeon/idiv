@@ -1228,5 +1228,8 @@ int main() {
                      nrange_t{-150, 150});
         perform_test(projective_rational_t{1'936'274, 6'432'163u},
                      projective_rational_t{-4'206'456, 33'668'149u}, nrange_t{-1000, 1000});
+        // Case when the shift amount should be increased.
+        perform_test(projective_rational_t{432, 611u}, projective_rational_t{46, 47u},
+                     nrange_t{0, 273});
     };
 }

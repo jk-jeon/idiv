@@ -332,7 +332,8 @@ namespace jkj {
                             if (b < ceiling) {
                                 mu = b;
                                 mu +=
-                                    util::abs(((ceiling - b) / xi_range.lower_bound().denominator) *
+                                    util::abs(util::div_floor(ceiling - b - 1,
+                                                              xi_range.lower_bound().denominator) *
                                               xi_range.lower_bound().denominator);
                                 computed_mu = true;
                             }
@@ -361,7 +362,30 @@ namespace jkj {
                     }
                 }
 
-                // Should check equality!
+                // If xi is precisely p_*/q_* and mu < nu, we may need to be careful.
+                if (xi_info.multiplier == xi_range.lower_bound().numerator &&
+                    bigint::uint_var::power_of_2(xi_info.shift_amount) ==
+                        xi_range.lower_bound().denominator &&
+                    mu < nu && (nu - mu).factor_out_power_of_2() >= xi_info.shift_amount) {
+                    // Find xi with the next smallest k.
+                    while (true) {
+                        ++xi_info.shift_amount;
+                        xi_info.multiplier = util::div_ceil(
+                            (xi_range.lower_bound().numerator << xi_info.shift_amount),
+                            xi_range.lower_bound().denominator);
+                        if (util::is_even(xi_info.multiplier)) {
+                            ++xi_info.multiplier;
+
+                            if (xi_info.multiplier * xi_range.upper_bound().denominator <
+                                (xi_range.upper_bound().numerator << xi_info.shift_amount)) {
+                                break;
+                            }
+                        }
+                        else {
+                            break;
+                        }
+                    }
+                }
                 adder = ((((xi_info.multiplier * nu) >> xi_info.shift_amount) + 1)
                          << xi_info.shift_amount) -
                         xi_info.multiplier * nu;
