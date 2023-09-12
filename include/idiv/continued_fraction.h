@@ -506,6 +506,9 @@ namespace jkj {
                 explicit constexpr generator_impl(Impl impl)
                     : Mixins<Impl, generator_impl>{impl}..., impl_{static_cast<Impl&&>(impl)} {}
 
+                // Make a copy of the internal implementation with its current state.
+                constexpr Impl copy_internal_implementation() const { return impl_; }
+
                 // Returns true if succeeded obtaining a further partial fraction.
                 constexpr bool update() {
                     if (!terminated_) {
