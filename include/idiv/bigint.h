@@ -3053,6 +3053,36 @@ namespace jkj {
         }
         constexpr int_var_div_t div(int_view, uint_const_t<>) = delete;
 
+        constexpr int_var div_floor(uint_view x, int_view y) {
+            if (y.is_nonnegative()) {
+                return int_var(sign_t::positive, div_floor(x, y.abs()));
+            }
+            else {
+                return int_var(sign_t::negative, div_ceil(x, y.abs()));
+            }
+        }
+        constexpr int_var div_floor(uint_var&& x, int_view y) {
+            if (y.is_nonnegative()) {
+                return int_var(sign_t::positive, div_floor(static_cast<uint_var&&>(x), y.abs()));
+            }
+            else {
+                return int_var(sign_t::negative, div_ceil(static_cast<uint_var&&>(x), y.abs()));
+            }
+        }
+        constexpr int_var div_floor(uint_view x, int_const_t<sign_t::positive, 1u>) {
+            return int_var{x};
+        }
+        constexpr int_var div_floor(uint_view x, int_const_t<sign_t::negative, 1u>) {
+            return int_var{sign_t::negative, x};
+        }
+        constexpr int_var div_floor(uint_var&& x, int_const_t<sign_t::positive, 1u>) {
+            return int_var{static_cast<uint_var&&>(x)};
+        }
+        constexpr int_var div_floor(uint_var&& x, int_const_t<sign_t::negative, 1u>) {
+            return int_var{sign_t::negative, static_cast<uint_var&&>(x)};
+        }
+        constexpr int_var div_floor(uint_view x, int_const_t<>) = delete;
+
         constexpr int_var div_floor(int_view x, uint_view y) { return x / y; }
         constexpr int_var div_floor(int_var&& x, uint_view y) { return x.long_division(y); }
         constexpr int_var div_floor(int_view x, uint_const_t<1u>) { return int_var(x); }
@@ -3061,20 +3091,50 @@ namespace jkj {
         }
         constexpr int_var div_floor(int_view x, uint_const_t<>) = delete;
 
-        constexpr int_var div_ceil(int_view x, uint_view y) {
-            if (x.is_nonnegative()) {
-                return int_var(sign_t::positive, div_ceil(x.abs(), y));
+        constexpr int_var div_ceil(uint_view x, int_view y) {
+            if (y.is_nonnegative()) {
+                return int_var(sign_t::positive, div_ceil(x, y.abs()));
             }
             else {
-                return int_var(sign_t::negative, div_floor(x.abs(), y));
+                return int_var(sign_t::negative, div_floor(x, y.abs()));
+            }
+        }
+        constexpr int_var div_ceil(uint_var&& x, int_view y) {
+            if (y.is_nonnegative()) {
+                return int_var(sign_t::positive, div_ceil(static_cast<uint_var&&>(x), y.abs()));
+            }
+            else {
+                return int_var(sign_t::negative, div_floor(static_cast<uint_var&&>(x), y.abs()));
+            }
+        }
+        constexpr int_var div_ceil(uint_view x, int_const_t<sign_t::positive, 1u>) {
+            return int_var{x};
+        }
+        constexpr int_var div_ceil(uint_view x, int_const_t<sign_t::negative, 1u>) {
+            return int_var{sign_t::negative, x};
+        }
+        constexpr int_var div_ceil(uint_var&& x, int_const_t<sign_t::positive, 1u>) {
+            return int_var{static_cast<uint_var&&>(x)};
+        }
+        constexpr int_var div_ceil(uint_var&& x, int_const_t<sign_t::negative, 1u>) {
+            return int_var{sign_t::negative, static_cast<uint_var&&>(x)};
+        }
+        constexpr int_var div_ceil(uint_view x, int_const_t<>) = delete;
+
+        constexpr int_var div_ceil(int_view x, uint_view y) {
+            if (x.is_nonnegative()) {
+                return int_var{sign_t::positive, div_ceil(x.abs(), y)};
+            }
+            else {
+                return int_var{sign_t::negative, div_floor(x.abs(), y)};
             }
         }
         constexpr int_var div_ceil(int_var&& x, uint_view y) {
             if (x.is_nonnegative()) {
-                return int_var(sign_t::positive, div_ceil(static_cast<int_var&&>(x).abs(), y));
+                return int_var{sign_t::positive, div_ceil(static_cast<int_var&&>(x).abs(), y)};
             }
             else {
-                return int_var(sign_t::negative, div_floor(static_cast<int_var&&>(x).abs(), y));
+                return int_var{sign_t::negative, div_floor(static_cast<int_var&&>(x).abs(), y)};
             }
         }
         constexpr int_var div_ceil(int_view x, uint_const_t<1u>) { return int_var(x); }
@@ -3085,30 +3145,30 @@ namespace jkj {
 
         constexpr int_var div_floor(int_view x, int_view y) {
             if (x.sign() == y.sign()) {
-                return int_var(sign_t::positive, div_floor(x.abs(), y.abs()));
+                return int_var{sign_t::positive, div_floor(x.abs(), y.abs())};
             }
             else {
-                return int_var(sign_t::negative, div_ceil(x.abs(), y.abs()));
+                return int_var{sign_t::negative, div_ceil(x.abs(), y.abs())};
             }
         }
         constexpr int_var div_floor(int_var&& x, int_view y) {
             if (x.sign() == y.sign()) {
-                return int_var(sign_t::positive,
-                               div_floor(static_cast<int_var&&>(x).abs(), y.abs()));
+                return int_var{sign_t::positive,
+                               div_floor(static_cast<int_var&&>(x).abs(), y.abs())};
             }
             else {
-                return int_var(sign_t::negative,
-                               div_ceil(static_cast<int_var&&>(x).abs(), y.abs()));
+                return int_var{sign_t::negative,
+                               div_ceil(static_cast<int_var&&>(x).abs(), y.abs())};
             }
         }
         constexpr int_var div_floor(int_view x, int_const_t<sign_t::positive, 1u>) {
-            return int_var(x);
+            return int_var{x};
         }
         constexpr int_var div_floor(int_var&& x, int_const_t<sign_t::positive, 1u>) {
             return static_cast<int_var&&>(x);
         }
         constexpr int_var div_floor(int_view x, int_const_t<sign_t::negative, 1u>) {
-            return int_var(x).invert_sign();
+            return int_var{x}.invert_sign();
         }
         constexpr int_var div_floor(int_var&& x, int_const_t<sign_t::negative, 1u>) {
             return static_cast<int_var&&>(x.invert_sign());
@@ -3117,30 +3177,30 @@ namespace jkj {
 
         constexpr int_var div_ceil(int_view x, int_view y) {
             if (x.sign() == y.sign()) {
-                return int_var(sign_t::positive, div_ceil(x.abs(), y.abs()));
+                return int_var{sign_t::positive, div_ceil(x.abs(), y.abs())};
             }
             else {
-                return int_var(sign_t::negative, div_floor(x.abs(), y.abs()));
+                return int_var{sign_t::negative, div_floor(x.abs(), y.abs())};
             }
         }
         constexpr int_var div_ceil(int_var&& x, int_view y) {
             if (x.sign() == y.sign()) {
-                return int_var(sign_t::positive,
-                               div_ceil(static_cast<int_var&&>(x).abs(), y.abs()));
+                return int_var{sign_t::positive,
+                               div_ceil(static_cast<int_var&&>(x).abs(), y.abs())};
             }
             else {
-                return int_var(sign_t::negative,
-                               div_floor(static_cast<int_var&&>(x).abs(), y.abs()));
+                return int_var{sign_t::negative,
+                               div_floor(static_cast<int_var&&>(x).abs(), y.abs())};
             }
         }
         constexpr int_var div_ceil(int_view x, int_const_t<sign_t::positive, 1u>) {
-            return int_var(x);
+            return int_var{x};
         }
         constexpr int_var div_ceil(int_var&& x, int_const_t<sign_t::positive, 1u>) {
             return static_cast<int_var&&>(x);
         }
         constexpr int_var div_ceil(int_view x, int_const_t<sign_t::negative, 1u>) {
-            return int_var(x).invert_sign();
+            return int_var{x}.invert_sign();
         }
         constexpr int_var div_ceil(int_var&& x, int_const_t<sign_t::negative, 1u>) {
             return static_cast<int_var&&>(x.invert_sign());
