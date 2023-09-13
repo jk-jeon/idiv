@@ -54,11 +54,9 @@ namespace jkj {
                 // bounded above by nmax.
 
                 while (cf.current_convergent_denominator() <= nmax) {
-                    if (cf.terminated()) {
+                    if (!cf.update()) {
                         return after_terminate(get_last_semiconvergent);
                     }
-
-                    cf.update();
                 }
 
                 // If there the last convergent is still not a perfect approximation, then we return
@@ -154,10 +152,10 @@ namespace jkj {
                 });
         }
 
-        template <class UInt>
+        template <class Int>
         struct extrema_of_fractional_part_output {
-            UInt smallest_minimizer;
-            UInt largest_maximizer;
+            Int smallest_minimizer;
+            Int largest_maximizer;
         };
 
         // For a given real number x and a positive integer nmax, find
