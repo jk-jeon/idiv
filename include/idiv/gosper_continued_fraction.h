@@ -19,7 +19,6 @@
 #define JKJ_HEADER_GOSPER_CONTINUED_FRACTION
 
 #include "continued_fraction.h"
-#include "frac.h"
 #include <cstdlib>
 
 namespace jkj {
@@ -82,7 +81,7 @@ namespace jkj {
                     decltype(InternalContinuedFractionImpl::convergent_type::numerator);
                 using uint_type =
                     decltype(InternalContinuedFractionImpl::convergent_type::denominator);
-                using partial_fraction_type = frac<Unity, int_type>;
+                using partial_fraction_type = projective_rational<Unity, int_type>;
                 using convergent_type = typename InternalContinuedFractionImpl::convergent_type;
                 using interval_type = variable_shape_cyclic_interval<
                     projective_rational<int_type, int_type>, cyclic_interval_type_t::single_point,
@@ -315,7 +314,7 @@ namespace jkj {
             public:
                 using int_type = decltype(ContinuedFractionImplX::convergent_type::numerator);
                 using uint_type = decltype(ContinuedFractionImplX::convergent_type::denominator);
-                using partial_fraction_type = frac<Unity, int_type>;
+                using partial_fraction_type = projective_rational<Unity, int_type>;
                 using convergent_type = typename ContinuedFractionImplX::convergent_type;
                 using interval_type = variable_shape_cyclic_interval<
                     convergent_type, cyclic_interval_type_t::single_point,
@@ -514,10 +513,10 @@ namespace jkj {
                 }
 
             public:
-                static constexpr partial_fraction_type initial_partial_fraction() {
-                    return {Unity{}, int_type{0}};
+                static constexpr auto initial_partial_fraction() {
+                    return partial_fraction_type{Unity{}, int_type{0}};
                 }
-                static constexpr interval_type initial_interval() {
+                static constexpr auto initial_interval() {
                     return cyclic_interval<convergent_type, cyclic_interval_type_t::entire>{};
                 }
 

@@ -49,7 +49,7 @@ namespace jkj {
             template <class Int, class UInt>
             class natural_log_calculator {
             public:
-                using partial_fraction_type = frac<Int, Int>;
+                using partial_fraction_type = projective_rational<Int, Int>;
                 using convergent_type = projective_rational<Int, UInt>;
                 using interval_type = variable_shape_cyclic_interval<
                     convergent_type, cyclic_interval_type_t::single_point,
@@ -70,10 +70,10 @@ namespace jkj {
                 bool is_z_negative_ = false;
 
             public:
-                static constexpr partial_fraction_type initial_partial_fraction() {
-                    return {Int{1}, Int{0}};
+                static constexpr auto initial_partial_fraction() {
+                    return partial_fraction_type{Int{1}, Int{0}};
                 }
-                static constexpr interval_type initial_interval() {
+                static constexpr auto initial_interval() {
                     return cyclic_interval<convergent_type, cyclic_interval_type_t::entire>{};
                 }
 

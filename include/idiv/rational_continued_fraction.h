@@ -19,7 +19,6 @@
 #define JKJ_HEADER_RATIONAL_CONTINUED_FRACTION
 
 #include "continued_fraction.h"
-#include "frac.h"
 #include <cstdlib>
 
 namespace jkj {
@@ -28,7 +27,7 @@ namespace jkj {
             template <class Int, class UInt, class Unity = unity>
             class rational {
             public:
-                using partial_fraction_type = frac<Unity, Int>;
+                using partial_fraction_type = projective_rational<Unity, Int>;
                 using convergent_type = projective_rational<Int, UInt>;
                 using interval_type = variable_shape_cyclic_interval<
                     convergent_type, cyclic_interval_type_t::single_point,
@@ -39,10 +38,10 @@ namespace jkj {
                 projective_rational<Int, UInt> fraction_;
 
             public:
-                static constexpr partial_fraction_type initial_partial_fraction() {
-                    return {Unity{}, Int{0}};
+                static constexpr auto initial_partial_fraction() {
+                    return partial_fraction_type{Unity{}, Int{0}};
                 }
-                static constexpr interval_type initial_interval() noexcept {
+                static constexpr auto initial_interval() noexcept {
                     return cyclic_interval<convergent_type, cyclic_interval_type_t::entire>{};
                 }
 
