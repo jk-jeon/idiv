@@ -1131,6 +1131,8 @@ int main() {
                     projective_rational_t{numerator, denominator}});
 
             auto result = idiv::find_extrema_of_fractional_part(cf, nmax);
+            expect(result.smallest_minimizer >= 1 && result.smallest_minimizer <= nmax);
+            expect(result.largest_maximizer >= 1 && result.largest_maximizer <= nmax);
 
             auto smallest_remainder = denominator - 1u;
             auto smallest_minimizer = nmax;
@@ -1203,7 +1205,7 @@ int main() {
         using projective_rational_t =
             cntfrc::projective_rational<bigint::int_var, bigint::uint_var>;
         using nrange_t = interval<bigint::int_var, interval_type_t::bounded_closed>;
-        auto perform_test = [](projective_rational_t const& x, projective_rational_t y,
+        auto perform_test = [](projective_rational_t const& x, projective_rational_t const& y,
                                nrange_t const& nrange) {
             auto xcf = cntfrc::make_generator<cntfrc::index_tracker,
                                               cntfrc::previous_previous_convergent_tracker>(
@@ -1231,5 +1233,54 @@ int main() {
         // Case when the shift amount should be increased.
         perform_test(projective_rational_t{432, 611u}, projective_rational_t{46, 47u},
                      nrange_t{0, 273});
+    };
+
+    "[find_extrema_of_fractional_part (two unknowns)]"_test = [] {
+        using projective_rational_t =
+            cntfrc::projective_rational<bigint::int_var, bigint::uint_var>;
+        using nrange_t = interval<bigint::int_var, interval_type_t::bounded_closed>;
+        auto perform_test = [](projective_rational_t const& x, projective_rational_t const& y,
+                               nrange_t const& nrange) {
+            auto xcf = cntfrc::make_generator<cntfrc::index_tracker,
+                                              cntfrc::previous_previous_convergent_tracker>(
+                cntfrc::impl::rational<bigint::int_var, bigint::uint_var>{x});
+            auto ycf = cntfrc::make_generator<cntfrc::index_tracker,
+                                              cntfrc::previous_previous_convergent_tracker>(
+                cntfrc::impl::rational<bigint::int_var, bigint::uint_var>{y});
+
+            auto result = idiv::find_extrema_of_fractional_part(xcf, ycf, nrange);
+            expect(result.smallest_minimizer >= nrange.lower_bound() &&
+                   result.smallest_minimizer <= nrange.upper_bound());
+            expect(result.largest_maximizer >= nrange.lower_bound() &&
+                   result.largest_maximizer <= nrange.upper_bound());
+
+            auto const xdyd = x.denominator * y.denominator;
+            auto const xnyd = x.numerator * y.denominator;
+            auto const ynxd = y.numerator * x.denominator;
+            auto smallest_remainder = xdyd - 1u;
+            auto smallest_minimizer = nrange.upper_bound();
+            auto largest_remainder = bigint::uint_var{0u};
+            auto largest_maximizer = nrange.lower_bound();
+            for (bigint::int_var n = nrange.lower_bound(); n <= nrange.upper_bound(); ++n) {
+                auto remainder = n * xnyd + ynxd;
+                remainder.long_division(xdyd);
+
+                if (smallest_remainder > remainder) {
+                    smallest_remainder = util::abs(remainder);
+                    smallest_minimizer = n;
+                }
+                if (largest_remainder <= remainder) {
+                    largest_remainder = util::abs(remainder);
+                    largest_maximizer = n;
+                }
+            }
+
+            expect(result.smallest_minimizer == smallest_minimizer);
+            expect(result.largest_maximizer == largest_maximizer);
+        };
+        perform_test(projective_rational_t{17, 129u}, projective_rational_t{39, 176u},
+                     nrange_t{-150, 150});
+        perform_test(projective_rational_t{1'936'274, 6'432'163u},
+                     projective_rational_t{-4'206'456, 33'668'149u}, nrange_t{-1000, 1000});
     };
 }
