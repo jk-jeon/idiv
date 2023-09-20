@@ -477,17 +477,18 @@ namespace jkj {
         template <class Type, class... Types>
         constexpr std::size_t find_first_index(typelist<Types...>) noexcept {
             bool found = false;
-            auto impl = [&](auto arg) -> std::size_t {
+            std::size_t count = 0;
+            auto impl = [&](auto arg) {
                 if (!found) {
                     if (std::is_same_v<Type, typename decltype(arg)::type>) {
                         found = true;
-                        return 0;
+                        return;
                     }
-                    return 1;
+                    ++count;
                 }
-                return 0;
             };
-            return (std::size_t(0) + ... + impl(std::type_identity<Types>{}));
+            (impl(std::type_identity<Types>{}), ...);
+            return count;
         }
 
         namespace detail {
@@ -558,16 +559,18 @@ namespace jkj {
                 constexpr auto prefix_sum = [] {
                     std::size_t count = 0;
                     std::size_t index = 0;
+                    util::array<std::size_t, sizeof...(Types)> result{};
                     auto impl = [&](auto arg) {
-                        if (find_first_index<typename decltype(arg)::type>(list{}) == index++) {
-                            return ++count;
+                        if (find_first_index<typename decltype(arg)::type>(list{}) == index) {
+                            result[index] = ++count;
                         }
                         else {
-                            return count;
+                            result[index] = count;
                         }
+                        ++index;
                     };
-                    return util::array<std::size_t, sizeof...(Types)>{
-                        impl(std::type_identity<Types>{})...};
+                    (impl(std::type_identity<Types>{}), ...);
+                    return result;
                 }();
 
                 return prefix_sum_compaction<prefix_sum>(list{});
@@ -582,15 +585,15 @@ namespace jkj {
         constexpr bool has_duplicate(typelist<Types...>) noexcept {
             using list = typelist<Types...>;
             std::size_t index = 0;
+            bool result = false;
             auto impl = [&](auto arg) {
-                if (find_first_index<typename decltype(arg)::type>(list{}) == index++) {
-                    return false;
+                if (find_first_index<typename decltype(arg)::type>(list{}) != index) {
+                    result = true;
                 }
-                else {
-                    return true;
-                }
+                ++index;
             };
-            return (impl(std::type_identity<Types>{}) || ...);
+            (impl(std::type_identity<Types>{}), ...);
+            return result;
         }
 
         namespace detail {
@@ -628,16 +631,19 @@ namespace jkj {
                 using list = typelist<Types...>;
                 constexpr auto prefix_sum = [] {
                     std::size_t count = 0;
+                    std::size_t index = 0;
+                    util::array<std::size_t, sizeof...(Types)> result{};
                     auto impl = [&](auto arg) {
                         if (Predicate{}(arg)) {
-                            return ++count;
+                            result[index] = ++count;
                         }
                         else {
-                            return count;
+                            result[index] = count;
                         }
+                        ++index;
                     };
-                    return util::array<std::size_t, sizeof...(Types)>{
-                        impl(std::type_identity<Types>{})...};
+                    (impl(std::type_identity<Types>{}), ...);
+                    return result;
                 }();
 
                 return prefix_sum_compaction<prefix_sum>(list{});
