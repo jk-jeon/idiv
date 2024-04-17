@@ -7,7 +7,7 @@
 
 namespace jkj {
     namespace bigint {
-        std::ostream& operator<<(std::ostream& out, jkj::bigint::uint_var const& n) {
+        static std::ostream& operator<<(std::ostream& out, jkj::bigint::uint_var const& n) {
             auto digits = n.to_decimal();
             if (digits.empty()) {
                 out << "0";
@@ -24,7 +24,7 @@ namespace jkj {
             return out;
         }
 
-        std::ostream& operator<<(std::ostream& out, jkj::bigint::int_var const& n) {
+        static std::ostream& operator<<(std::ostream& out, jkj::bigint::int_var const& n) {
             if (n.is_strictly_negative()) {
                 out << "-";
             }
