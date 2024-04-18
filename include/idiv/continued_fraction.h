@@ -1,4 +1,4 @@
-// Copyright 2022-2023 Junekey Jeon
+// Copyright 2022-2024 Junekey Jeon
 //
 // The contents of this file may be used under the terms of
 // the Apache License v2.0 with LLVM Exceptions.
@@ -374,19 +374,16 @@ namespace jkj {
 
             template <std::size_t... sizes>
             constexpr auto merge_graphs(util::array<graph_edge, sizes> const&... graphs) noexcept {
+                auto impl = [](auto& global_index, auto& ret_value, auto&& graph) {
+                    if constexpr (std::remove_cvref_t<decltype(graph)>::size() != 0) {
+                        for (std::size_t idx = 0; idx < graph.size(); ++idx, ++global_index) {
+                            ret_value[global_index] = graph[idx];
+                        }
+                    }
+                };
                 std::size_t global_index = 0;
                 util::array<graph_edge, (std::size_t(0) + ... + sizes)> ret_value{};
-                // I have no idea why the compiler gets mad if I remove this branch...
-                if constexpr (ret_value.size() != 0) {
-                    auto impl = [&](auto&& graph) {
-                        if constexpr (graph.size() != 0) {
-                            for (std::size_t idx = 0; idx < graph.size(); ++idx, ++global_index) {
-                                ret_value[global_index] = graph[idx];
-                            }
-                        }
-                    };
-                    (impl(graphs), ...);
-                }
+                (impl(global_index, ret_value, graphs), ...);
                 return ret_value;
             }
 
