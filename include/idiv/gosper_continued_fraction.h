@@ -1,4 +1,4 @@
-// Copyright 2023 Junekey Jeon
+// Copyright 2023-2024 Junekey Jeon
 //
 // The contents of this file may be used under the terms of
 // the Apache License v2.0 with LLVM Exceptions.
@@ -56,13 +56,13 @@ namespace jkj {
                                                               T const& x) {
                         return itv.visit([&x](auto&& itv) {
                             using enum cyclic_interval_type_t;
-                            constexpr auto itv_type = itv.interval_type();
-                            static_assert(itv_type != empty);
+                            using itv_type = std::remove_cvref_t<decltype(itv)>;
+                            static_assert(itv_type::interval_type() != empty);
 
-                            if constexpr (itv_type == entire) {
+                            if constexpr (itv_type::interval_type() == entire) {
                                 return true;
                             }
-                            else if constexpr (itv_type == single_point) {
+                            else if constexpr (itv_type::interval_type() == single_point) {
                                 return itv.lower_bound() == x;
                             }
                             else {
@@ -146,11 +146,12 @@ namespace jkj {
                     enum class final_result { success, terminate, fail };
                     auto check_floor = [&](auto&& itv) -> final_result {
                         using enum cyclic_interval_type_t;
-                        constexpr auto itv_type = itv.interval_type();
-                        static_assert(itv_type != empty && itv_type != entire);
+                        using itv_type = std::remove_cvref_t<decltype(itv)>;
+                        static_assert(itv_type::interval_type() != empty &&
+                                      itv_type::interval_type() != entire);
                         constexpr auto infinity = projective_rational{unity{}, zero{}};
 
-                        if constexpr (itv_type == single_point) {
+                        if constexpr (itv_type::interval_type() == single_point) {
                             // If infinity is the only element in the range, then there is no
                             // further continued fraction coefficients.
                             if (itv.lower_bound() == infinity) {
@@ -168,9 +169,9 @@ namespace jkj {
                         else {
                             auto lower_bound = itv.lower_bound();
                             bool lower_bound_inclusive =
-                                (itv.left_endpoint_type() == endpoint_type_t::closed);
+                                (itv_type::left_endpoint_type() == endpoint_type_t::closed);
                             bool upper_bound_inclusive =
-                                (itv.right_endpoint_type() == endpoint_type_t::closed);
+                                (itv_type::right_endpoint_type() == endpoint_type_t::closed);
                             if (is_first_) {
                                 // Cannot do anything if the range estimate contains the infinity.
                                 if (lower_bound == infinity || itv.upper_bound() == infinity ||
@@ -232,15 +233,15 @@ namespace jkj {
                         auto const result = cf_.current_interval().visit([&](auto&& itv)
                                                                              -> final_result {
                             using enum cyclic_interval_type_t;
-                            constexpr auto itv_type = itv.interval_type();
-                            static_assert(itv_type != empty);
+                            using itv_type = std::remove_cvref_t<decltype(itv)>;
+                            static_assert(itv_type::interval_type() != empty);
 
-                            if constexpr (itv_type == entire) {
+                            if constexpr (itv_type::interval_type() == entire) {
                                 // Range is the entire RP1, so we cannot proceed.
                                 util::constexpr_assert(determinant_sign_ != 0);
                                 return final_result::fail;
                             }
-                            else if constexpr (itv_type == single_point) {
+                            else if constexpr (itv_type::interval_type() == single_point) {
                                 return check_floor(
                                     cyclic_interval<projective_rational<int_type, int_type>,
                                                     single_point>{coeff_(itv.lower_bound())});
@@ -255,16 +256,19 @@ namespace jkj {
                                 auto first_end = coeff_(itv.lower_bound());
                                 auto second_end = coeff_(itv.upper_bound());
 
-                                if constexpr (itv_type == open || itv_type == closed) {
+                                if constexpr (itv_type::interval_type() == open ||
+                                              itv_type::interval_type() == closed) {
                                     if (determinant_sign_ < 0) {
                                         using std::swap;
                                         swap(first_end, second_end);
                                     }
                                     return check_floor(
                                         cyclic_interval<projective_rational<int_type, int_type>,
-                                                        itv_type>{first_end, second_end});
+                                                        itv_type::interval_type()>{first_end,
+                                                                                   second_end});
                                 }
-                                else if constexpr (itv_type == left_open_right_closed) {
+                                else if constexpr (itv_type::interval_type() ==
+                                                   left_open_right_closed) {
                                     if (determinant_sign_ < 0) {
                                         return check_floor(
                                             cyclic_interval<projective_rational<int_type, int_type>,
@@ -347,14 +351,14 @@ namespace jkj {
                     return itv.visit([&transform, determinant_sign](auto&& itv) -> return_type {
                         using enum cyclic_interval_type_t;
                         using value_type = projective_rational<int_type, int_type>;
-                        constexpr auto itv_type = itv.interval_type();
-                        static_assert(itv_type != empty);
+                        using itv_type = std::remove_cvref_t<decltype(itv)>;
+                        static_assert(itv_type::interval_type() != empty);
 
-                        if constexpr (itv_type == entire) {
+                        if constexpr (itv_type::interval_type() == entire) {
                             util::constexpr_assert(determinant_sign != 0);
                             return cyclic_interval<value_type, entire>{};
                         }
-                        else if constexpr (itv_type == single_point) {
+                        else if constexpr (itv_type::interval_type() == single_point) {
                             return cyclic_interval<value_type, single_point>{
                                 transform(itv.lower_bound())};
                         }
@@ -590,15 +594,15 @@ namespace jkj {
                     auto has_parallel_output = [globally_well_defined,
                                                 &sing_det_form](auto&& itv) -> bool {
                         using enum cyclic_interval_type_t;
-                        constexpr auto itv_type = itv.interval_type();
+                        using itv_type = std::remove_cvref_t<decltype(itv)>;
 
-                        if constexpr (itv_type == empty) {
+                        if constexpr (itv_type::interval_type() == empty) {
                             return false;
                         }
-                        else if constexpr (itv_type == entire) {
+                        else if constexpr (itv_type::interval_type() == entire) {
                             return !globally_well_defined;
                         }
-                        else if constexpr (itv_type == single_point) {
+                        else if constexpr (itv_type::interval_type() == single_point) {
                             return util::is_zero(sing_det_form.a * itv.lower_bound().numerator *
                                                      itv.lower_bound().numerator +
                                                  ((sing_det_form.b * itv.lower_bound().numerator *
@@ -825,11 +829,12 @@ namespace jkj {
                     enum class final_result { success, terminate, fail };
                     auto check_floor = [&](auto&& itv) -> final_result {
                         using enum cyclic_interval_type_t;
-                        constexpr auto itv_type = itv.interval_type();
-                        static_assert(itv_type != empty && itv_type != entire);
+                        using itv_type = std::remove_cvref_t<decltype(itv)>;
+                        static_assert(itv_type::interval_type() != empty &&
+                                      itv_type::interval_type() != entire);
                         constexpr auto infinity = projective_rational{unity{}, zero{}};
 
-                        if constexpr (itv_type == single_point) {
+                        if constexpr (itv_type::interval_type() == single_point) {
                             // If infinity is the only element in the range, then there is no
                             // further continued fraction coefficients.
                             if (itv.lower_bound() == infinity) {

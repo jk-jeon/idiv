@@ -1,4 +1,4 @@
-// Copyright 2023 Junekey Jeon
+// Copyright 2023-2024 Junekey Jeon
 //
 // The contents of this file may be used under the terms of
 // the Apache License v2.0 with LLVM Exceptions.
@@ -14,7 +14,6 @@
 // Unless required by applicable law or agreed to in writing, this software
 // is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 // KIND, either express or implied.
-
 
 #ifndef JKJ_HEADER_IDIV
 #define JKJ_HEADER_IDIV
@@ -38,19 +37,19 @@ namespace jkj {
         constexpr multiply_shift_info find_optimal_multiply_shift(RationalInterval const& itv) {
             return itv.visit([](auto&& itv) -> multiply_shift_info {
                 using enum interval_type_t;
-                constexpr auto itv_type = itv.interval_type();
-                static_assert(itv_type != empty);
+                using itv_type = std::remove_cvref_t<decltype(itv)>;
+                static_assert(itv_type::interval_type() != empty);
 
-                if constexpr (itv_type == entire) {
+                if constexpr (itv_type::interval_type() == entire) {
                     return {0u, 0u};
                 }
-                else if constexpr (itv_type == bounded_below_open ||
-                                   itv_type == bounded_below_closed) {
+                else if constexpr (itv_type::interval_type() == bounded_below_open ||
+                                   itv_type::interval_type() == bounded_below_closed) {
                     if (util::is_strictly_negative(itv.lower_bound().numerator)) {
                         return {0u, 0u};
                     }
 
-                    auto multiplier = itv.left_endpoint_type() == endpoint_type_t::open
+                    auto multiplier = itv_type::left_endpoint_type() == endpoint_type_t::open
                                           ? util::div_floor(itv.lower_bound().numerator,
                                                             itv.lower_bound().denominator) +
                                                 1u
@@ -58,13 +57,13 @@ namespace jkj {
                                                            itv.lower_bound().denominator);
                     return {std::move(multiplier), 0u};
                 }
-                else if constexpr (itv_type == bounded_above_open ||
-                                   itv_type == bounded_above_closed) {
+                else if constexpr (itv_type::interval_type() == bounded_above_open ||
+                                   itv_type::interval_type() == bounded_above_closed) {
                     if (util::is_strictly_positive(itv.upper_bound().numerator)) {
                         return {0u, 0u};
                     }
 
-                    auto multiplier = itv.right_endpoint_type() == endpoint_type_t::open
+                    auto multiplier = itv_type::right_endpoint_type() == endpoint_type_t::open
                                           ? util::div_ceil(itv.upper_bound().numerator,
                                                            itv.upper_bound().denominator) -
                                                 1u
@@ -75,12 +74,12 @@ namespace jkj {
                 else {
                     bigint::sign_t interval_sign = bigint::sign_t::positive;
                     if (util::is_zero(itv.lower_bound().numerator)) {
-                        if constexpr (itv.left_endpoint_type() == endpoint_type_t::closed) {
+                        if constexpr (itv_type::left_endpoint_type() == endpoint_type_t::closed) {
                             return {0u, 0u};
                         }
                     }
                     else if (util::is_zero(itv.upper_bound().numerator)) {
-                        if constexpr (itv.right_endpoint_type() == endpoint_type_t::closed) {
+                        if constexpr (itv_type::right_endpoint_type() == endpoint_type_t::closed) {
                             return {0u, 0u};
                         }
                         interval_sign = bigint::sign_t::negative;
@@ -96,7 +95,7 @@ namespace jkj {
                         auto const delta = itv.upper_bound() - itv.lower_bound();
                         util::constexpr_assert(util::is_strictly_positive(delta.numerator));
 
-                        return itv_type == bounded_open
+                        return itv_type::interval_type() == bounded_open
                                    ? trunc_floor_log2_div(delta.denominator,
                                                           util::abs(delta.numerator)) +
                                          1u
@@ -107,7 +106,7 @@ namespace jkj {
                     auto multiplier = [&] {
                         if (interval_sign == bigint::sign_t::positive) {
                             // Take the left-most lattice point.
-                            if constexpr (itv.left_endpoint_type() == endpoint_type_t::open) {
+                            if constexpr (itv_type::left_endpoint_type() == endpoint_type_t::open) {
                                 return util::div_floor((itv.lower_bound().numerator << k),
                                                        itv.lower_bound().denominator) +
                                        1u;
@@ -119,7 +118,8 @@ namespace jkj {
                         }
                         else {
                             // Take the right-most lattice point.
-                            if constexpr (itv.right_endpoint_type() == endpoint_type_t::open) {
+                            if constexpr (itv_type::right_endpoint_type() ==
+                                          endpoint_type_t::open) {
                                 return util::div_ceil((itv.upper_bound().numerator << k),
                                                       itv.upper_bound().denominator) -
                                        1u;
@@ -137,10 +137,10 @@ namespace jkj {
                     else {
                         if (interval_sign == bigint::sign_t::positive) {
                             auto next_lattice_point = multiplier + 1u;
-                            if ((itv.right_endpoint_type() == endpoint_type_t::open &&
+                            if ((itv_type::right_endpoint_type() == endpoint_type_t::open &&
                                  next_lattice_point * itv.upper_bound().denominator <
                                      (itv.upper_bound().numerator << k)) ||
-                                (itv.right_endpoint_type() == endpoint_type_t::closed &&
+                                (itv_type::right_endpoint_type() == endpoint_type_t::closed &&
                                  next_lattice_point * itv.upper_bound().denominator <=
                                      (itv.upper_bound().numerator << k))) {
                                 multiplier = std::move(next_lattice_point);
@@ -149,10 +149,10 @@ namespace jkj {
                         }
                         else {
                             auto next_lattice_point = multiplier - 1u;
-                            if ((itv.left_endpoint_type() == endpoint_type_t::open &&
+                            if ((itv_type::left_endpoint_type() == endpoint_type_t::open &&
                                  next_lattice_point * itv.lower_bound().denominator >
                                      (itv.lower_bound().numerator << k)) ||
-                                (itv.left_endpoint_type() == endpoint_type_t::closed &&
+                                (itv_type::left_endpoint_type() == endpoint_type_t::closed &&
                                  next_lattice_point * itv.lower_bound().denominator <=
                                      (itv.lower_bound().numerator << k))) {
                                 multiplier = std::move(next_lattice_point);
