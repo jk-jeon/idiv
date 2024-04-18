@@ -1,4 +1,4 @@
-// Copyright 2023 Junekey Jeon
+// Copyright 2023-2024 Junekey Jeon
 //
 // The contents of this file may be used under the terms of
 // the Apache License v2.0 with LLVM Exceptions.
@@ -14,7 +14,6 @@
 // Unless required by applicable law or agreed to in writing, this software
 // is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 // KIND, either express or implied.
-
 
 #ifndef JKJ_HEADER_IDIV_BIG_UINT
 #define JKJ_HEADER_IDIV_BIG_UINT
@@ -1850,13 +1849,13 @@ namespace jkj {
                         auto rem = block_holder_size_pair<util::min(M, N)>(result_var.rem);
 
                         struct intermediate_result {
-                            decltype(quot) quot;
-                            decltype(rem) rem;
+                            decltype(quot) quot_;
+                            decltype(rem) rem_;
                         };
                         return intermediate_result{quot, rem};
                     }();
-                    return uint_const_div_t<block_holder_size_pair_to_uint_const<result.quot>,
-                                            block_holder_size_pair_to_uint_const<result.rem>>{};
+                    return uint_const_div_t<block_holder_size_pair_to_uint_const<result.quot_>,
+                                            block_holder_size_pair_to_uint_const<result.rem_>>{};
                 }
             }
 
@@ -3231,7 +3230,8 @@ namespace jkj {
 
             template <sign_t s, std::size_t M, static_block_holder<M> x>
             constexpr auto operator-(int_const_impl<s, x>) noexcept {
-                return int_const_impl<(x.size() == 0 ? sign_t::positive : invert_sign(s)), x>{};
+                return int_const_impl<
+                    (x.size() == 0 ? sign_t::positive : ::jkj::bigint::invert_sign(s)), x>{};
             }
 
             template <sign_t s, sign_t t, std::size_t M, std::size_t N, static_block_holder<M> x,
@@ -3299,13 +3299,13 @@ namespace jkj {
                         auto rem = block_holder_size_pair<N>(result_var.rem);
 
                         struct intermediate_result {
-                            decltype(quot) quot;
-                            decltype(rem) rem;
+                            decltype(quot) quot_;
+                            decltype(rem) rem_;
                         };
                         return intermediate_result{quot, rem};
                     }();
-                    return int_const_div_t<block_holder_size_sign_triple_to_int_const<result.quot>,
-                                           block_holder_size_pair_to_uint_const<result.rem>>{};
+                    return int_const_div_t<block_holder_size_sign_triple_to_int_const<result.quot_>,
+                                           block_holder_size_pair_to_uint_const<result.rem_>>{};
                 }
             }
 
