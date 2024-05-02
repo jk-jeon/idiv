@@ -29,12 +29,13 @@ namespace jkj {
             // Common framework for two functions below.
             template <class ReturnType, class ContinuedFractionGenerator, class UInt,
                       class AfterTerminate>
-            constexpr ReturnType find_best_rational_approx_impl(ContinuedFractionGenerator& cf,
+            constexpr ReturnType find_best_rational_approx_impl(ContinuedFractionGenerator&& cf,
                                                                 UInt const& nmax,
                                                                 AfterTerminate&& after_terminate) {
                 util::constexpr_assert(util::is_strictly_positive(nmax));
 
-                using convergent_type = typename ContinuedFractionGenerator::convergent_type;
+                using convergent_type =
+                    typename std::remove_cvref_t<ContinuedFractionGenerator>::convergent_type;
                 using rational_type =
                     decltype(project_to_rational(std::declval<convergent_type>()));
 
@@ -93,8 +94,10 @@ namespace jkj {
         // After the function returns, the generator is terminated if x is rational and its
         // denominator is at most nmax.
         template <class ContinuedFractionGenerator, class UInt>
-        constexpr auto find_best_rational_approx(ContinuedFractionGenerator& cf, UInt const& nmax) {
-            using convergent_type = typename ContinuedFractionGenerator::convergent_type;
+        constexpr auto find_best_rational_approx(ContinuedFractionGenerator&& cf,
+                                                 UInt const& nmax) {
+            using convergent_type =
+                typename std::remove_cvref_t<ContinuedFractionGenerator>::convergent_type;
             using rational_type = decltype(project_to_rational(std::declval<convergent_type>()));
             using return_type = best_rational_approx_output<rational_type>;
 
@@ -114,8 +117,10 @@ namespace jkj {
         // After the function returns, the generator is terminated if x is rational and its
         // denominator is at most nmax.
         template <class ContinuedFractionGenerator, class UInt>
-        constexpr auto find_floor_quotient_range(ContinuedFractionGenerator& cf, UInt const& nmax) {
-            using convergent_type = typename ContinuedFractionGenerator::convergent_type;
+        constexpr auto find_floor_quotient_range(ContinuedFractionGenerator&& cf,
+                                                 UInt const& nmax) {
+            using convergent_type =
+                typename std::remove_cvref_t<ContinuedFractionGenerator>::convergent_type;
             using rational_type = decltype(project_to_rational(std::declval<convergent_type>()));
             using return_type =
                 interval<rational_type, interval_type_t::bounded_left_closed_right_open>;
@@ -167,13 +172,15 @@ namespace jkj {
         // After the function returns, the generator is terminated if x is rational and its
         // denominator is at most nmax.
         template <class ContinuedFractionGenerator, class UInt>
-        constexpr auto find_extrema_of_fractional_part(ContinuedFractionGenerator& cf,
+        constexpr auto find_extrema_of_fractional_part(ContinuedFractionGenerator&& cf,
                                                        UInt const& nmax) {
-            using convergent_type = typename ContinuedFractionGenerator::convergent_type;
+            using convergent_type =
+                typename std::remove_cvref_t<ContinuedFractionGenerator>::convergent_type;
             using return_type =
                 extrema_of_fractional_part_output<decltype(convergent_type::denominator)>;
 
-            auto floor_quotient_range = find_floor_quotient_range(cf, nmax);
+            auto floor_quotient_range =
+                find_floor_quotient_range(std::forward<ContinuedFractionGenerator>(cf), nmax);
             return return_type{floor_quotient_range.lower_bound().denominator,
                                floor_quotient_range.upper_bound().denominator};
         }

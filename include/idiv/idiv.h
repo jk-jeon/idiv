@@ -176,9 +176,10 @@ namespace jkj {
         // After the function returns, the generator is terminated if x is rational and its
         // denominator is at most nmax.
         template <class ContinuedFractionGenerator>
-        constexpr multiply_shift_info find_optimal_multiply_shift(ContinuedFractionGenerator& cf,
+        constexpr multiply_shift_info find_optimal_multiply_shift(ContinuedFractionGenerator&& cf,
                                                                   bigint::uint_var const& nmax) {
-            return find_optimal_multiply_shift(find_floor_quotient_range(cf, nmax));
+            return find_optimal_multiply_shift(
+                find_floor_quotient_range(std::forward<ContinuedFractionGenerator>(cf), nmax));
         }
 
         struct multiply_add_shift_info {
@@ -194,11 +195,13 @@ namespace jkj {
         // (3) floor(nx) = floor(nm/2^k) holds for all n in [0:nmax-nmin].
         template <class ContinuedFractionGeneratorX, class ContinuedFractionGeneratorY>
         constexpr multiply_add_shift_info find_suboptimal_multiply_add_shift(
-            ContinuedFractionGeneratorX& xcf, ContinuedFractionGeneratorY& ycf,
+            ContinuedFractionGeneratorX&& xcf, ContinuedFractionGeneratorY&& ycf,
             interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
             // TODO: deal with possible rational dependence between x and y.
-            using impl_type_x = typename ContinuedFractionGeneratorX::impl_type;
-            using impl_type_y = typename ContinuedFractionGeneratorY::impl_type;
+            using impl_type_x =
+                typename std::remove_cvref_t<ContinuedFractionGeneratorX>::impl_type;
+            using impl_type_y =
+                typename std::remove_cvref_t<ContinuedFractionGeneratorY>::impl_type;
             auto xcf_copy = xcf;
 
             util::constexpr_assert(nrange.upper_bound() > nrange.lower_bound());
@@ -402,13 +405,15 @@ namespace jkj {
         template <class ContinuedFractionGeneratorX, class ContinuedFractionGeneratorY>
         constexpr extrema_of_fractional_part_output<bigint::int_var>
         find_extrema_of_fractional_part(
-            ContinuedFractionGeneratorX& xcf, ContinuedFractionGeneratorY& ycf,
+            ContinuedFractionGeneratorX&& xcf, ContinuedFractionGeneratorY&& ycf,
             interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
             extrema_of_fractional_part_output<bigint::int_var> result{nrange.lower_bound(),
                                                                       nrange.lower_bound()};
 
             // First, find fine enough approximations of x and y.
-            auto approx_info = find_suboptimal_multiply_add_shift(xcf, ycf, nrange);
+            auto approx_info = find_suboptimal_multiply_add_shift(
+                std::forward<ContinuedFractionGeneratorX>(xcf),
+                std::forward<ContinuedFractionGeneratorY>(ycf), nrange);
             auto xi_cf =
                 cntfrc::make_generator<cntfrc::index_tracker, cntfrc::partial_fraction_tracker,
                                        cntfrc::previous_previous_convergent_tracker>(
