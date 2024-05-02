@@ -44,8 +44,10 @@ namespace jkj {
             std::vector<record_t> record_;
 
             constexpr void initialize_record() {
-                // current_convergent_ = {1, 0u};
+                // previous_previous_convergent_ = {1, 0u};
                 // previous_convergent_ = {0, 1u};
+                // current_convergent_ = {1, 0u};
+                record_.push_back(record_t{partial_fraction_type{}, convergent_type{1, 0u}});
                 record_.push_back(record_t{partial_fraction_type{}, convergent_type{0, 1u}});
                 record_.push_back(record_t{partial_fraction_type{}, convergent_type{1, 0u}});
             }
@@ -57,11 +59,11 @@ namespace jkj {
 
             constexpr int current_index() const noexcept { return current_index_; }
             constexpr bool terminated() const noexcept {
-                return terminated_ && current_index_ + 3 == record_.size();
+                return terminated_ && current_index_ + 4 == record_.size();
             }
 
             constexpr convergent_type const& current_convergent() const noexcept {
-                return record_[current_index_ + 2].convergent;
+                return record_[current_index_ + 3].convergent;
             }
             constexpr auto const& current_convergent_numerator() const noexcept {
                 return current_convergent().numerator;
@@ -71,7 +73,7 @@ namespace jkj {
             }
 
             constexpr convergent_type const& previous_convergent() const noexcept {
-                return record_[current_index_ + 1].convergent;
+                return record_[current_index_ + 2].convergent;
             }
             constexpr auto const& previous_convergent_numerator() const noexcept {
                 return previous_convergent().numerator;
@@ -80,16 +82,25 @@ namespace jkj {
                 return previous_convergent().denominator;
             }
 
+            constexpr convergent_type const& previous_previous_convergent() const noexcept {
+                return record_[current_index_ + 1].convergent;
+            }
+            constexpr auto const& previous_previous_convergent_numerator() const noexcept {
+                return previous_previous_convergent().numerator;
+            }
+            constexpr auto const& previous_previous_convergent_denominator() const noexcept {
+                return previous_previous_convergent().denominator;
+            }
+
             // Returns true if there are further partial fractions.
             constexpr bool update() {
                 // Progress the implementation only if the indices match.
-                if (current_index_ + 3 == record_.size()) {
+                if (current_index_ + 4 == record_.size()) {
                     if (!terminated_) {
                         record_.reserve(record_.size() + 1);
-                        terminated_ = impl_.update();
-                        record_.push_back(record_t{
-                            static_cast<partial_fraction_type&&>(impl_.current_partial_fraction()),
-                            static_cast<convergent_type&&>(impl_.current_convergent())});
+                        terminated_ = !impl_.update();
+                        record_.push_back(
+                            record_t{impl_.current_partial_fraction(), impl_.current_convergent()});
                         ++current_index_;
                     }
                     return !terminated_;
