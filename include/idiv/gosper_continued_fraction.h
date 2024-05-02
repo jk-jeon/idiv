@@ -96,8 +96,8 @@ namespace jkj {
                 bool is_first_ = true;
 
             public:
-                static constexpr partial_fraction_type initial_partial_fraction() {
-                    return {Unity{}, int_type{0}};
+                static constexpr auto initial_partial_fraction() {
+                    return partial_fraction_type{Unity{}, int_type{0}};
                 }
                 static constexpr interval_type initial_interval() {
                     return cyclic_interval<convergent_type, cyclic_interval_type_t::entire>{};
