@@ -268,10 +268,12 @@ namespace jkj {
                     util::constexpr_assert(!util::is_zero(x.numerator) &&
                                            !util::is_zero(x.denominator));
 
-                    // Log with base 1 does not make sense.
-                    util::constexpr_assert(base.numerator != base.denominator);
+                    // Log with base 1 naturally corresponds to infinity.
+                    if (base.numerator == base.denominator) {
+                        return {true, projective_rational<Int, UInt>{1, 0u}};
+                    }
 
-                    // An algorithm suggested by Seok-Hyeong Lee.
+                    // This algorithm is a refinement of a suggestion by Seok-Hyeong Lee.
                     // Suppose we want to see if log_a b = m/n holds, which means a^m = b^n.
                     // If a = p_1^e_1 ... p_d^e_d is the prime factorization of a, then
                     // p_1^(me_1) ... p_d^(me_d) must be the prime factorization of a^m = b^n.
@@ -287,19 +289,27 @@ namespace jkj {
                     // r = u^-m and s = t^-m if m < 0.
 
                     // So first, we decide which one is the case, that is, to see the sign of
-                    // log_a b. Since log_a b >= 0 if and only if b >= 1, we simply inspect b >= 1.
-                    // When log_a b < 0, replace b by 1/b so that we always have
-                    // m >= 0, p = t^n, r = t^m, q = u^n, and s = u^m.
-                    bool const log_is_nonnegative = x.numerator >= x.denominator;
+                    // log_a b. Since log_a b >= 0 if and only if
+                    // either a > 1 and b >= 1 or a < 1 and b <= 1,
+                    // we simply inspect these inequalities. When log_a b < 0, replace b by 1/b so
+                    // that we always have m >= 0, p = t^n, r = t^m, q = u^n, and s = u^m.
+                    bool const log_is_nonnegative =
+                        (base.numerator > base.denominator && x.numerator >= x.denominator) ||
+                        (base.numerator < base.denominator && x.numerator <= x.denominator);
                     auto p = base.numerator;
                     auto q = base.denominator;
                     auto r = log_is_nonnegative ? x.numerator : x.denominator;
                     auto s = log_is_nonnegative ? x.denominator : x.numerator;
 
                     // Next, we determine which one between m and n is larger. Since m/n >= 1
-                    // if and only if b >= a, we simply inspect the inequality p/q <= r/s.
+                    // if and only if either a > 1 and b >= a or a < 1 and b <= a,
+                    // we simply inspect these inequalities.
                     // When m < n, swap a and b so that we always have m >= n.
-                    bool const numerator_is_greater_than_or_equal_to = p * s <= q * r;
+                    bool const numerator_is_greater_than_or_equal_to = [&] {
+                        auto ps = p * s;
+                        auto qr = q * r;
+                        return (p > q && ps <= qr) || (p < q && ps >= qr);
+                    }();
                     if (!numerator_is_greater_than_or_equal_to) {
                         using util::swap;
                         swap(p, r);
@@ -307,7 +317,7 @@ namespace jkj {
                     }
 
                     // We now solve p = t^n, r = t^m.
-                    UInt coeff11 = 1u, coeff12 = 0u, coeff21 = 0u, coeff22 = 1u;
+                    projective_rational<UInt, UInt> convergent{1u, 0u}, previous_convergent{0u, 1u};
                     while (true) {
                         // Since m >= n, p must divide r, so we factor out the maximum power of p
                         // from r and write r = p^d * p', r' = p, n' = m - dn, and m' = n so that
@@ -317,6 +327,9 @@ namespace jkj {
                         // Note that reconstructing (m, n) from (m',n') can be done by multiplying
                         // the coefficient matrix [d 1;1 0], so we cummulatively multiply [d 1;1 0]
                         // to right at each iteration step.
+                        // The coefficient d should be continued fraction coefficient of m/n, and
+                        // the coefficient matrix we are keeping track of is nothing but the matrix
+                        // consisting of two consecutive convergents.
                         UInt d = 0u;
                         while (true) {
                             auto div_result = util::div(r, p);
@@ -324,10 +337,9 @@ namespace jkj {
                                 using util::swap;
                                 swap(r, p);
 
-                                swap(coeff11, coeff12);
-                                coeff11 += d * coeff12;
-                                swap(coeff21, coeff22);
-                                coeff21 += d * coeff22;
+                                swap(convergent, previous_convergent);
+                                convergent.numerator += d * previous_convergent.numerator;
+                                convergent.denominator += d * previous_convergent.denominator;
 
                                 break;
                             }
@@ -369,13 +381,14 @@ namespace jkj {
                     // From (m',n') = (1,0), we obtain (m,n).
                     if (!numerator_is_greater_than_or_equal_to) {
                         using util::swap;
-                        swap(coeff11, coeff21);
+                        swap(convergent.numerator, convergent.denominator);
                     }
-                    return {true, projective_rational<Int, UInt>{
-                                      log_is_nonnegative
-                                          ? util::to_signed(static_cast<UInt&&>(coeff11))
-                                          : util::to_negative(static_cast<UInt&&>(coeff11)),
-                                      static_cast<UInt&&>(coeff21)}};
+                    return {true,
+                            projective_rational<Int, UInt>{
+                                log_is_nonnegative
+                                    ? util::to_signed(static_cast<UInt&&>(convergent.numerator))
+                                    : util::to_negative(static_cast<UInt&&>(convergent.numerator)),
+                                static_cast<UInt&&>(convergent.denominator)}};
                 }
 
                 explicit constexpr general_log(frac<UInt, UInt> const& base,

@@ -866,7 +866,7 @@ int main() {
         };
 
         should("general_log") = [] {
-            // Rational case.
+            // Rational cases.
             {
                 // log(175616/91125) / log(3136/2025)
                 // = log(2^9*7^4 / 3^6*5^3) / log(2^6*7^2 / 3^4*5^2)
@@ -879,6 +879,28 @@ int main() {
                 expect(cf.current_convergent() == convergent_t{1, 1u});
                 expect(cf.update() == true);
                 expect(cf.current_convergent() == convergent_t{3, 2u});
+                expect(cf.update() == false);
+            }
+            {
+                // c = 151238619319231523311 / 51098098609801923098592931,
+                // 151238619319231523311 = 8 * 2^64 + 3664666729555110383,
+                // 51098098609801923098592931 = 2770033 * 2^64 + 8783072032707069603.
+                // a = c^17, b=c^9, so log_a(b) = 9/17.
+                auto c = unsigned_frac_t{
+                    bigint::uint_var{UINT64_C(8), UINT64_C(3664666729555110383)},
+                    bigint::uint_var{UINT64_C(2770033), UINT64_C(8783072032707069603)}};
+                auto cf = cntfrc::make_generator<cntfrc::convergent_tracker>(
+                    cntfrc::impl::general_log<bigint::int_var, bigint::uint_var>{
+                        util::pow_uint(c, 17u), util::pow_uint(c, 9u)});
+
+                expect(cf.update() == true);
+                expect(cf.current_convergent() == convergent_t{0, 1u});
+                expect(cf.update() == true);
+                expect(cf.current_convergent() == convergent_t{1, 1u});
+                expect(cf.update() == true);
+                expect(cf.current_convergent() == convergent_t{1, 2u});
+                expect(cf.update() == true);
+                expect(cf.current_convergent() == convergent_t{9, 17u});
                 expect(cf.update() == false);
             }
             // Irrational case.
