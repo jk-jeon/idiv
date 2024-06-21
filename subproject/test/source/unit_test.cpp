@@ -167,6 +167,17 @@ int main() {
                div_ceil_int_int_negative == -7);
         expect(std::is_same_v<decltype(div_ceil_int_int_negative_divisible), int> &&
                div_ceil_int_int_negative_divisible == -8);
+
+        expect(util::pow_uint(10, 0u) == 1);
+        expect(util::pow_uint(10, 1u) == 10);
+        expect(util::pow_uint(10, 2u) == 100);
+        expect(util::pow_uint(10, 3u) == 1'000);
+        expect(util::pow_uint(10, 4u) == 10'000);
+        expect(util::pow_uint(10, 5u) == 100'000);
+        expect(util::pow_uint(10, 6u) == 1'000'000);
+        expect(util::pow_uint(10, 7u) == 10'000'000);
+        expect(util::pow_uint(10, 8u) == 100'000'000);
+        expect(util::pow_uint(10, 9u) == 1'000'000'000);
     };
 
     "[tmp]"_test = [] {
