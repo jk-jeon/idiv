@@ -21,15 +21,51 @@
 #include "util.h"
 
 namespace jkj {
-    // Num: supposed to be jkj::bigint::uint_var/uint_const_t/int_var/int_const_t.
-    // Den: supposed to be jkj::bigint::uint_var/uint_const_t.
     template <class Num, class Den>
     struct frac {
         Num numerator;
         Den denominator;
+
+        frac() = default;
+
+        template <class OtherNum = Num, class OtherDen = Den>
+            requires requires(OtherNum num, OtherDen den) {
+                Num{num};
+                Den{den};
+            }
+        explicit constexpr frac(OtherNum&& num, OtherDen&& den)
+            : numerator{static_cast<OtherNum&&>(num)}, denominator{static_cast<OtherDen&&>(den)} {}
+
+        template <class OtherNum = Num>
+            requires requires(OtherNum num) {
+                Num{num};
+                Den{1u};
+            }
+        explicit constexpr frac(OtherNum&& num)
+            : numerator{static_cast<OtherNum&&>(num)}, denominator{1u} {}
+
+        template <class OtherNum, class OtherDen>
+            requires(requires(OtherNum num, OtherDen den) {
+                        Num{num};
+                        Den{den};
+                    } && !(std::is_same_v<Num, OtherNum> && std::is_same_v<Den, OtherDen>))
+        explicit constexpr frac(frac<OtherNum, OtherDen> const& other)
+            : numerator{other.numerator}, denominator{other.denominator} {}
+
+        template <class OtherNum, class OtherDen>
+            requires(requires(OtherNum num, OtherDen den) {
+                        Num{num};
+                        Den{den};
+                    } && !(std::is_same_v<Num, OtherNum> && std::is_same_v<Den, OtherDen>))
+        explicit constexpr frac(frac<OtherNum, OtherDen>&& other)
+            : numerator{static_cast<OtherNum&&>(other.numerator)},
+              denominator{static_cast<OtherDen&&>(other.denominator)} {}
     };
     template <class Num, class Den>
     frac(Num&&, Den&&) -> frac<std::remove_cvref_t<Num>, std::remove_cvref_t<Den>>;
+    template <class Num>
+    frac(Num&&) -> frac<std::remove_cvref_t<Num>,
+                        std::remove_cvref_t<decltype(util::abs(std::declval<Num>()))>>;
 
     template <class Num1, class Den1, class Num2, class Den2>
     constexpr bool operator==(frac<Num1, Den1> const& x, frac<Num2, Den2> const& y) {
