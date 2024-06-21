@@ -487,7 +487,8 @@ namespace jkj {
                 base *= base;
                 exp >>= 1;
             }
-            return base * y;
+            y *= static_cast<T&&>(base);
+            return y;
         }
     }
 
