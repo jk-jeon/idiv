@@ -21,7 +21,18 @@ if(PROJECT_IS_TOP_LEVEL)
   enable_testing()
 endif()
 
-add_executable(idiv_unit_test source/unit_test.cpp)
+add_executable(idiv_unit_test source/integer_util.cpp
+                              source/tmp.cpp
+                              source/wuint.cpp
+                              source/bigint.cpp
+                              source/continued_fraction_mixin_metaprogramming.cpp
+                              source/rational_continued_fraction.cpp
+                              source/gosper_algorithm.cpp
+                              source/log_continued_fraction.cpp
+                              source/best_rational_approx.cpp
+                              source/idiv.cpp
+                              source/main.cpp)
+
 target_link_libraries(idiv_unit_test PRIVATE idiv::idiv)
 target_link_libraries(idiv_unit_test PRIVATE Boost::ut)
 target_compile_features(idiv_unit_test PRIVATE cxx_std_20)
