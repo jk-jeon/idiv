@@ -664,22 +664,6 @@ int main() {
         }
     };
 
-    "[prime_factorization]"_test = [] {
-        using uint_type = bigint::uint_var;
-        auto prime_factors = prime_factorization(
-            frac<uint_type, uint_type>{UINT64_C(185'712'372'396), UINT64_C(198'759'128'733)});
-
-        expect(prime_factors[0] == prime_factor<uint_type>{2u, 2});
-        expect(prime_factors[1] == prime_factor<uint_type>{11u, -1});
-        expect(prime_factors[2] == prime_factor<uint_type>{37u, 1});
-        expect(prime_factors[3] == prime_factor<uint_type>{79u, 1});
-        expect(prime_factors[4] == prime_factor<uint_type>{853u, 1});
-        expect(prime_factors[5] == prime_factor<uint_type>{2'069u, 1});
-        expect(prime_factors[6] == prime_factor<uint_type>{5'861u, -1});
-        expect(prime_factors[7] == prime_factor<uint_type>{342'547u, -1});
-        expect(prime_factors.size() == 8);
-    };
-
     "[get_transitive_required_mixin_list]"_test = [] {
         auto list = cntfrc::detail::get_transitive_required_mixin_list(
             tmp::typelist<cntfrc::detail::mixin_type_wrapper<cntfrc::interval_tracker>,

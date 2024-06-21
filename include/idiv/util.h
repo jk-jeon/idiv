@@ -465,6 +465,30 @@ namespace jkj {
         inline constexpr auto div = detail::div_impl{};
         inline constexpr auto div_floor = detail::div_floor_impl{};
         inline constexpr auto div_ceil = detail::div_ceil_impl{};
+
+        // Fast nonnegative integer power.
+        template <class T, class UInt>
+        constexpr T pow_uint(T base, UInt exp) {
+            auto y = [] {
+                if constexpr (std::is_convertible_v<int, T>) {
+                    return T(1);
+                }
+                else {
+                    return T(1u);
+                }
+            }();
+            if (exp == 0) {
+                return y;
+            }
+            while (exp > 1) {
+                if (!util::is_even(exp)) {
+                    y *= base;
+                }
+                base *= base;
+                exp >>= 1;
+            }
+            return base * y;
+        }
     }
 
     // Some metaprogramming utilities.

@@ -20,7 +20,6 @@
 
 #include "rational_continued_fraction.h"
 #include "gosper_continued_fraction.h"
-#include "prime_factorization.h"
 
 namespace jkj {
     namespace cntfrc {
@@ -272,33 +271,111 @@ namespace jkj {
                     // Log with base 1 does not make sense.
                     util::constexpr_assert(base.numerator != base.denominator);
 
-                    auto prime_factors_base = prime_factorization(base);
-                    auto prime_factors_x = prime_factorization(x);
+                    // An algorithm suggested by Seok-Hyeong Lee.
+                    // Suppose we want to see if log_a b = m/n holds, which means a^m = b^n.
+                    // If a = p_1^e_1 ... p_d^e_d is the prime factorization of a, then
+                    // p_1^(me_1) ... p_d^(me_d) must be the prime factorization of a^m = b^n.
+                    // This means that p_1, ... p_d should be the complete list of prime factors
+                    // appearing in the prime factorization of b^n, and since b^n is an nth power,
+                    // every exponent me_i must be a multiple of n. However, since gcd(m,n) = 1, it
+                    // follows that n divides every e_i. In other words, a = c^n must hold for some
+                    // rational number c, which then implies b = c^m.
+                    // Now, write a = p/q, b = r/s and c = t/u, then we must have
+                    // p/q = t^n/u^n and r/s = t^m/u^m. Since both of p/q and t^n/u^n are already of
+                    // their reduced fraction form, we must have p = t^n and q = u^n.
+                    // Similarly, we must have r = t^m and s = u^m if m >= 0, and
+                    // r = u^-m and s = t^-m if m < 0.
 
-                    if (prime_factors_x.size() != prime_factors_base.size()) {
-                        return {};
+                    // So first, we decide which one is the case, that is, to see the sign of
+                    // log_a b. Since log_a b >= 0 if and only if b >= 1, we simply inspect b >= 1.
+                    // When log_a b < 0, replace b by 1/b so that we always have
+                    // m >= 0, p = t^n, r = t^m, q = u^n, and s = u^m.
+                    bool const log_is_nonnegative = x.numerator >= x.denominator;
+                    auto p = base.numerator;
+                    auto q = base.denominator;
+                    auto r = log_is_nonnegative ? x.numerator : x.denominator;
+                    auto s = log_is_nonnegative ? x.denominator : x.numerator;
+
+                    // Next, we determine which one between m and n is larger. Since m/n >= 1
+                    // if and only if b >= a, we simply inspect the inequality p/q <= r/s.
+                    // When m < n, swap a and b so that we always have m >= n.
+                    bool const numerator_is_greater_than_or_equal_to = p * s <= q * r;
+                    if (!numerator_is_greater_than_or_equal_to) {
+                        using util::swap;
+                        swap(p, r);
+                        swap(q, s);
                     }
-                    util::constexpr_assert(prime_factors_x.size() != 0);
 
-                    auto ratio = projective_rational<int, int>{prime_factors_x[0].exponent,
-                                                               prime_factors_base[0].exponent};
+                    // We now solve p = t^n, r = t^m.
+                    UInt coeff11 = 1u, coeff12 = 0u, coeff21 = 0u, coeff22 = 1u;
+                    while (true) {
+                        // Since m >= n, p must divide r, so we factor out the maximum power of p
+                        // from r and write r = p^d * p', r' = p, n' = m - dn, and m' = n so that
+                        // p' = t^n' and r' = t^m' hold.
+                        // Then we will substitute p <- p', r <- r', m <- m', n <- n', and then
+                        // iterate this procedure until we reach to (m',n') = (1,0).
+                        // Note that reconstructing (m, n) from (m',n') can be done by multiplying
+                        // the coefficient matrix [d 1;1 0], so we cummulatively multiply [d 1;1 0]
+                        // to right at each iteration step.
+                        UInt d = 0u;
+                        while (true) {
+                            auto div_result = util::div(r, p);
+                            if (!util::is_zero(div_result.rem)) {
+                                using util::swap;
+                                swap(r, p);
 
-                    for (std::size_t idx = 1; idx < prime_factors_x.size(); ++idx) {
-                        if (prime_factors_x[idx].factor != prime_factors_base[idx].factor) {
+                                swap(coeff11, coeff12);
+                                coeff11 += d * coeff12;
+                                swap(coeff21, coeff22);
+                                coeff21 += d * coeff22;
+
+                                break;
+                            }
+
+                            ++d;
+                            r = static_cast<decltype(div_result.quot)&&>(div_result.quot);
+                        }
+
+                        // If the invariant "p divides r" fails to hold, then we conclude that
+                        // log_a b must be irrational.
+                        if (util::is_zero(d)) {
                             return {};
                         }
 
-                        if (ratio !=
-                            projective_rational<int, int>{prime_factors_x[idx].exponent,
-                                                          prime_factors_base[idx].exponent}) {
-                            return {};
+                        // If it is impossible to write s = q^d * q', s' = q, then we conclude that
+                        // log_a b must be irrational.
+                        {
+                            auto q_to_d = util::pow_uint(q, d);
+                            auto div_result = util::div(s, q_to_d);
+                            if (!util::is_zero(div_result.rem)) {
+                                return {};
+                            }
+                            s = static_cast<UInt&&>(q);
+                            q = static_cast<decltype(div_result.quot)&&>(div_result.quot);
+                        }
+
+                        // Since m and n are coprime, we must have m' = 1 if n' = 0, which is the
+                        // termination condition.
+                        if (p == 1u) {
+                            // At this point, q must be equal to 1 as well. Otherwise, we conclude
+                            // that log_a b must be irrational.
+                            if (q != 1u) {
+                                return {};
+                            }
+                            break;
                         }
                     }
 
+                    // From (m',n') = (1,0), we obtain (m,n).
+                    if (!numerator_is_greater_than_or_equal_to) {
+                        using util::swap;
+                        swap(coeff11, coeff21);
+                    }
                     return {true, projective_rational<Int, UInt>{
-                                      ratio.denominator > 0 ? ratio.numerator : -ratio.numerator,
-                                      ratio.denominator > 0 ? unsigned(ratio.denominator)
-                                                            : unsigned(-ratio.denominator)}};
+                                      log_is_nonnegative
+                                          ? util::to_signed(static_cast<UInt&&>(coeff11))
+                                          : util::to_negative(static_cast<UInt&&>(coeff11)),
+                                      static_cast<UInt&&>(coeff21)}};
                 }
 
                 explicit constexpr general_log(frac<UInt, UInt> const& base,
