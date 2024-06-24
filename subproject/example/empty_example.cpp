@@ -1,7 +1,7 @@
-#include "idiv/idiv.h"
-#include "idiv/rational_continued_fraction.h"
-#include "idiv/best_rational_approx.h"
-#include "idiv/caching_continued_fraction.h"
+#include <idiv/idiv.h>
+#include <idiv/rational_continued_fraction.h>
+#include <idiv/best_rational_approx.h>
+#include <idiv/caching_generator.h>
 #include <format>
 #include <iostream>
 
@@ -54,7 +54,7 @@ constexpr inline multiply_add_shift_info convert_to_multiply_add_shift_effective
 
     multiply_add_shift_info ret_value;
     auto continued_fractions_calculator =
-        jkj::cntfrc::caching_continued_fraction<decltype(internal_continued_fractions_calculator)>{
+        jkj::cntfrc::caching_generator<decltype(internal_continued_fractions_calculator)>{
             std::move(internal_continued_fractions_calculator)};
 
     jkj::bigint::uint_var n_L0, n_U0;
@@ -78,7 +78,7 @@ constexpr inline multiply_add_shift_info convert_to_multiply_add_shift_effective
 
     using ufrac = jkj::frac<jkj::bigint::uint_var, jkj::bigint::uint_var>;
 
-    ufrac zeta_max{0, 1}, zeta_Lmax{0, 1}, zeta_Umax{0, 1}, zeta_min;
+    ufrac zeta_max{0u, 1u}, zeta_Lmax{0u, 1u}, zeta_Umax{0u, 1u}, zeta_min;
     jkj::bigint::uint_var n_L1 = 0, n_U1 = 0;
     jkj::bigint::uint_var floor_n_L0_x, floor_n_U0_x_p1;
 
@@ -91,7 +91,7 @@ constexpr inline multiply_add_shift_info convert_to_multiply_add_shift_effective
             floor_n_L0_x = (n_L0 * x.numerator.abs()) / x.denominator;
 
             if (n_L0 == nmax) {
-                zeta_Lmax = {1, 1};
+                zeta_Lmax = ufrac{1u, 1u};
             }
             else {
                 auto const new_nmax = nmax - n_L0;
@@ -102,13 +102,13 @@ constexpr inline multiply_add_shift_info convert_to_multiply_add_shift_effective
                 auto const largest_multiplier = new_nmax / best_approx.denominator;
                 n_L1 = largest_multiplier * best_approx.denominator;
 
-                zeta_Lmax = {(n_L1 * floor_n_L0_x) -
-                                 n_L0 * (largest_multiplier * best_approx.numerator.abs()),
-                             n_L1};
+                zeta_Lmax = ufrac{(n_L1 * floor_n_L0_x) -
+                                      n_L0 * (largest_multiplier * best_approx.numerator.abs()),
+                                  n_L1};
 
                 // Truncate to 1 if necessary.
                 if (zeta_Lmax.numerator > zeta_Lmax.denominator) {
-                    zeta_Lmax = {1, 1};
+                    zeta_Lmax = ufrac{1u, 1u};
                 }
             }
         }
@@ -119,7 +119,7 @@ constexpr inline multiply_add_shift_info convert_to_multiply_add_shift_effective
             floor_n_U0_x_p1 = ((n_U0 * x.numerator.abs()) / x.denominator) + 1u;
 
             if (n_U0 == 1) {
-                zeta_Umax = {1, 1};
+                zeta_Umax = ufrac{1u, 1u};
             }
             else {
                 auto const new_nmax = n_U0 - 1u;
@@ -130,13 +130,13 @@ constexpr inline multiply_add_shift_info convert_to_multiply_add_shift_effective
                 auto const largest_multiplier = new_nmax / best_approx.denominator;
                 n_U1 = largest_multiplier * best_approx.denominator;
 
-                zeta_Umax = {(n_U1 * floor_n_U0_x_p1) -
-                                 n_U0 * (largest_multiplier * best_approx.numerator.abs()),
-                             n_U1};
+                zeta_Umax = ufrac{(n_U1 * floor_n_U0_x_p1) -
+                                      n_U0 * (largest_multiplier * best_approx.numerator.abs()),
+                                  n_U1};
 
                 // Truncate to 1 if necessary.
                 if (zeta_Umax.numerator > zeta_Umax.denominator) {
-                    zeta_Umax = {1, 1};
+                    zeta_Umax = ufrac{1u, 1u};
                 }
             }
         }
