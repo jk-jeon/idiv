@@ -15,8 +15,8 @@
 // is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 // KIND, either express or implied.
 
-#ifndef JKJ_HEADER_CACHING_CONTINUED_FRACTION
-#define JKJ_HEADER_CACHING_CONTINUED_FRACTION
+#ifndef JKJ_HEADER_CACHING_GENERATOR
+#define JKJ_HEADER_CACHING_GENERATOR
 
 #include "continued_fraction.h"
 #include <type_traits>
@@ -26,14 +26,19 @@ namespace jkj {
     namespace cntfrc {
         // Memorizes all previous partial fractions and convergents in a container, and reuse them
         // when rewinded.
-        template <class Impl>
-        class caching_continued_fraction {
+        template <class ContinuedFractionGenerator>
+        class caching_generator {
         public:
-            using partial_fraction_type = typename std::remove_cvref_t<Impl>::partial_fraction_type;
-            using convergent_type = typename std::remove_cvref_t<Impl>::convergent_type;
+            using impl_type = typename std::remove_cvref_t<ContinuedFractionGenerator>::impl_type;
+            using partial_fraction_type =
+                typename std::remove_cvref_t<ContinuedFractionGenerator>::partial_fraction_type;
+            using convergent_type =
+                typename std::remove_cvref_t<ContinuedFractionGenerator>::convergent_type;
+            using interval_type =
+                typename std::remove_cvref_t<ContinuedFractionGenerator>::interval_type;
 
         private:
-            Impl impl_;
+            ContinuedFractionGenerator cf_;
             int current_index_ = -1;
             bool terminated_ = false;
 
@@ -49,17 +54,34 @@ namespace jkj {
                 // current_convergent_ = {1, 0u};
                 record_.push_back(record_t{partial_fraction_type{}, convergent_type{1, 0u}});
                 record_.push_back(record_t{partial_fraction_type{}, convergent_type{0, 1u}});
-                record_.push_back(record_t{partial_fraction_type{}, convergent_type{1, 0u}});
+                record_.push_back(record_t{cf_.current_partial_fraction(), convergent_type{1, 0u}});
             }
 
         public:
-            constexpr caching_continued_fraction(Impl&& impl) : impl_{static_cast<Impl&&>(impl)} {
+            // caching_generator implements:
+            // - index_tracker,
+            // - partial_fraction_tracker,
+            // - convergent_tracker, and
+            // - previous_previous_convergent_tracker.
+            template <template <class, class> class... QueriedMixins>
+            static constexpr bool is_implementing_mixins() noexcept {
+                using list =
+                    tmp::typelist<detail::mixin_type_wrapper<index_tracker>,
+                                  detail::mixin_type_wrapper<partial_fraction_tracker>,
+                                  detail::mixin_type_wrapper<convergent_tracker>,
+                                  detail::mixin_type_wrapper<previous_previous_convergent_tracker>>;
+                return (... && tmp::is_in<detail::mixin_type_wrapper<QueriedMixins>>(list{}));
+            }
+
+            constexpr caching_generator(ContinuedFractionGenerator&& impl)
+                : cf_{static_cast<ContinuedFractionGenerator&&>(impl)} {
                 initialize_record();
             }
 
             constexpr int current_index() const noexcept { return current_index_; }
-            constexpr bool terminated() const noexcept {
-                return terminated_ && current_index_ + 4 == record_.size();
+
+            constexpr partial_fraction_type const& current_partial_fraction() const noexcept {
+                return record_[current_index_ + 3].partial_fraction;
             }
 
             constexpr convergent_type const& current_convergent() const noexcept {
@@ -98,9 +120,9 @@ namespace jkj {
                 if (current_index_ + 4 == record_.size()) {
                     if (!terminated_) {
                         record_.reserve(record_.size() + 1);
-                        terminated_ = !impl_.update();
+                        terminated_ = !cf_.update();
                         record_.push_back(
-                            record_t{impl_.current_partial_fraction(), impl_.current_convergent()});
+                            record_t{cf_.current_partial_fraction(), cf_.current_convergent()});
                         ++current_index_;
                     }
                     return !terminated_;
@@ -109,6 +131,10 @@ namespace jkj {
                     ++current_index_;
                     return true;
                 }
+            }
+
+            constexpr bool terminated() const noexcept {
+                return terminated_ && current_index_ + 4 == record_.size();
             }
 
             // Go back to the initial state.

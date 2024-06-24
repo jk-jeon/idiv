@@ -19,7 +19,7 @@ include(cmake/variables.cmake)
 add_library(idiv_idiv INTERFACE
 	include/idiv/best_rational_approx.h
 	include/idiv/bigint.h
-	include/idiv/caching_continued_fraction.h
+	include/idiv/caching_generator.h
 	include/idiv/continued_fraction.h
 	include/idiv/frac.h
 	include/idiv/gosper_continued_fraction.h
