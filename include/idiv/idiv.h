@@ -201,10 +201,6 @@ namespace jkj {
 
             auto xcf_copy = xcf;
 
-            using binary_gosper_type =
-                cntfrc::impl::binary_gosper<std::remove_cvref_t<ContinuedFractionGeneratorX>,
-                                            std::remove_cvref_t<ContinuedFractionGeneratorY>>;
-
             util::constexpr_assert(nrange.upper_bound() > nrange.lower_bound());
             auto const& nmin = nrange.lower_bound();
             auto const nlength = util::abs(nrange.upper_bound() - nrange.lower_bound());
