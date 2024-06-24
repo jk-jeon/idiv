@@ -182,13 +182,11 @@ void log_continued_fraction_test() {
         };
 
         should("additional_unary_gosper") = [] {
-            using continued_fraction_t = cntfrc::impl::unary_gosper<
-                cntfrc::impl::natural_log_calculator<bigint::int_var, bigint::uint_var>>;
-
             auto cf = cntfrc::make_generator<cntfrc::convergent_tracker>(
-                continued_fraction_t{continued_fraction_t::internal_continued_fraction_impl_type{
-                                         unsigned_frac_t{4u, 3u}},
-                                     {0, 7, 2, 1}});
+                cntfrc::make_unary_gosper_from_impl(
+                    cntfrc::impl::natural_log_calculator<bigint::int_var, bigint::uint_var>{
+                        unsigned_frac_t{4u, 3u}},
+                    {0, 7, 2, 1}));
 
             // First 15 convergents of 7/(2ln(4/3) + 1).
             expect(cf.update() == true);
@@ -226,16 +224,14 @@ void log_continued_fraction_test() {
         should("additional_binary_gosper") = [] {
             using log_calculator =
                 cntfrc::impl::natural_log_calculator<bigint::int_var, bigint::uint_var>;
-            using continued_fraction_t =
-                cntfrc::impl::binary_gosper<log_calculator, log_calculator>;
 
             auto cf = cntfrc::make_generator<cntfrc::convergent_tracker>(
-                continued_fraction_t{log_calculator{unsigned_frac_t{176u, 39u}},
-                                     log_calculator{unsigned_frac_t{95u, 771u}},
-                                     {// numerator
-                                      0, 0, -4, 1,
-                                      // denominator
-                                      7, 3, -1, 0}});
+                cntfrc::make_binary_gosper_from_impl(log_calculator{unsigned_frac_t{176u, 39u}},
+                                                     log_calculator{unsigned_frac_t{95u, 771u}},
+                                                     {// numerator
+                                                      0, 0, -4, 1,
+                                                      // denominator
+                                                      7, 3, -1, 0}));
 
             // First 20 convergents of
             // (-4ln(95/771) + 1)/(7ln(176/39)ln(95/771) + 3ln(176/39) - ln(95/771)).

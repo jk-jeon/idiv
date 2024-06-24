@@ -85,7 +85,7 @@ namespace jkj {
                     // z = (x-1)/(x+1). Note that z always lies in (-1,1) for x in (0,infty).
                     auto z = [&] {
                         auto cf = make_generator<convergent_tracker>(
-                            rational{projective_rational<Int, UInt>{
+                            cntfrc::impl::rational{projective_rational<Int, UInt>{
                                 util::to_signed(positive_rational.numerator) -
                                     positive_rational.denominator,
                                 positive_rational.numerator + positive_rational.denominator}});
@@ -100,7 +100,7 @@ namespace jkj {
                     current_error_bound_.numerator = util::abs(z.numerator);
                     current_error_bound_.denominator = z.denominator;
                     two_q_ = (z.denominator << 1);
-                    p_square_ = util::abs(static_cast<Int&&>(z.numerator));
+                    p_square_ = util::abs(std::move(z.numerator));
                     p_square_ *= p_square_;
                 }
 
@@ -113,11 +113,10 @@ namespace jkj {
                     else if (gen.current_index() == 0) {
                         current_error_bound_.numerator <<= 1;
                         callback(partial_fraction_type{
-                            is_z_negative_ ? util::to_negative(static_cast<UInt&&>(
-                                                 current_error_bound_.numerator))
-                                           : util::to_signed(static_cast<UInt&&>(
-                                                 current_error_bound_.numerator)),
-                            Int{static_cast<UInt&&>(current_error_bound_.denominator)}});
+                            is_z_negative_
+                                ? util::to_negative(std::move(current_error_bound_.numerator))
+                                : util::to_signed(std::move(current_error_bound_.numerator)),
+                            Int{std::move(current_error_bound_.denominator)}});
                     }
                     else {
                         auto result = gen.current_partial_fraction();
@@ -206,7 +205,8 @@ namespace jkj {
             template <class Int, class UInt, class Unity = unity>
             class natural_log {
                 using internal_impl_type = natural_log_calculator<Int, UInt>;
-                using impl_type = unary_gosper<internal_impl_type, Unity>;
+                using impl_type =
+                    unary_gosper<generator<internal_impl_type, interval_tracker>, Unity>;
 
                 impl_type impl_;
 
@@ -216,18 +216,19 @@ namespace jkj {
                 using interval_type = typename impl_type::interval_type;
 
                 static constexpr partial_fraction_type initial_partial_fraction() {
-                    return {Unity{}, Int{0}};
+                    return {Unity{unity{}}, Int{0}};
                 }
                 static constexpr interval_type initial_interval() {
                     return cyclic_interval<convergent_type, cyclic_interval_type_t::entire>{};
                 }
 
                 explicit constexpr natural_log(frac<UInt, UInt> const& positive_rational)
-                    : impl_{internal_impl_type{positive_rational}, {1, 0, 0, 1}} {}
+                    : impl_{make_generator<interval_tracker>(internal_impl_type{positive_rational}),
+                            {1, 0, 0, 1}} {}
 
                 template <class Callback>
                 constexpr void with_next_partial_fraction(Callback&& callback) {
-                    impl_.with_next_partial_fraction(callback);
+                    impl_.with_next_partial_fraction(static_cast<Callback&&>(callback));
                 }
             };
 
@@ -235,8 +236,10 @@ namespace jkj {
             class general_log {
                 using rational_impl_type = rational<Int, UInt, Unity>;
                 using irrational_internal_impl_type = natural_log_calculator<Int, UInt>;
-                using irrational_impl_type = binary_gosper<irrational_internal_impl_type,
-                                                           irrational_internal_impl_type, Unity>;
+                using irrational_impl_type =
+                    binary_gosper<generator<irrational_internal_impl_type, interval_tracker>,
+                                  generator<irrational_internal_impl_type, interval_tracker>,
+                                  Unity>;
 
             public:
                 using partial_fraction_type = typename rational_impl_type::partial_fraction_type;
@@ -395,15 +398,16 @@ namespace jkj {
                                                frac<UInt, UInt> const& x,
                                                check_rational_return rational_check)
                     : rational_impl_{rational_check.result},
-                      irrational_impl_{irrational_internal_impl_type{x},
-                                       irrational_internal_impl_type{base},
-                                       // (0xy + 1x + 0y + 0) / (0xy + 0x + 1y + 0)
-                                       {0, 1, 0, 0, 0, 0, 1, 0}},
+                      irrational_impl_{
+                          make_generator<interval_tracker>(irrational_internal_impl_type{x}),
+                          make_generator<interval_tracker>(irrational_internal_impl_type{base}),
+                          // (0xy + 1x + 0y + 0) / (0xy + 0x + 1y + 0)
+                          {0, 1, 0, 0, 0, 0, 1, 0}},
                       is_rational_{rational_check.is_rational} {}
 
             public:
                 static constexpr partial_fraction_type initial_partial_fraction() {
-                    return {Unity{}, Int{0}};
+                    return {Unity{unity{}}, Int{0}};
                 }
                 static constexpr interval_type initial_interval() {
                     return cyclic_interval<convergent_type, cyclic_interval_type_t::entire>{};

@@ -195,14 +195,15 @@ namespace jkj {
         // (3) floor(nx) = floor(nm/2^k) holds for all n in [0:nmax-nmin].
         template <class ContinuedFractionGeneratorX, class ContinuedFractionGeneratorY>
         constexpr multiply_add_shift_info find_suboptimal_multiply_add_shift(
-            ContinuedFractionGeneratorX&& xcf, ContinuedFractionGeneratorY&& ycf,
+            ContinuedFractionGeneratorX const& xcf, ContinuedFractionGeneratorY const& ycf,
             interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
             // TODO: deal with possible rational dependence between x and y.
-            using impl_type_x =
-                typename std::remove_cvref_t<ContinuedFractionGeneratorX>::impl_type;
-            using impl_type_y =
-                typename std::remove_cvref_t<ContinuedFractionGeneratorY>::impl_type;
+
             auto xcf_copy = xcf;
+
+            using binary_gosper_type =
+                cntfrc::impl::binary_gosper<std::remove_cvref_t<ContinuedFractionGeneratorX>,
+                                            std::remove_cvref_t<ContinuedFractionGeneratorY>>;
 
             util::constexpr_assert(nrange.upper_bound() > nrange.lower_bound());
             auto const& nmin = nrange.lower_bound();
@@ -215,13 +216,12 @@ namespace jkj {
             // Step 2. Subtract out the integer part of y.
             auto floor_y = [&] {
                 auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
-                    cntfrc::impl::binary_gosper<impl_type_x, impl_type_y>{
-                        xcf.copy_internal_implementation(),
-                        ycf.copy_internal_implementation(),
-                        {// numerator
-                         0, nmin, 1, 0,
-                         // denominator
-                         0, 0, 0, 1}});
+                    cntfrc::make_binary_gosper_from_impl(xcf.copy_internal_implementation(),
+                                                         ycf.copy_internal_implementation(),
+                                                         {// numerator
+                                                          0, nmin, 1, 0,
+                                                          // denominator
+                                                          0, 0, 0, 1}));
                 cf.update();
                 return cf.current_partial_fraction().denominator;
             }();
@@ -229,13 +229,12 @@ namespace jkj {
             // Step 3. Determine if any of L, R is empty.
             bool is_L_empty = [&] {
                 auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
-                    cntfrc::impl::binary_gosper<impl_type_x, impl_type_y>{
-                        xcf.copy_internal_implementation(),
-                        ycf.copy_internal_implementation(),
+                    cntfrc::make_binary_gosper_from_impl(
+                        xcf.copy_internal_implementation(), ycf.copy_internal_implementation(),
                         {// numerator
                          0, util::to_signed(xi_range.lower_bound().denominator) + nmin, 1, 0,
                          // denominator
-                         0, 0, 0, 1}});
+                         0, 0, 0, 1}));
                 cf.update();
 
                 auto floor = cf.current_partial_fraction().denominator;
@@ -243,13 +242,12 @@ namespace jkj {
             }();
             bool is_R_empty = [&] {
                 auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
-                    cntfrc::impl::binary_gosper<impl_type_x, impl_type_y>{
-                        xcf.copy_internal_implementation(),
-                        ycf.copy_internal_implementation(),
+                    cntfrc::make_binary_gosper_from_impl(
+                        xcf.copy_internal_implementation(), ycf.copy_internal_implementation(),
                         {// numerator
                          0, util::to_signed(xi_range.upper_bound().denominator) + nmin, 1, 0,
                          // denominator
-                         0, 0, 0, 1}});
+                         0, 0, 0, 1}));
                 cf.update();
 
                 auto floor = cf.current_partial_fraction().denominator;
@@ -276,14 +274,13 @@ namespace jkj {
                 // Find floor(q_* y).
                 auto floor_qstar_y = [&] {
                     auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
-                        cntfrc::impl::binary_gosper<impl_type_x, impl_type_y>{
-                            xcf.copy_internal_implementation(),
-                            ycf.copy_internal_implementation(),
+                        cntfrc::make_binary_gosper_from_impl(
+                            xcf.copy_internal_implementation(), ycf.copy_internal_implementation(),
                             {// numerator
                              0, nmin * xi_range.lower_bound().denominator,
                              util::to_signed(xi_range.lower_bound().denominator), 0,
                              // denominator
-                             0, 0, 0, 1}});
+                             0, 0, 0, 1}));
                     cf.update();
                     return cf.current_partial_fraction().denominator;
                 }();
@@ -310,7 +307,7 @@ namespace jkj {
                     while (true) {
                         auto ceiling = [&] {
                             auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
-                                cntfrc::impl::binary_gosper<impl_type_x, impl_type_y>{
+                                cntfrc::make_binary_gosper_from_impl(
                                     xcf.copy_internal_implementation(),
                                     ycf.copy_internal_implementation(),
                                     {// numerator
@@ -319,7 +316,7 @@ namespace jkj {
                                      -floor_qstar_y - l,
                                      // denominator
                                      0, util::to_signed(xi_range.lower_bound().denominator), 0,
-                                     -xi_range.lower_bound().numerator}});
+                                     -xi_range.lower_bound().numerator}));
                             cf.update();
                             return -cf.current_partial_fraction().denominator;
                         }();

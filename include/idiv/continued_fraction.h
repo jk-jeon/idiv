@@ -20,7 +20,6 @@
 
 #include "interval.h"
 #include "projective_rational.h"
-#include "util.h"
 
 namespace jkj {
     // An interface for generalized continued fraction calculator for real numbers.
@@ -37,29 +36,32 @@ namespace jkj {
     // list of template template parameters Mixins. A mixin is a small individual feature that the
     // user wants to "mix-into" the generator instance. The generator gets the specified feature by
     // deriving from the corresponding mixin type. There are several predefined mixin templates, but
-    // users can add their own as well. The Impl parameter specifies the class with an actual
+    // users can add their owns as well. The Impl parameter specifies the class with an actual
     // continued fraction implementation which will be instantiated as a data member of the
     // generator class.
     //
-    // When update() member function of the generator class is called, the
-    // generator class calls the with_next_partial_fraction() member function of the implementation.
-    // This function is supposed to take one callback parameter whose function call operator will be
-    // called with the newly computed partial fraction is computed. The callback parameter also has
-    // a member function get_generator() which returns a const reference to the containing generator
-    // object. Since the implementation class does not know about the containing generator class,
-    // the type of the callback should be a template parameter.
+    // When update() member function of the generator class is called, the generator class calls the
+    // with_next_partial_fraction() member function of the implementation. This function is supposed
+    // to take one callback parameter by reference whose function call operator will be called with
+    // the newly computed partial fraction. The callback parameter also has a member function
+    // get_generator() which returns a const reference to the containing generator object. Since the
+    // implementation class does not know about the containing generator class, the type of the
+    // callback should be a template parameter.
     //
-    // When the callback is called inside with_next_partial_fraction(), it then calls the update()
-    // member function of each of the mixins the generator is deriving from, with two arguments, one
-    // for the passed new partial fraction, and another for the reference to the instance of the
-    // implementation class. After that, the update() function returns true.
+    // When the callback is called inside with_next_partial_fraction() for the first time, it then
+    // calls the update() member function of each of the mixins the generator is deriving from, with
+    // two arguments, one for the passed new partial fraction, and another for the reference to the
+    // instance of the implementation class. If the callback is called again, it does not do
+    // anything further and returns immediately. If with_next_partial_fraction() calls the callback
+    // at least once, the update() function returns true.
     //
-    // If the callback is not called and with_next_partial_fraction() returns, then the generator
+    // If with_next_partial_fraction() returns without calling the callback, then the generator
     // considers that there is no more partial fractions remaining and the continued fraction
     // expansion is done. It then sets the termination flag so that now its terminated() member
     // function returns true. Also, it calls the final_update() member function of each of the
     // mixins with the reference to the implementation object. After that, the update() function
-    // returns false. Once termination flag is set, now calling update() does not do anything.
+    // returns false. Once termination flag is set, now calling update() does not do anything other
+    // than just returning false.
     //
     // Some mixins may properly function only when some other mixins coexist inside the same
     // generator. Such a dependency, if needed, is supposed to be specified by specializing a class
@@ -110,10 +112,12 @@ namespace jkj {
             template <template <class, class> class Mixin>
             struct mixin_type_wrapper {};
 
-            // The alias template type in the above mixin_type_wrapper is a *different* template
-            // from Mixin, thus mixin_traits<mixin_type_wrapper<Mixin>::template type> is a
-            // *different* type from mixin_traits<Mixin>. To correctly point to the latter from
-            // mixin_type_wrapper<Mixin>, we use a helper alias.
+            // Converts mixin_type_wrapper<Mixin> into the corresponding specialization of
+            // mixin_traits. Note that it is impossible for mixin_type_wrapper to expose its
+            // template template parameter to be usable from outside, so we need separate helper
+            // functions for each different usage of the template template parameter. In our case,
+            // the only such usage is to obtain the corresponding specialization of mixin_traits, so
+            // only one helper function is enough.
             template <template <class, class> class Mixin>
             constexpr mixin_traits<Mixin>
             traits_from_wrapped_mixin_helper(mixin_type_wrapper<Mixin>) noexcept {
@@ -182,6 +186,8 @@ namespace jkj {
             };
 
             // Ignore any edge from/to a node with index >= node_count.
+            // Such an edge can present if an ordering constraint is specified for mixins that are
+            // not actually specified/required.
             template <std::size_t node_count, std::size_t edge_count>
             constexpr topological_sort_output<node_count>
             topological_sort(util::array<graph_edge, edge_count> const& edges) noexcept {
@@ -348,6 +354,8 @@ namespace jkj {
                 }
             }
 
+            // Construct an array of graph_edge from the ordering constraints of WrappedTargetMixin
+            // specified in it's mixin_traits specialization.
             template <class WrappedTargetMixin, class... WrappedMixins,
                       template <class, class> class... Before,
                       template <class, class> class... After>
@@ -387,6 +395,8 @@ namespace jkj {
                 return ret_value;
             }
 
+            // Construct an array of graph_edge from the ordering constraints of all mixins in
+            // WrappedMixins specified in their mixin_traits specializations.
             template <class... WrappedMixins>
             constexpr auto
             convert_multiple_mixin_traits(tmp::typelist<WrappedMixins...> list) noexcept {
@@ -446,9 +456,9 @@ namespace jkj {
                                      wrapped_mixin_list{}, LocalConstraintList{}),
                                  convert_multiple_mixin_traits(wrapped_mixin_list{}));
 
-                // Get a topological sorted array of mixin indices pointing into wrapped_mixin_list.
-                // Any ordering constraint pointing from/to a mixin not included in
-                // wrapped_mixin_list is ignored.
+                // Get a topologically sorted array of mixin indices pointing into
+                // wrapped_mixin_list. Any ordering constraint pointing from/to a mixin not included
+                // in wrapped_mixin_list is ignored.
                 constexpr auto sorted_mixin_indices =
                     topological_sort<wrapped_mixin_list::size>(mixin_dependency_graph);
 
@@ -469,6 +479,7 @@ namespace jkj {
                     typename get_required_mixins<Impl>::type{}, mixin_list<AdditionalMixins...>{});
             }
 
+            // The actual implementation of the generator class.
             template <class Impl, template <class, class> class... Mixins>
             class generator_impl : public Mixins<Impl, generator_impl<Impl, Mixins...>>... {
             public:
@@ -484,6 +495,7 @@ namespace jkj {
                 struct callback_type {
                 private:
                     generator_impl& gen_;
+                    bool called_ = false;
 
                     friend generator_impl;
                     explicit constexpr callback_type(generator_impl& gen) noexcept : gen_{gen} {}
@@ -491,28 +503,45 @@ namespace jkj {
                 public:
                     constexpr generator_impl const& get_generator() const noexcept { return gen_; }
 
+                    // Cannot copy/move.
+                    callback_type(callback_type const&) = delete;
+                    callback_type(callback_type&&) = delete;
+                    callback_type& operator=(callback_type const&) = delete;
+                    callback_type& operator=(callback_type&&) = delete;
+
                     constexpr void operator()(partial_fraction_type const& next_partial_fraction) {
-                        (static_cast<Mixins<Impl, generator_impl>&>(gen_).update(
-                             next_partial_fraction, gen_.impl_),
-                         ...);
-                        gen_.terminated_ = false;
+                        if (!called_) {
+                            (static_cast<Mixins<Impl, generator_impl>&>(gen_).update(
+                                 next_partial_fraction, gen_.impl_),
+                             ...);
+                        }
+                        called_ = true;
                     }
                 };
 
             public:
+                template <template <class, class> class... QueriedMixins>
+                static constexpr bool is_implementing_mixins() noexcept {
+                    using list = tmp::typelist<detail::mixin_type_wrapper<Mixins>...>;
+                    return (... && tmp::is_in<detail::mixin_type_wrapper<QueriedMixins>>(list{}));
+                }
+
                 explicit constexpr generator_impl(Impl impl)
                     : Mixins<Impl, generator_impl>{impl}..., impl_{static_cast<Impl&&>(impl)} {}
 
                 // Make a copy of the internal implementation with its current state.
-                constexpr Impl copy_internal_implementation() const { return impl_; }
+                constexpr std::remove_cvref_t<Impl> copy_internal_implementation() const {
+                    return impl_;
+                }
 
                 // Returns true if succeeded obtaining a further partial fraction.
                 constexpr bool update() {
                     if (!terminated_) {
-                        terminated_ = true;
-                        impl_.with_next_partial_fraction(callback_type{*this});
+                        callback_type callback{*this};
+                        impl_.with_next_partial_fraction(callback);
+                        if (!callback.called_) {
+                            terminated_ = true;
 
-                        if (terminated_) {
                             auto invoke_final_update = [this](auto&& mixin) {
                                 if constexpr (requires { mixin.final_update(impl_); }) {
                                     mixin.final_update(impl_);
@@ -614,7 +643,7 @@ namespace jkj {
                     next_partial_fraction.denominator * current_convergent_denominator() +
                     next_partial_fraction.numerator * previous_convergent_denominator();
 
-                previous_convergent_ = static_cast<convergent_type&&>(current_convergent_);
+                previous_convergent_ = std::move(current_convergent_);
                 current_convergent_ = convergent_type{std::move(next_numerator),
                                                       util::abs(std::move(next_denominator))};
             }
@@ -716,9 +745,12 @@ namespace jkj {
                 }
             }
             constexpr void final_update(Impl const&) {
-                current_interval_ = cyclic_interval<typename interval_type::value_type,
-                                                    cyclic_interval_type_t::single_point>{
-                    static_cast<Generator const&>(*this).current_convergent()};
+                if constexpr (interval_type::is_allowed_interval_type(
+                                  cyclic_interval_type_t::single_point)) {
+                    current_interval_ = cyclic_interval<typename interval_type::value_type,
+                                                        cyclic_interval_type_t::single_point>{
+                        static_cast<Generator const&>(*this).current_convergent()};
+                }
             }
 
         public:

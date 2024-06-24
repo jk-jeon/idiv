@@ -88,9 +88,9 @@ namespace jkj {
 
         template <class T>
         constexpr void swap(T& x, T& y) noexcept {
-            auto temp = static_cast<T&&>(x);
-            x = static_cast<T&&>(y);
-            y = static_cast<T&&>(temp);
+            auto temp = std::move(x);
+            x = std::move(y);
+            y = std::move(temp);
         }
 
         constexpr int strong_order_to_int(std::strong_ordering r) noexcept {
@@ -487,7 +487,7 @@ namespace jkj {
                 base *= base;
                 exp >>= 1;
             }
-            y *= static_cast<T&&>(base);
+            y *= std::move(base);
             return y;
         }
     }
@@ -498,6 +498,11 @@ namespace jkj {
         struct typelist {
             static constexpr std::size_t size = sizeof...(Types);
         };
+
+        template <class Type, class... Types>
+        constexpr std::size_t is_in(typelist<Types...>) noexcept {
+            return (... || std::is_same_v<Type, Types>);
+        }
 
         template <class Type, class... Types>
         constexpr std::size_t find_first_index(typelist<Types...>) noexcept {
@@ -602,7 +607,7 @@ namespace jkj {
             }
         }
 
-        // Guranteed to preserve the order.
+        // Guranteed to preserve the order and preserve the earliest item when duplicated.
         template <class Typelist>
         using remove_duplicate = decltype(detail::remove_duplicate_impl(Typelist{}));
 

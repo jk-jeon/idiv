@@ -1049,7 +1049,7 @@ namespace jkj {
                 return temp;
             }
             constexpr uint_var operator++(int) && {
-                auto temp = static_cast<uint_var&&>(*this);
+                auto temp = std::move(*this);
                 ++*this;
                 return temp;
             }
@@ -1117,7 +1117,7 @@ namespace jkj {
                 return temp;
             }
             constexpr uint_var operator--(int) && {
-                auto temp = static_cast<uint_var&&>(*this);
+                auto temp = std::move(*this);
                 --*this;
                 return temp;
             }
@@ -1181,7 +1181,7 @@ namespace jkj {
                 return quotient;
             }
             constexpr uint_var long_division(uint_const_t<1u>) {
-                auto quotient = static_cast<uint_var&&>(*this);
+                auto quotient = std::move(*this);
                 util::constexpr_assert(is_zero());
                 return quotient;
             }
@@ -1271,7 +1271,7 @@ namespace jkj {
                 return r;
             }
             constexpr uint_var operator<<(std::size_t k) && {
-                auto r = static_cast<uint_var&&>(*this);
+                auto r = std::move(*this);
                 r <<= k;
                 return r;
             }
@@ -1320,7 +1320,7 @@ namespace jkj {
                 return r;
             }
             constexpr uint_var operator>>(std::size_t k) && {
-                auto r = static_cast<uint_var&&>(*this);
+                auto r = std::move(*this);
                 r >>= k;
                 return r;
             }
@@ -1414,60 +1414,46 @@ namespace jkj {
             r += y;
             return r;
         }
-        constexpr uint_var operator+(uint_var&& x, uint_view y) {
-            return static_cast<uint_var&&>(x += y);
-        }
-        constexpr uint_var operator+(uint_view x, uint_var&& y) {
-            return static_cast<uint_var&&>(y += x);
-        }
-        constexpr uint_var operator+(uint_var&& x, uint_var&& y) {
-            return static_cast<uint_var&&>(x += y);
-        }
+        constexpr uint_var operator+(uint_var&& x, uint_view y) { return std::move(x += y); }
+        constexpr uint_var operator+(uint_view x, uint_var&& y) { return std::move(y += x); }
+        constexpr uint_var operator+(uint_var&& x, uint_var&& y) { return std::move(x += y); }
         constexpr uint_var operator+(uint_view x, convertible_to_block_type auto y) {
             auto r = uint_var(x);
             r += y;
             return r;
         }
         constexpr uint_var operator+(uint_var&& x, convertible_to_block_type auto y) {
-            return static_cast<uint_var&&>(x += y);
+            return std::move(x += y);
         }
         constexpr uint_var operator+(uint_view x, uint_const_t<>) { return uint_var(x); }
-        constexpr uint_var operator+(uint_var&& x, uint_const_t<>) {
-            return static_cast<uint_var&&>(x);
-        }
+        constexpr uint_var operator+(uint_var&& x, uint_const_t<>) { return std::move(x); }
         constexpr uint_var operator+(convertible_to_block_type auto x, uint_view y) {
             auto r = uint_var(y);
             r += x;
             return r;
         }
         constexpr uint_var operator+(convertible_to_block_type auto x, uint_var&& y) {
-            return static_cast<uint_var&&>(y += x);
+            return std::move(y += x);
         }
         constexpr uint_var operator+(uint_const_t<>, uint_view y) { return uint_var(y); }
-        constexpr uint_var operator+(uint_const_t<>, uint_var&& y) {
-            return static_cast<uint_var&&>(y);
-        }
+        constexpr uint_var operator+(uint_const_t<>, uint_var&& y) { return std::move(y); }
 
         constexpr uint_var operator-(uint_view x, uint_view y) {
             auto r = uint_var(x);
             r -= y;
             return r;
         }
-        constexpr uint_var operator-(uint_var&& x, uint_view y) {
-            return static_cast<uint_var&&>(x -= y);
-        }
+        constexpr uint_var operator-(uint_var&& x, uint_view y) { return std::move(x -= y); }
         constexpr uint_var operator-(uint_view x, convertible_to_block_type auto y) {
             auto r = uint_var(x);
             r -= y;
             return r;
         }
         constexpr uint_var operator-(uint_var&& x, convertible_to_block_type auto y) {
-            return static_cast<uint_var&&>(x -= y);
+            return std::move(x -= y);
         }
         constexpr uint_var operator-(uint_view x, uint_const_t<>) { return uint_var(x); }
-        constexpr uint_var operator-(uint_var&& x, uint_const_t<>) {
-            return static_cast<uint_var&&>(x);
-        }
+        constexpr uint_var operator-(uint_var&& x, uint_const_t<>) { return std::move(x); }
         constexpr uint_var operator-(convertible_to_block_type auto x, uint_view y) {
             auto r = uint_var(x);
             r -= y;
@@ -1494,30 +1480,26 @@ namespace jkj {
             return r;
         }
         constexpr uint_var operator*(uint_var&& x, convertible_to_block_type auto y) {
-            return static_cast<uint_var&&>(x *= y);
+            return std::move(x *= y);
         }
         constexpr uint_var operator*(uint_view x, uint_const_t<1u>) { return uint_var(x); }
         constexpr uint_var operator*(uint_view, uint_const_t<>) { return {}; }
-        constexpr uint_var operator*(uint_var&& x, uint_const_t<1u>) {
-            return static_cast<uint_var&&>(x);
-        }
+        constexpr uint_var operator*(uint_var&& x, uint_const_t<1u>) { return std::move(x); }
         constexpr uint_var operator*(convertible_to_block_type auto x, uint_view y) {
             auto r = uint_var(y);
             r *= x;
             return r;
         }
         constexpr uint_var operator*(convertible_to_block_type auto x, uint_var&& y) {
-            return static_cast<uint_var&&>(y *= x);
+            return std::move(y *= x);
         }
         constexpr uint_var operator*(uint_const_t<1u>, uint_view y) { return uint_var(y); }
-        constexpr uint_var operator*(uint_const_t<1u>, uint_var&& y) {
-            return static_cast<uint_var&&>(y);
-        }
+        constexpr uint_var operator*(uint_const_t<1u>, uint_var&& y) { return std::move(y); }
         constexpr uint_var operator*(uint_const_t<>, uint_view) { return {}; }
 
         constexpr uint_var& operator*=(uint_var& x, uint_view y) {
             auto r = x * y;
-            x = static_cast<uint_var&&>(r);
+            x = std::move(r);
             return x;
         }
 
@@ -1534,19 +1516,17 @@ namespace jkj {
             return x.long_division(uint_view::make_view_from_single_block(y));
         }
         constexpr uint_var operator/(uint_view x, uint_const_t<1u>) { return uint_var(x); }
-        constexpr uint_var operator/(uint_var&& x, uint_const_t<1u>) {
-            return static_cast<uint_var&&>(x);
-        }
+        constexpr uint_var operator/(uint_var&& x, uint_const_t<1u>) { return std::move(x); }
         constexpr uint_var operator/(uint_view, uint_const_t<>) = delete;
 
         constexpr uint_var& operator/=(uint_var& x, uint_view y) {
             auto r = x / y;
-            x = static_cast<uint_var&&>(r);
+            x = std::move(r);
             return x;
         }
         constexpr uint_var& operator/=(uint_var& x, convertible_to_block_type auto y) {
             auto r = x / y;
-            x = static_cast<uint_var&&>(r);
+            x = std::move(r);
             return x;
         }
         constexpr uint_var& operator/=(uint_var& x, uint_const_t<1u>) { return x; }
@@ -1559,7 +1539,7 @@ namespace jkj {
         }
         constexpr uint_var operator%(uint_var&& x, uint_view y) {
             x.long_division(y);
-            return static_cast<uint_var&&>(x);
+            return std::move(x);
         }
         constexpr uint_var operator%(uint_view x, convertible_to_block_type auto y) {
             auto r = uint_var(x);
@@ -1568,7 +1548,7 @@ namespace jkj {
         }
         constexpr uint_var operator%(uint_var&& x, convertible_to_block_type auto y) {
             x.long_division(uint_view::make_view_from_single_block(y));
-            return static_cast<uint_var&&>(x);
+            return std::move(x);
         }
         constexpr uint_var operator%(uint_view, uint_const_t<1u>) { return {}; }
         constexpr uint_var operator%(uint_view, uint_const_t<>) = delete;
@@ -1585,20 +1565,16 @@ namespace jkj {
         constexpr uint_var_div_t div(uint_var&& x, uint_view y) {
             uint_var_div_t ret;
             ret.quot = x.long_division(y);
-            ret.rem = static_cast<uint_var&&>(x);
+            ret.rem = std::move(x);
             return ret;
         }
-        constexpr uint_var_div_t div(uint_var&& x, uint_const_t<1u>) {
-            return {static_cast<uint_var&&>(x), {}};
-        }
+        constexpr uint_var_div_t div(uint_var&& x, uint_const_t<1u>) { return {std::move(x), {}}; }
 
         constexpr uint_var div_floor(uint_view x, uint_view y) { return x / y; }
         constexpr uint_var div_floor(uint_view x, uint_const_t<1u>) { return uint_var(x); }
         constexpr uint_var div_floor(uint_view x, uint_const_t<>) = delete;
         constexpr uint_var div_floor(uint_var&& x, uint_view y) { return x.long_division(y); }
-        constexpr uint_var div_floor(uint_var&& x, uint_const_t<1u>) {
-            return static_cast<uint_var&&>(x);
-        }
+        constexpr uint_var div_floor(uint_var&& x, uint_const_t<1u>) { return std::move(x); }
         constexpr uint_var div_floor(uint_var&& x, uint_const_t<>) = delete;
 
         constexpr uint_var div_ceil(uint_view x, uint_view y) {
@@ -1618,9 +1594,7 @@ namespace jkj {
             }
             return quotient;
         }
-        constexpr uint_var div_ceil(uint_var&& x, uint_const_t<1u>) {
-            return static_cast<uint_var&&>(x);
-        }
+        constexpr uint_var div_ceil(uint_var&& x, uint_const_t<1u>) { return std::move(x); }
 
         // Computes max(floor(log2(x / y)), 0).
         // Precondition: x, y are not zero.
@@ -1981,7 +1955,7 @@ namespace jkj {
                 }
             }
             explicit constexpr int_var(sign_t sign, uint_var&& abs)
-                : abs_(static_cast<uint_var&&>(abs)), sign_(sign) {
+                : abs_(std::move(abs)), sign_(sign) {
                 if (abs_.is_zero()) {
                     sign_ = sign_t::positive;
                 }
@@ -1989,7 +1963,7 @@ namespace jkj {
 
             explicit constexpr int_var(uint_view abs) : int_var(sign_t::positive, abs) {}
             explicit constexpr int_var(uint_var&& abs)
-                : int_var(sign_t::positive, static_cast<uint_var&&>(abs)) {}
+                : int_var(sign_t::positive, std::move(abs)) {}
             constexpr int_var(int_view n) : int_var(n.sign(), n.abs()) {}
 
             constexpr int_var(signed_block_type n) {
@@ -2036,7 +2010,7 @@ namespace jkj {
 
             // Absolute value.
             constexpr uint_var const& abs() const& noexcept { return abs_; }
-            constexpr uint_var&& abs() && noexcept { return static_cast<uint_var&&>(abs_); }
+            constexpr uint_var&& abs() && noexcept { return std::move(abs_); }
 
             constexpr int_var& invert_sign() noexcept {
                 if (!is_zero()) {
@@ -2050,7 +2024,7 @@ namespace jkj {
             }
 
             constexpr int_var operator-() && {
-                return int_var(::jkj::bigint::invert_sign(sign_), static_cast<uint_var&&>(abs_));
+                return int_var(::jkj::bigint::invert_sign(sign_), std::move(abs_));
             }
 
             constexpr int_var& operator+=(uint_view n) {
@@ -2157,7 +2131,7 @@ namespace jkj {
                 return temp;
             }
             constexpr int_var operator++(int) && {
-                auto temp = static_cast<int_var&&>(*this);
+                auto temp = std::move(*this);
                 ++*this;
                 return temp;
             }
@@ -2262,7 +2236,7 @@ namespace jkj {
                 return temp;
             }
             constexpr int_var operator--(int) && {
-                auto temp = static_cast<int_var&&>(*this);
+                auto temp = std::move(*this);
                 --*this;
                 return temp;
             }
@@ -2313,7 +2287,7 @@ namespace jkj {
                 if (is_nonnegative()) {
                     auto quotient = abs_.long_division(n);
                     sign_ = sign_t::positive;
-                    return int_var{sign_t::positive, static_cast<uint_var&&>(quotient)};
+                    return int_var{sign_t::positive, std::move(quotient)};
                 }
                 // Otherwise, use the identities
                 // floor(-p/q) = -ceil(p/q) = -floor((p + q - 1)/q) and
@@ -2327,15 +2301,15 @@ namespace jkj {
                     dividend += q_m1;
 
                     auto quotient = dividend.long_division(n);
-                    abs_ = static_cast<uint_var&&>(q_m1);
+                    abs_ = std::move(q_m1);
                     abs_ -= dividend;
                     sign_ = sign_t::positive;
 
-                    return int_var{sign_t::negative, static_cast<uint_var&&>(quotient)};
+                    return int_var{sign_t::negative, std::move(quotient)};
                 }
             }
             constexpr int_var long_division(uint_const_t<1u>) {
-                auto quotient = static_cast<int_var&&>(*this);
+                auto quotient = std::move(*this);
                 util::constexpr_assert(abs_.blocks_.empty());
                 sign_ = sign_t::positive;
                 return quotient;
@@ -2353,7 +2327,7 @@ namespace jkj {
                 return r;
             }
             constexpr int_var operator<<(std::size_t k) && {
-                auto r = static_cast<int_var&&>(*this);
+                auto r = std::move(*this);
                 r <<= k;
                 return r;
             }
@@ -2404,7 +2378,7 @@ namespace jkj {
                 return r;
             }
             constexpr int_var operator>>(std::size_t k) && {
-                auto r = static_cast<int_var&&>(*this);
+                auto r = std::move(*this);
                 r >>= k;
                 return r;
             }
@@ -2433,14 +2407,12 @@ namespace jkj {
         constexpr uint_var abs(uint_var const& n) { return n; }
         constexpr uint_var abs(int_var const& n) { return n.abs(); }
 
-        constexpr int_var to_signed(uint_var&& n) noexcept {
-            return int_var(static_cast<uint_var&&>(n));
-        }
+        constexpr int_var to_signed(uint_var&& n) noexcept { return int_var(std::move(n)); }
         constexpr int_var to_negative(uint_var&& n) noexcept {
-            return int_var{sign_t::negative, static_cast<uint_var&&>(n)};
+            return int_var{sign_t::negative, std::move(n)};
         }
-        constexpr uint_var abs(uint_var&& n) noexcept { return static_cast<uint_var&&>(n); }
-        constexpr uint_var abs(int_var&& n) noexcept { return static_cast<int_var&&>(n).abs(); }
+        constexpr uint_var abs(uint_var&& n) noexcept { return std::move(n); }
+        constexpr uint_var abs(int_var&& n) noexcept { return std::move(n).abs(); }
 
         namespace detail {
             template <std::size_t N, static_block_holder<N> arr>
@@ -2555,7 +2527,7 @@ namespace jkj {
             return int_var(::jkj::bigint::invert_sign(n.sign()), uint_var(n.abs()));
         }
         constexpr int_var invert_sign(int_var&& n) {
-            return int_var(::jkj::bigint::invert_sign(n.sign()), static_cast<int_var&&>(n).abs());
+            return int_var(::jkj::bigint::invert_sign(n.sign()), std::move(n).abs());
         }
         namespace detail {
             template <sign_t sign, std::size_t N, static_block_holder<N> arr>
@@ -2573,9 +2545,7 @@ namespace jkj {
             r += x;
             return r;
         }
-        constexpr int_var operator+(uint_view x, int_var&& y) {
-            return static_cast<int_var&&>(y += x);
-        }
+        constexpr int_var operator+(uint_view x, int_var&& y) { return std::move(y += x); }
         constexpr int_var operator+(uint_view x, convertible_to_signed_block_type auto y) {
             auto r = int_var(y);
             r += x;
@@ -2584,21 +2554,17 @@ namespace jkj {
         constexpr int_var operator+(uint_view x, int_const_t<>) { return int_var(uint_var(x)); }
 
         constexpr int_var operator+(uint_var&& x, int_view y) {
-            auto r = to_signed(static_cast<uint_var&&>(x));
+            auto r = to_signed(std::move(x));
             r += y;
             return r;
         }
-        constexpr int_var operator+(uint_var&& x, int_var&& y) {
-            return static_cast<int_var&&>(y += x);
-        }
+        constexpr int_var operator+(uint_var&& x, int_var&& y) { return std::move(y += x); }
         constexpr int_var operator+(uint_var&& x, convertible_to_signed_block_type auto y) {
-            auto r = to_signed(static_cast<uint_var&&>(x));
+            auto r = to_signed(std::move(x));
             r += y;
             return r;
         }
-        constexpr int_var operator+(uint_var&& x, int_const_t<>) {
-            return to_signed(static_cast<uint_var&&>(x));
-        }
+        constexpr int_var operator+(uint_var&& x, int_const_t<>) { return to_signed(std::move(x)); }
 
         constexpr int_var operator+(int_view x, uint_view y) {
             auto r = int_var(x);
@@ -2606,7 +2572,7 @@ namespace jkj {
             return r;
         }
         constexpr int_var operator+(int_view x, uint_var&& y) {
-            auto r = to_signed(static_cast<uint_var&&>(y));
+            auto r = to_signed(std::move(y));
             r += x;
             return r;
         }
@@ -2615,9 +2581,7 @@ namespace jkj {
             r += y;
             return r;
         }
-        constexpr int_var operator+(int_view x, int_var&& y) {
-            return static_cast<int_var&&>(y += x);
-        }
+        constexpr int_var operator+(int_view x, int_var&& y) { return std::move(y += x); }
         constexpr int_var operator+(int_view x, convertible_to_block_type auto y) {
             auto r = int_var(x);
             r += y;
@@ -2631,62 +2595,44 @@ namespace jkj {
         constexpr int_var operator+(int_view x, uint_const_t<>) { return int_var(x); }
         constexpr int_var operator+(int_view x, int_const_t<>) { return int_var(x); }
 
-        constexpr int_var operator+(int_var&& x, uint_view y) {
-            return static_cast<int_var&&>(x += y);
-        }
-        constexpr int_var operator+(int_var&& x, uint_var&& y) {
-            return static_cast<int_var&&>(x += y);
-        }
-        constexpr int_var operator+(int_var&& x, int_view y) {
-            return static_cast<int_var&&>(x += y);
-        }
-        constexpr int_var operator+(int_var&& x, int_var&& y) {
-            return static_cast<int_var&&>(x += y);
-        }
+        constexpr int_var operator+(int_var&& x, uint_view y) { return std::move(x += y); }
+        constexpr int_var operator+(int_var&& x, uint_var&& y) { return std::move(x += y); }
+        constexpr int_var operator+(int_var&& x, int_view y) { return std::move(x += y); }
+        constexpr int_var operator+(int_var&& x, int_var&& y) { return std::move(x += y); }
         constexpr int_var operator+(int_var&& x, convertible_to_block_type auto y) {
-            return static_cast<int_var&&>(x += y);
+            return std::move(x += y);
         }
         constexpr int_var operator+(int_var&& x, convertible_to_signed_block_type auto y) {
-            return static_cast<int_var&&>(x += y);
+            return std::move(x += y);
         }
-        constexpr int_var operator+(int_var&& x, uint_const_t<>) {
-            return static_cast<int_var&&>(x);
-        }
-        constexpr int_var operator+(int_var&& x, int_const_t<>) {
-            return static_cast<int_var&&>(x);
-        }
+        constexpr int_var operator+(int_var&& x, uint_const_t<>) { return std::move(x); }
+        constexpr int_var operator+(int_var&& x, int_const_t<>) { return std::move(x); }
 
         constexpr int_var operator+(convertible_to_block_type auto x, int_view y) { return y + x; }
         constexpr int_var operator+(convertible_to_block_type auto x, int_var&& y) {
-            return static_cast<int_var&&>(y += x);
+            return std::move(y += x);
         }
 
         constexpr int_var operator+(convertible_to_signed_block_type auto x, uint_view y) {
             return y + x;
         }
         constexpr int_var operator+(convertible_to_signed_block_type auto x, uint_var&& y) {
-            return static_cast<uint_var&&>(y) + x;
+            return std::move(y) + x;
         }
         constexpr int_var operator+(convertible_to_signed_block_type auto x, int_view y) {
             return y + x;
         }
         constexpr int_var operator+(convertible_to_signed_block_type auto x, int_var&& y) {
-            return static_cast<int_var&&>(y) + x;
+            return std::move(y) + x;
         }
 
         constexpr int_var operator+(uint_const_t<>, int_view y) { return int_var(y); }
-        constexpr int_var operator+(uint_const_t<>, int_var&& y) {
-            return static_cast<int_var&&>(y);
-        }
+        constexpr int_var operator+(uint_const_t<>, int_var&& y) { return std::move(y); }
 
         constexpr int_var operator+(int_const_t<>, uint_view y) { return int_var(uint_var(y)); }
-        constexpr int_var operator+(int_const_t<>, uint_var&& y) {
-            return to_signed(static_cast<uint_var&&>(y));
-        }
+        constexpr int_var operator+(int_const_t<>, uint_var&& y) { return to_signed(std::move(y)); }
         constexpr int_var operator+(int_const_t<>, int_view y) { return int_var(y); }
-        constexpr int_var operator+(int_const_t<>, int_var&& y) {
-            return static_cast<int_var&&>(y);
-        }
+        constexpr int_var operator+(int_const_t<>, int_var&& y) { return std::move(y); }
 
         constexpr int_var operator-(uint_view x, int_view y) {
             auto r = int_var(uint_var(x));
@@ -2696,7 +2642,7 @@ namespace jkj {
         constexpr int_var operator-(uint_view x, int_var&& y) {
             y -= x;
             y.invert_sign();
-            return static_cast<int_var&&>(y);
+            return std::move(y);
         }
         constexpr int_var operator-(uint_view x, convertible_to_signed_block_type auto y) {
             auto r = int_var(uint_var(x));
@@ -2706,23 +2652,21 @@ namespace jkj {
         constexpr int_var operator-(uint_view x, int_const_t<>) { return int_var(uint_var(x)); }
 
         constexpr int_var operator-(uint_var&& x, int_view y) {
-            auto r = to_signed(static_cast<uint_var&&>(x));
+            auto r = to_signed(std::move(x));
             r -= y;
             return r;
         }
         constexpr int_var operator-(uint_var&& x, int_var&& y) {
             y -= x;
             y.invert_sign();
-            return static_cast<int_var&&>(y);
+            return std::move(y);
         }
         constexpr int_var operator-(uint_var&& x, convertible_to_signed_block_type auto y) {
-            auto r = to_signed(static_cast<uint_var&&>(x));
+            auto r = to_signed(std::move(x));
             r -= y;
             return r;
         }
-        constexpr int_var operator-(uint_var&& x, int_const_t<>) {
-            return to_signed(static_cast<uint_var&&>(x));
-        }
+        constexpr int_var operator-(uint_var&& x, int_const_t<>) { return to_signed(std::move(x)); }
 
         constexpr int_var operator-(int_view x, uint_view y) {
             auto r = int_var(x);
@@ -2730,7 +2674,7 @@ namespace jkj {
             return r;
         }
         constexpr int_var operator-(int_view x, uint_var&& y) {
-            auto r = to_signed(static_cast<uint_var&&>(y));
+            auto r = to_signed(std::move(y));
             r -= x;
             r.invert_sign();
             return r;
@@ -2743,7 +2687,7 @@ namespace jkj {
         constexpr int_var operator-(int_view x, int_var&& y) {
             y -= x;
             y.invert_sign();
-            return static_cast<int_var&&>(y);
+            return std::move(y);
         }
         constexpr int_var operator-(int_view x, convertible_to_block_type auto y) {
             auto r = int_var(x);
@@ -2758,30 +2702,18 @@ namespace jkj {
         constexpr int_var operator-(int_view x, uint_const_t<>) { return int_var(x); }
         constexpr int_var operator-(int_view x, int_const_t<>) { return int_var(x); }
 
-        constexpr int_var operator-(int_var&& x, uint_view y) {
-            return static_cast<int_var&&>(x -= y);
-        }
-        constexpr int_var operator-(int_var&& x, uint_var&& y) {
-            return static_cast<int_var&&>(x -= y);
-        }
-        constexpr int_var operator-(int_var&& x, int_view y) {
-            return static_cast<int_var&&>(x -= y);
-        }
-        constexpr int_var operator-(int_var&& x, int_var&& y) {
-            return static_cast<int_var&&>(x -= y);
-        }
+        constexpr int_var operator-(int_var&& x, uint_view y) { return std::move(x -= y); }
+        constexpr int_var operator-(int_var&& x, uint_var&& y) { return std::move(x -= y); }
+        constexpr int_var operator-(int_var&& x, int_view y) { return std::move(x -= y); }
+        constexpr int_var operator-(int_var&& x, int_var&& y) { return std::move(x -= y); }
         constexpr int_var operator-(int_var&& x, convertible_to_block_type auto y) {
-            return static_cast<int_var&&>(x -= y);
+            return std::move(x -= y);
         }
         constexpr int_var operator-(int_var&& x, convertible_to_signed_block_type auto y) {
-            return static_cast<int_var&&>(x -= y);
+            return std::move(x -= y);
         }
-        constexpr int_var operator-(int_var&& x, uint_const_t<>) {
-            return static_cast<int_var&&>(x);
-        }
-        constexpr int_var operator-(int_var&& x, int_const_t<>) {
-            return static_cast<int_var&&>(x);
-        }
+        constexpr int_var operator-(int_var&& x, uint_const_t<>) { return std::move(x); }
+        constexpr int_var operator-(int_var&& x, int_const_t<>) { return std::move(x); }
 
         constexpr int_var operator-(convertible_to_block_type auto x, int_view y) {
             auto r = int_var(y);
@@ -2792,7 +2724,7 @@ namespace jkj {
         constexpr int_var operator-(convertible_to_block_type auto x, int_var&& y) {
             y -= x;
             y.invert_sign();
-            return static_cast<int_var&&>(y);
+            return std::move(y);
         }
 
         constexpr int_var operator-(convertible_to_signed_block_type auto x, uint_view y) {
@@ -2801,7 +2733,7 @@ namespace jkj {
             return r;
         }
         constexpr int_var operator-(convertible_to_signed_block_type auto x, uint_var&& y) {
-            auto r = to_signed(static_cast<uint_var&&>(y));
+            auto r = to_signed(std::move(y));
             r -= x;
             r.invert_sign();
             return r;
@@ -2814,7 +2746,7 @@ namespace jkj {
         constexpr int_var operator-(convertible_to_signed_block_type auto x, int_var&& y) {
             y -= x;
             y.invert_sign();
-            return static_cast<int_var&&>(y);
+            return std::move(y);
         }
 
         constexpr int_var operator-(uint_const_t<>, int_view y) {
@@ -2824,14 +2756,14 @@ namespace jkj {
         }
         constexpr int_var operator-(uint_const_t<>, int_var&& y) {
             y.invert_sign();
-            return static_cast<int_var&&>(y);
+            return std::move(y);
         }
 
         constexpr int_var operator-(int_const_t<>, uint_view y) {
             return int_var(sign_t::negative, uint_var(y));
         }
         constexpr int_var operator-(int_const_t<>, uint_var&& y) {
-            return to_negative(static_cast<uint_var&&>(y));
+            return to_negative(std::move(y));
         }
         constexpr int_var operator-(int_const_t<>, int_view y) {
             auto r = int_var(y);
@@ -2840,7 +2772,7 @@ namespace jkj {
         }
         constexpr int_var operator-(int_const_t<>, int_var&& y) {
             y.invert_sign();
-            return static_cast<int_var&&>(y);
+            return std::move(y);
         }
 
         constexpr int_var operator*(uint_view x, int_view y) {
@@ -2860,15 +2792,15 @@ namespace jkj {
         constexpr int_var operator*(uint_view, int_const_t<>) { return {}; }
 
         constexpr int_var operator*(uint_var&& x, convertible_to_signed_block_type auto y) {
-            auto r = to_signed(static_cast<uint_var&&>(x));
+            auto r = to_signed(std::move(x));
             r *= y;
             return r;
         }
         constexpr int_var operator*(uint_var&& x, int_const_t<sign_t::positive, 1u>) {
-            return int_var(sign_t::positive, static_cast<uint_var&&>(x));
+            return int_var(sign_t::positive, std::move(x));
         }
         constexpr int_var operator*(uint_var&& x, int_const_t<sign_t::negative, 1u>) {
-            return int_var(sign_t::negative, static_cast<uint_var&&>(x));
+            return int_var(sign_t::negative, std::move(x));
         }
         constexpr int_var operator*(uint_var&&, int_const_t<>) { return {}; }
 
@@ -2898,43 +2830,39 @@ namespace jkj {
         constexpr int_var operator*(int_view, int_const_t<>) { return {}; }
 
         constexpr int_var operator*(int_var&& x, convertible_to_block_type auto y) {
-            return static_cast<int_var&&>(x *= y);
+            return std::move(x *= y);
         }
         constexpr int_var operator*(int_var&& x, convertible_to_signed_block_type auto y) {
-            return static_cast<int_var&&>(x *= y);
+            return std::move(x *= y);
         }
-        constexpr int_var operator*(int_var&& x, uint_const_t<1u>) {
-            return static_cast<int_var&&>(x);
-        }
+        constexpr int_var operator*(int_var&& x, uint_const_t<1u>) { return std::move(x); }
         constexpr int_var operator*(int_var&& x, int_const_t<sign_t::positive, 1u>) {
-            return static_cast<int_var&&>(x);
+            return std::move(x);
         }
         constexpr int_var operator*(int_var&& x, int_const_t<sign_t::negative, 1u>) {
-            return static_cast<int_var&&>(x.invert_sign());
+            return std::move(x.invert_sign());
         }
 
         constexpr int_var operator*(convertible_to_block_type auto x, int_view y) { return y * x; }
         constexpr int_var operator*(convertible_to_block_type auto x, int_var&& y) {
-            return static_cast<int_var&&>(y) * x;
+            return std::move(y) * x;
         }
 
         constexpr int_var operator*(convertible_to_signed_block_type auto x, uint_view y) {
             return y * x;
         }
         constexpr int_var operator*(convertible_to_signed_block_type auto x, uint_var&& y) {
-            return static_cast<uint_var&&>(y) * x;
+            return std::move(y) * x;
         }
         constexpr int_var operator*(convertible_to_signed_block_type auto x, int_view y) {
             return y * x;
         }
         constexpr int_var operator*(convertible_to_signed_block_type auto x, int_var&& y) {
-            return static_cast<int_var&&>(y) * x;
+            return std::move(y) * x;
         }
 
         constexpr int_var operator*(uint_const_t<1u>, int_view y) { return int_var(y); }
-        constexpr int_var operator*(uint_const_t<1u>, int_var&& y) {
-            return static_cast<int_var&&>(y);
-        }
+        constexpr int_var operator*(uint_const_t<1u>, int_var&& y) { return std::move(y); }
 
         constexpr int_var operator*(uint_const_t<>, int_view) { return {}; }
 
@@ -2942,26 +2870,26 @@ namespace jkj {
             return int_var(sign_t::positive, uint_var(y));
         }
         constexpr int_var operator*(int_const_t<sign_t::positive, 1u>, uint_var&& y) {
-            return int_var(sign_t::positive, static_cast<uint_var&&>(y));
+            return int_var(sign_t::positive, std::move(y));
         }
         constexpr int_var operator*(int_const_t<sign_t::positive, 1u>, int_view y) {
             return int_var(y);
         }
         constexpr int_var operator*(int_const_t<sign_t::positive, 1u>, int_var&& y) {
-            return static_cast<int_var&&>(y);
+            return std::move(y);
         }
 
         constexpr int_var operator*(int_const_t<sign_t::negative, 1u>, uint_view y) {
             return int_var(sign_t::negative, uint_var(y));
         }
         constexpr int_var operator*(int_const_t<sign_t::negative, 1u>, uint_var&& y) {
-            return int_var(sign_t::negative, static_cast<uint_var&&>(y));
+            return int_var(sign_t::negative, std::move(y));
         }
         constexpr int_var operator*(int_const_t<sign_t::negative, 1u>, int_view y) {
             return int_var(y).invert_sign();
         }
         constexpr int_var operator*(int_const_t<sign_t::negative, 1u>, int_var&& y) {
-            return static_cast<int_var&&>(y.invert_sign());
+            return std::move(y.invert_sign());
         }
 
         constexpr int_var operator*(int_const_t<>, uint_view) { return {}; }
@@ -2969,12 +2897,12 @@ namespace jkj {
 
         constexpr int_var& operator*=(int_var& x, uint_view y) {
             auto r = x * y;
-            x = static_cast<int_var&&>(r);
+            x = std::move(r);
             return x;
         }
         constexpr int_var& operator*=(int_var& x, int_view y) {
             auto r = x * y;
-            x = static_cast<int_var&&>(r);
+            x = std::move(r);
             return x;
         }
 
@@ -2993,19 +2921,17 @@ namespace jkj {
             return x.long_division(uint_view::make_view_from_single_block(y));
         }
         constexpr int_var operator/(int_view x, uint_const_t<1u>) { return int_var(x); }
-        constexpr int_var operator/(int_var&& x, uint_const_t<1u>) {
-            return static_cast<int_var&&>(x);
-        }
+        constexpr int_var operator/(int_var&& x, uint_const_t<1u>) { return std::move(x); }
         constexpr int_var operator/(int_view x, uint_const_t<>) = delete;
 
         constexpr int_var& operator/=(int_var& x, uint_view y) {
             auto r = x / y;
-            x = static_cast<int_var&&>(r);
+            x = std::move(r);
             return x;
         }
         constexpr int_var& operator/=(int_var& x, convertible_to_block_type auto y) {
             auto r = x / y;
-            x = static_cast<int_var&&>(r);
+            x = std::move(r);
             return x;
         }
         constexpr int_var& operator/=(int_var& x, uint_const_t<1u>) { return x; }
@@ -3018,7 +2944,7 @@ namespace jkj {
         }
         constexpr int_var operator%(int_var&& x, uint_view y) {
             x.long_division(y);
-            return static_cast<int_var&&>(x);
+            return std::move(x);
         }
         constexpr int_var operator%(int_view x, convertible_to_block_type auto y) {
             auto r = int_var(x);
@@ -3027,7 +2953,7 @@ namespace jkj {
         }
         constexpr int_var operator%(int_var&& x, convertible_to_block_type auto y) {
             x.long_division(uint_view::make_view_from_single_block(y));
-            return static_cast<int_var&&>(x);
+            return std::move(x);
         }
         constexpr int_var operator%(int_view, uint_const_t<1u>) { return {}; }
         constexpr int_var operator%(int_view, uint_const_t<>) = delete;
@@ -3037,19 +2963,17 @@ namespace jkj {
             int_var_div_t ret;
             auto temp = int_var(x);
             ret.quot = temp.long_division(y);
-            ret.rem = static_cast<int_var&&>(temp).abs();
+            ret.rem = std::move(temp).abs();
             return ret;
         }
         constexpr int_var_div_t div(int_var&& x, uint_view y) {
             int_var_div_t ret;
             ret.quot = x.long_division(y);
-            ret.rem = static_cast<int_var&&>(x).abs();
+            ret.rem = std::move(x).abs();
             return ret;
         }
         constexpr int_var_div_t div(int_view x, uint_const_t<1u>) { return {int_var(x), {}}; }
-        constexpr int_var_div_t div(int_var&& x, uint_const_t<1u>) {
-            return {static_cast<int_var&&>(x), {}};
-        }
+        constexpr int_var_div_t div(int_var&& x, uint_const_t<1u>) { return {std::move(x), {}}; }
         constexpr int_var_div_t div(int_view, uint_const_t<>) = delete;
 
         constexpr int_var div_floor(uint_view x, int_view y) {
@@ -3062,10 +2986,10 @@ namespace jkj {
         }
         constexpr int_var div_floor(uint_var&& x, int_view y) {
             if (y.is_nonnegative()) {
-                return int_var(sign_t::positive, div_floor(static_cast<uint_var&&>(x), y.abs()));
+                return int_var(sign_t::positive, div_floor(std::move(x), y.abs()));
             }
             else {
-                return int_var(sign_t::negative, div_ceil(static_cast<uint_var&&>(x), y.abs()));
+                return int_var(sign_t::negative, div_ceil(std::move(x), y.abs()));
             }
         }
         constexpr int_var div_floor(uint_view x, int_const_t<sign_t::positive, 1u>) {
@@ -3075,19 +2999,17 @@ namespace jkj {
             return int_var{sign_t::negative, x};
         }
         constexpr int_var div_floor(uint_var&& x, int_const_t<sign_t::positive, 1u>) {
-            return int_var{static_cast<uint_var&&>(x)};
+            return int_var{std::move(x)};
         }
         constexpr int_var div_floor(uint_var&& x, int_const_t<sign_t::negative, 1u>) {
-            return int_var{sign_t::negative, static_cast<uint_var&&>(x)};
+            return int_var{sign_t::negative, std::move(x)};
         }
         constexpr int_var div_floor(uint_view x, int_const_t<>) = delete;
 
         constexpr int_var div_floor(int_view x, uint_view y) { return x / y; }
         constexpr int_var div_floor(int_var&& x, uint_view y) { return x.long_division(y); }
         constexpr int_var div_floor(int_view x, uint_const_t<1u>) { return int_var(x); }
-        constexpr int_var div_floor(int_var&& x, uint_const_t<1u>) {
-            return static_cast<int_var&&>(x);
-        }
+        constexpr int_var div_floor(int_var&& x, uint_const_t<1u>) { return std::move(x); }
         constexpr int_var div_floor(int_view x, uint_const_t<>) = delete;
 
         constexpr int_var div_ceil(uint_view x, int_view y) {
@@ -3100,10 +3022,10 @@ namespace jkj {
         }
         constexpr int_var div_ceil(uint_var&& x, int_view y) {
             if (y.is_nonnegative()) {
-                return int_var(sign_t::positive, div_ceil(static_cast<uint_var&&>(x), y.abs()));
+                return int_var(sign_t::positive, div_ceil(std::move(x), y.abs()));
             }
             else {
-                return int_var(sign_t::negative, div_floor(static_cast<uint_var&&>(x), y.abs()));
+                return int_var(sign_t::negative, div_floor(std::move(x), y.abs()));
             }
         }
         constexpr int_var div_ceil(uint_view x, int_const_t<sign_t::positive, 1u>) {
@@ -3113,10 +3035,10 @@ namespace jkj {
             return int_var{sign_t::negative, x};
         }
         constexpr int_var div_ceil(uint_var&& x, int_const_t<sign_t::positive, 1u>) {
-            return int_var{static_cast<uint_var&&>(x)};
+            return int_var{std::move(x)};
         }
         constexpr int_var div_ceil(uint_var&& x, int_const_t<sign_t::negative, 1u>) {
-            return int_var{sign_t::negative, static_cast<uint_var&&>(x)};
+            return int_var{sign_t::negative, std::move(x)};
         }
         constexpr int_var div_ceil(uint_view x, int_const_t<>) = delete;
 
@@ -3130,16 +3052,14 @@ namespace jkj {
         }
         constexpr int_var div_ceil(int_var&& x, uint_view y) {
             if (x.is_nonnegative()) {
-                return int_var{sign_t::positive, div_ceil(static_cast<int_var&&>(x).abs(), y)};
+                return int_var{sign_t::positive, div_ceil(std::move(x).abs(), y)};
             }
             else {
-                return int_var{sign_t::negative, div_floor(static_cast<int_var&&>(x).abs(), y)};
+                return int_var{sign_t::negative, div_floor(std::move(x).abs(), y)};
             }
         }
         constexpr int_var div_ceil(int_view x, uint_const_t<1u>) { return int_var(x); }
-        constexpr int_var div_ceil(int_var&& x, uint_const_t<1u>) {
-            return static_cast<int_var&&>(x);
-        }
+        constexpr int_var div_ceil(int_var&& x, uint_const_t<1u>) { return std::move(x); }
         constexpr int_var div_ceil(int_view x, uint_const_t<>) = delete;
 
         constexpr int_var div_floor(int_view x, int_view y) {
@@ -3152,25 +3072,23 @@ namespace jkj {
         }
         constexpr int_var div_floor(int_var&& x, int_view y) {
             if (x.sign() == y.sign()) {
-                return int_var{sign_t::positive,
-                               div_floor(static_cast<int_var&&>(x).abs(), y.abs())};
+                return int_var{sign_t::positive, div_floor(std::move(x).abs(), y.abs())};
             }
             else {
-                return int_var{sign_t::negative,
-                               div_ceil(static_cast<int_var&&>(x).abs(), y.abs())};
+                return int_var{sign_t::negative, div_ceil(std::move(x).abs(), y.abs())};
             }
         }
         constexpr int_var div_floor(int_view x, int_const_t<sign_t::positive, 1u>) {
             return int_var{x};
         }
         constexpr int_var div_floor(int_var&& x, int_const_t<sign_t::positive, 1u>) {
-            return static_cast<int_var&&>(x);
+            return std::move(x);
         }
         constexpr int_var div_floor(int_view x, int_const_t<sign_t::negative, 1u>) {
             return int_var{x}.invert_sign();
         }
         constexpr int_var div_floor(int_var&& x, int_const_t<sign_t::negative, 1u>) {
-            return static_cast<int_var&&>(x.invert_sign());
+            return std::move(x.invert_sign());
         }
         constexpr int_var div_floor(int_view x, int_const_t<>) = delete;
 
@@ -3184,25 +3102,23 @@ namespace jkj {
         }
         constexpr int_var div_ceil(int_var&& x, int_view y) {
             if (x.sign() == y.sign()) {
-                return int_var{sign_t::positive,
-                               div_ceil(static_cast<int_var&&>(x).abs(), y.abs())};
+                return int_var{sign_t::positive, div_ceil(std::move(x).abs(), y.abs())};
             }
             else {
-                return int_var{sign_t::negative,
-                               div_floor(static_cast<int_var&&>(x).abs(), y.abs())};
+                return int_var{sign_t::negative, div_floor(std::move(x).abs(), y.abs())};
             }
         }
         constexpr int_var div_ceil(int_view x, int_const_t<sign_t::positive, 1u>) {
             return int_var{x};
         }
         constexpr int_var div_ceil(int_var&& x, int_const_t<sign_t::positive, 1u>) {
-            return static_cast<int_var&&>(x);
+            return std::move(x);
         }
         constexpr int_var div_ceil(int_view x, int_const_t<sign_t::negative, 1u>) {
             return int_var{x}.invert_sign();
         }
         constexpr int_var div_ceil(int_var&& x, int_const_t<sign_t::negative, 1u>) {
-            return static_cast<int_var&&>(x.invert_sign());
+            return std::move(x.invert_sign());
         }
         constexpr int_var div_ceil(int_view x, int_const_t<>) = delete;
 

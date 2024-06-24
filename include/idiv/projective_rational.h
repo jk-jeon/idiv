@@ -145,6 +145,18 @@ namespace jkj {
                        : util::is_zero(x)            ? std::strong_ordering::equal
                                                      : std::strong_ordering::less;
             }
+
+            template <class T>
+                requires requires { T{0}; }
+            explicit operator T() const noexcept {
+                return T{0};
+            }
+            template <class T>
+                requires(
+                    requires { T{0u}; } && !requires { T{0}; })
+            explicit operator T() const noexcept {
+                return T{0u};
+            }
         };
 
         // May use this type to replace constant 1.
@@ -172,6 +184,18 @@ namespace jkj {
             friend constexpr T& operator/=(T& x, unity) noexcept {
                 return x;
             }
+
+            template <class T>
+                requires requires { T{1}; }
+            explicit operator T() const noexcept {
+                return T{1};
+            }
+            template <class T>
+                requires(
+                    requires { T{1u}; } && !requires { T{1}; })
+            explicit operator T() const noexcept {
+                return T{1u};
+            }
         };
 
         template <class NumNum, class DenNum = NumNum, class NumDen = NumNum, class DenDen = NumNum>
@@ -195,7 +219,7 @@ namespace jkj {
 
             // Multiply the matrix (t s \\ 0 t) from left for a number s/t.
             template <class Num, class Den = unity>
-            constexpr void translate(Num&& numerator, Den&& denominator = {}) {
+            constexpr void translate(Num&& numerator, Den&& denominator = Den{unity{}}) {
                 num_to_num *= denominator;
                 num_to_num += numerator * num_to_den;
                 den_to_num *= denominator;
@@ -218,7 +242,8 @@ namespace jkj {
             -> linear_fractional_transform<NumNum, DenNum, NumDen, DenDen>;
 
         template <class Num, class Den = unity>
-        constexpr auto linear_fractional_translation(Num&& numerator, Den&& denominator = {}) {
+        constexpr auto linear_fractional_translation(Num&& numerator,
+                                                     Den&& denominator = Den{unity{}}) {
             return linear_fractional_transform{denominator, static_cast<Num&&>(numerator), zero{},
                                                denominator};
         }
@@ -252,7 +277,7 @@ namespace jkj {
 
             // Multiply the matrix (t s \\ 0 t) from left for a number s/t.
             template <class Num, class Den = unity>
-            constexpr void translate(Num&& numerator, Den&& denominator = {}) {
+            constexpr void translate(Num&& numerator, Den&& denominator = Den{unity{}}) {
                 xnum_ynum_to_num *= denominator;
                 xnum_ynum_to_num += numerator * xnum_ynum_to_den;
                 xnum_yden_to_num *= denominator;

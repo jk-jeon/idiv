@@ -74,37 +74,44 @@ namespace jkj {
                 };
             }
 
-            template <class InternalContinuedFractionImpl, class Unity = unity>
+            template <class ContinuedFractionGenerator, class Unity = unity>
             class unary_gosper {
             public:
-                using int_type =
-                    decltype(InternalContinuedFractionImpl::convergent_type::numerator);
+                static_assert(
+                    std::remove_cvref_t<ContinuedFractionGenerator>::
+                        template is_implementing_mixins<interval_tracker>(),
+                    "the internal continued fraction generator for unary_gosper is required to "
+                    "implement interval_tracker");
+
+                using int_type = decltype(ContinuedFractionGenerator::convergent_type::numerator);
                 using partial_fraction_type = projective_rational<Unity, int_type>;
-                using convergent_type = typename InternalContinuedFractionImpl::convergent_type;
+                using convergent_type = typename ContinuedFractionGenerator::convergent_type;
                 using interval_type = variable_shape_cyclic_interval<
                     projective_rational<int_type, int_type>, cyclic_interval_type_t::single_point,
                     cyclic_interval_type_t::left_open_right_closed,
                     cyclic_interval_type_t::left_closed_right_open, cyclic_interval_type_t::entire>;
-                using internal_continued_fraction_impl_type = InternalContinuedFractionImpl;
+                using internal_continued_fraction_generator_type = ContinuedFractionGenerator;
+                using internal_continued_fraction_impl_type =
+                    typename ContinuedFractionGenerator::impl_type;
 
             private:
-                generator<InternalContinuedFractionImpl, interval_tracker> cf_;
+                internal_continued_fraction_generator_type cf_;
                 linear_fractional_transform<int_type> coeff_;
                 int determinant_sign_ = 0;
                 bool is_first_ = true;
 
             public:
                 static constexpr auto initial_partial_fraction() {
-                    return partial_fraction_type{Unity{}, int_type{0}};
+                    return partial_fraction_type{Unity{unity{}}, int_type{0}};
                 }
                 static constexpr interval_type initial_interval() {
                     return cyclic_interval<convergent_type, cyclic_interval_type_t::entire>{};
                 }
 
-                constexpr unary_gosper(internal_continued_fraction_impl_type cf_impl,
+                constexpr unary_gosper(internal_continued_fraction_generator_type cf,
                                        linear_fractional_transform<int_type> coeff)
-                    : cf_{std::move(cf_impl)},
-                      coeff_{static_cast<linear_fractional_transform<int_type>&&>(coeff)} {
+                    : cf_{static_cast<internal_continued_fraction_generator_type&&>(cf)},
+                      coeff_{std::move(coeff)} {
                     determinant_sign_ = coeff_.determinant_sign();
                     // Step 1. Get away from singularities.
                     if (determinant_sign_ == 0) {
@@ -139,7 +146,7 @@ namespace jkj {
                         coeff_.reflect();
                         determinant_sign_ *= -1;
                         callback(partial_fraction_type{
-                            Unity{}, static_cast<decltype(common_floor)&&>(common_floor)});
+                            Unity{unity{}}, static_cast<decltype(common_floor)&&>(common_floor)});
                     };
                     enum class final_result { success, terminate, fail };
                     auto check_floor = [&](auto&& itv) -> final_result {
@@ -308,25 +315,48 @@ namespace jkj {
                 }
             };
 
-            template <class ContinuedFractionImplX, class ContinuedFractionImplY,
+            template <class ContinuedFractionGenerator>
+            unary_gosper(ContinuedFractionGenerator,
+                         linear_fractional_transform<
+                             decltype(ContinuedFractionGenerator::convergent_type::numerator)>)
+                -> unary_gosper<ContinuedFractionGenerator, unity>;
+
+
+            template <class ContinuedFractionGeneratorX, class ContinuedFractionGeneratorY,
                       class Unity = unity>
-                requires std::is_same_v<typename ContinuedFractionImplX::convergent_type,
-                                        typename ContinuedFractionImplY::convergent_type>
             class binary_gosper {
             public:
-                using int_type = decltype(ContinuedFractionImplX::convergent_type::numerator);
+                static_assert(std::is_same_v<typename ContinuedFractionGeneratorX::convergent_type,
+                                             typename ContinuedFractionGeneratorY::convergent_type>,
+                              "the internal continued fraction generators for binary_gosper must "
+                              "have the same convergent types");
+                static_assert(
+                    std::remove_cvref_t<ContinuedFractionGeneratorX>::
+                            template is_implementing_mixins<interval_tracker>() &&
+                        std::remove_cvref_t<ContinuedFractionGeneratorY>::
+                            template is_implementing_mixins<interval_tracker>(),
+                    "the internal continued fraction generators for binary_gosper are required to "
+                    "implement interval_tracker");
+
+                using int_type = decltype(ContinuedFractionGeneratorX::convergent_type::numerator);
                 using partial_fraction_type = projective_rational<Unity, int_type>;
-                using convergent_type = typename ContinuedFractionImplX::convergent_type;
+                using convergent_type = typename ContinuedFractionGeneratorX::convergent_type;
                 using interval_type = variable_shape_cyclic_interval<
                     convergent_type, cyclic_interval_type_t::single_point,
                     cyclic_interval_type_t::left_open_right_closed,
                     cyclic_interval_type_t::left_closed_right_open, cyclic_interval_type_t::entire>;
-                using first_internal_continued_fraction_impl_type = ContinuedFractionImplX;
-                using second_internal_continued_fraction_impl_type = ContinuedFractionImplY;
+                using first_internal_continued_fraction_generator_type =
+                    ContinuedFractionGeneratorX;
+                using first_internal_continued_fraction_impl_type =
+                    typename ContinuedFractionGeneratorX::impl_type;
+                using second_internal_continued_fraction_generator_type =
+                    ContinuedFractionGeneratorY;
+                using second_internal_continued_fraction_impl_type =
+                    typename ContinuedFractionGeneratorY::impl_type;
 
             private:
-                generator<ContinuedFractionImplX, interval_tracker> xcf_;
-                generator<ContinuedFractionImplY, interval_tracker> ycf_;
+                first_internal_continued_fraction_generator_type xcf_;
+                second_internal_continued_fraction_generator_type ycf_;
                 bilinear_fractional_transform<int_type> coeff_;
                 bool is_first_ = true;
 
@@ -515,17 +545,18 @@ namespace jkj {
 
             public:
                 static constexpr auto initial_partial_fraction() {
-                    return partial_fraction_type{Unity{}, int_type{0}};
+                    return partial_fraction_type{Unity{unity{}}, int_type{0}};
                 }
                 static constexpr auto initial_interval() {
                     return cyclic_interval<convergent_type, cyclic_interval_type_t::entire>{};
                 }
 
-                constexpr binary_gosper(first_internal_continued_fraction_impl_type xcf_impl,
-                                        second_internal_continued_fraction_impl_type ycf_impl,
+                constexpr binary_gosper(first_internal_continued_fraction_generator_type xcf,
+                                        second_internal_continued_fraction_generator_type ycf,
                                         bilinear_fractional_transform<int_type> coeff)
-                    : xcf_{std::move(xcf_impl)}, ycf_{std::move(ycf_impl)},
-                      coeff_{static_cast<bilinear_fractional_transform<int_type>&&>(coeff)} {
+                    : xcf_{static_cast<first_internal_continued_fraction_generator_type&&>(xcf)},
+                      ycf_{static_cast<second_internal_continued_fraction_generator_type&&>(ycf)},
+                      coeff_{std::move(coeff)} {
                     // Step 1. Get away from singularities.
                     int det_sign_num_bilinear_form = 0;
                     int rank_num_bilinear_form = 0;
@@ -821,7 +852,7 @@ namespace jkj {
                         is_first_ = false;
                         coeff_.translate(-common_floor);
                         coeff_.reflect();
-                        callback(partial_fraction_type{Unity{}, std::move(common_floor)});
+                        callback(partial_fraction_type{Unity{unity{}}, std::move(common_floor)});
                     };
                     enum class final_result { success, terminate, fail };
                     auto check_floor = [&](auto&& itv) -> final_result {
@@ -1140,6 +1171,34 @@ namespace jkj {
                     }
                 }
             };
+
+            template <class ContinuedFractionGeneratorX, class ContinuedFractionGeneratorY>
+            binary_gosper(ContinuedFractionGeneratorX, ContinuedFractionGeneratorY,
+                          bilinear_fractional_transform<
+                              decltype(ContinuedFractionGeneratorX::convergent_type::numerator)>)
+                -> binary_gosper<ContinuedFractionGeneratorX, ContinuedFractionGeneratorY, unity>;
+        }
+
+        // Helper functions.
+        template <class ContinuedFractionImpl, class Unity = unity>
+        constexpr auto make_unary_gosper_from_impl(
+            ContinuedFractionImpl impl,
+            linear_fractional_transform<decltype(ContinuedFractionImpl::convergent_type::numerator)>
+                coeff) {
+            return impl::unary_gosper{
+                make_generator<interval_tracker>(static_cast<ContinuedFractionImpl&&>(impl)),
+                std::move(coeff)};
+        }
+        template <class ContinuedFractionImplX, class ContinuedFractionImplY, class Unity = unity>
+        constexpr auto make_binary_gosper_from_impl(
+            ContinuedFractionImplX impl_x, ContinuedFractionImplY impl_y,
+            bilinear_fractional_transform<
+                decltype(ContinuedFractionImplX::convergent_type::numerator)>
+                coeff) {
+            return impl::binary_gosper{
+                make_generator<interval_tracker>(static_cast<ContinuedFractionImplX&&>(impl_x)),
+                make_generator<interval_tracker>(static_cast<ContinuedFractionImplY&&>(impl_y)),
+                std::move(coeff)};
         }
     }
 }

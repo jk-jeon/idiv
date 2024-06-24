@@ -39,28 +39,29 @@ namespace jkj {
 
             public:
                 static constexpr auto initial_partial_fraction() {
-                    return partial_fraction_type{Unity{}, Int{0}};
+                    return partial_fraction_type{Unity{unity{}}, Int{0}};
                 }
                 static constexpr auto initial_interval() noexcept {
                     return cyclic_interval<convergent_type, cyclic_interval_type_t::entire>{};
                 }
 
                 explicit constexpr rational(projective_rational<Int, UInt> r)
-                    : fraction_{static_cast<Int&&>(r.numerator),
-                                static_cast<UInt&&>(r.denominator)} {}
+                    : fraction_{std::move(r).numerator, std::move(r).denominator} {}
 
                 template <class Callback>
                 constexpr void with_next_partial_fraction(Callback&& callback) {
                     if (!util::is_zero(fraction_.denominator)) {
                         auto div_result = util::div(fraction_.numerator, fraction_.denominator);
-                        fraction_.numerator = Int{static_cast<UInt&&>(fraction_.denominator)};
-                        fraction_.denominator = static_cast<UInt&&>(div_result.rem);
+                        fraction_.numerator = Int{std::move(fraction_.denominator)};
+                        fraction_.denominator = std::move(div_result.rem);
 
-                        callback(
-                            partial_fraction_type{Unity{}, static_cast<Int&&>(div_result.quot)});
+                        callback(partial_fraction_type{Unity{unity{}}, std::move(div_result.quot)});
                     }
                 }
             };
+
+            template <class Int, class UInt>
+            rational(projective_rational<Int, UInt>) -> rational<Int, UInt, unity>;
         }
     }
 }
