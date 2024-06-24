@@ -79,8 +79,6 @@ namespace jkj {
             public:
                 using int_type =
                     decltype(InternalContinuedFractionImpl::convergent_type::numerator);
-                using uint_type =
-                    decltype(InternalContinuedFractionImpl::convergent_type::denominator);
                 using partial_fraction_type = projective_rational<Unity, int_type>;
                 using convergent_type = typename InternalContinuedFractionImpl::convergent_type;
                 using interval_type = variable_shape_cyclic_interval<
@@ -317,7 +315,6 @@ namespace jkj {
             class binary_gosper {
             public:
                 using int_type = decltype(ContinuedFractionImplX::convergent_type::numerator);
-                using uint_type = decltype(ContinuedFractionImplX::convergent_type::denominator);
                 using partial_fraction_type = projective_rational<Unity, int_type>;
                 using convergent_type = typename ContinuedFractionImplX::convergent_type;
                 using interval_type = variable_shape_cyclic_interval<
