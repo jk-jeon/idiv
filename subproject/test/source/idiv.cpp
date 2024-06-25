@@ -172,7 +172,7 @@ void idiv_test() {
                          projective_rational_t{-4'206'456, 33'668'149u}, nrange_t{-1000, 1000});
         };
 
-        should("find_maxima/minima_of_floor_subtract_quotient_positive_range") = [] {
+        should("find_maximizer/minimizer_of_floor_subtract_quotient_positive_range") = [] {
             auto perform_test = [](projective_rational_t const& x, projective_rational_t const& y,
                                    projective_rational_t const& zeta, nrange_t const& nrange) {
                 auto xcf = cntfrc::make_generator<cntfrc::index_tracker,
@@ -186,13 +186,13 @@ void idiv_test() {
                     cntfrc::impl::rational{zeta});
 
                 auto const maximizer_computed =
-                    idiv::find_maxima_of_floor_subtract_quotient_positive_range(xcf, ycf, zetacf,
+                    idiv::find_maximizer_of_floor_subtract_quotient_positive_range(xcf, ycf, zetacf,
                                                                                 nrange);
                 expect(maximizer_computed >= nrange.lower_bound() &&
                        maximizer_computed <= nrange.upper_bound());
 
                 auto const minimizer_computed =
-                    idiv::find_minima_of_floor_subtract_quotient_positive_range(xcf, ycf, zetacf,
+                    idiv::find_minimizer_of_floor_subtract_quotient_positive_range(xcf, ycf, zetacf,
                                                                                 nrange);
                 expect(minimizer_computed >= nrange.lower_bound() &&
                        minimizer_computed <= nrange.upper_bound());

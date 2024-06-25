@@ -622,7 +622,7 @@ namespace jkj {
         // Precondition: 0 < nmin <= nmax.
         template <class ContinuedFractionGeneratorX, class ContinuedFractionGeneratorY,
                   class ContinuedFractionGeneratorZeta>
-        constexpr bigint::int_var find_maxima_of_floor_subtract_quotient_positive_range(
+        constexpr bigint::int_var find_maximizer_of_floor_subtract_quotient_positive_range(
             ContinuedFractionGeneratorX&& xcf, ContinuedFractionGeneratorY&& ycf,
             ContinuedFractionGeneratorZeta&& zetacf,
             interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
@@ -731,7 +731,7 @@ namespace jkj {
         // Precondition: 0 < nmin <= nmax.
         template <class ContinuedFractionGeneratorX, class ContinuedFractionGeneratorY,
                   class ContinuedFractionGeneratorZeta>
-        constexpr bigint::int_var find_minima_of_floor_subtract_quotient_positive_range(
+        constexpr bigint::int_var find_minimizer_of_floor_subtract_quotient_positive_range(
             ContinuedFractionGeneratorX&& xcf, ContinuedFractionGeneratorY&& ycf,
             ContinuedFractionGeneratorZeta&& zetacf,
             interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
