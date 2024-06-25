@@ -56,14 +56,14 @@ void idiv_test() {
     "[idiv]"_test = [] {
         using projective_rational_t =
             cntfrc::projective_rational<bigint::int_var, bigint::uint_var>;
+        using nrange_t = interval<bigint::int_var, interval_type_t::bounded_closed>;
 
         should("find_optimal_multiply_shift") = [] {
             auto perform_test = [](bigint::int_var const& numerator,
                                    bigint::uint_var const& denominator, std::size_t nmax) {
                 auto cf = cntfrc::make_generator<cntfrc::index_tracker,
                                                  cntfrc::previous_previous_convergent_tracker>(
-                    cntfrc::impl::rational<bigint::int_var, bigint::uint_var>{
-                        projective_rational_t{numerator, denominator}});
+                    cntfrc::impl::rational{projective_rational_t{numerator, denominator}});
 
                 auto result = idiv::find_optimal_multiply_shift(cf, nmax);
 
@@ -96,15 +96,14 @@ void idiv_test() {
         };
 
         should("find_suboptimal_multiply_add_shift") = [] {
-            using nrange_t = interval<bigint::int_var, interval_type_t::bounded_closed>;
             auto perform_test = [](projective_rational_t const& x, projective_rational_t const& y,
                                    nrange_t const& nrange) {
                 auto xcf = cntfrc::make_generator<cntfrc::index_tracker,
                                                   cntfrc::previous_previous_convergent_tracker>(
-                    cntfrc::impl::rational<bigint::int_var, bigint::uint_var>{x});
+                    cntfrc::impl::rational{x});
                 auto ycf = cntfrc::make_generator<cntfrc::index_tracker,
                                                   cntfrc::previous_previous_convergent_tracker>(
-                    cntfrc::impl::rational<bigint::int_var, bigint::uint_var>{y});
+                    cntfrc::impl::rational{y});
 
                 auto result = idiv::find_suboptimal_multiply_add_shift(xcf, ycf, nrange);
 
@@ -128,15 +127,14 @@ void idiv_test() {
         };
 
         should("find_extrema_of_fractional_part (two unknowns)") = [] {
-            using nrange_t = interval<bigint::int_var, interval_type_t::bounded_closed>;
             auto perform_test = [](projective_rational_t const& x, projective_rational_t const& y,
                                    nrange_t const& nrange) {
                 auto xcf = cntfrc::make_generator<cntfrc::index_tracker,
                                                   cntfrc::previous_previous_convergent_tracker>(
-                    cntfrc::impl::rational<bigint::int_var, bigint::uint_var>{x});
+                    cntfrc::impl::rational{x});
                 auto ycf = cntfrc::make_generator<cntfrc::index_tracker,
                                                   cntfrc::previous_previous_convergent_tracker>(
-                    cntfrc::impl::rational<bigint::int_var, bigint::uint_var>{y});
+                    cntfrc::impl::rational{y});
 
                 auto result = idiv::find_extrema_of_fractional_part(xcf, ycf, nrange);
                 expect(result.smallest_minimizer >= nrange.lower_bound() &&
@@ -172,6 +170,48 @@ void idiv_test() {
                          nrange_t{-150, 150});
             perform_test(projective_rational_t{1'936'274, 6'432'163u},
                          projective_rational_t{-4'206'456, 33'668'149u}, nrange_t{-1000, 1000});
+        };
+
+        should("find_maxima_of_floor_subtract_quotient_positive_range") = [] {
+            auto perform_test = [](projective_rational_t const& x, projective_rational_t const& y,
+                                   projective_rational_t const& zeta, nrange_t const& nrange) {
+                auto xcf = cntfrc::make_generator<cntfrc::index_tracker,
+                                                  cntfrc::previous_previous_convergent_tracker>(
+                    cntfrc::impl::rational{x});
+                auto ycf = cntfrc::make_generator<cntfrc::index_tracker,
+                                                  cntfrc::previous_previous_convergent_tracker>(
+                    cntfrc::impl::rational{y});
+                auto zetacf = cntfrc::make_generator<cntfrc::index_tracker,
+                                                     cntfrc::previous_previous_convergent_tracker>(
+                    cntfrc::impl::rational{zeta});
+
+                auto result = idiv::find_maxima_of_floor_subtract_quotient_positive_range(
+                    xcf, ycf, zetacf, nrange);
+                expect(result >= nrange.lower_bound() && result <= nrange.upper_bound());
+
+                auto const xdyd = x.denominator * y.denominator;
+                auto const xnyd = x.numerator * y.denominator;
+                auto const ynxd = y.numerator * x.denominator;
+                auto const max_value_computed = make_frac_from_signed(
+                    zeta.denominator * util::div_floor(result * xnyd + ynxd, xdyd) - zeta.numerator,
+                    result * zeta.denominator);
+                auto maximizer = result;
+                auto max_value = max_value_computed;
+                for (bigint::int_var n = nrange.lower_bound(); n <= nrange.upper_bound(); ++n) {
+                    auto const value = make_frac_from_signed(
+                        zeta.denominator * util::div_floor(n * xnyd + ynxd, xdyd) - zeta.numerator,
+                        n * zeta.denominator);
+
+                    if (value > max_value) {
+                        max_value = value;
+                        maximizer = n;
+                    }
+                }
+
+                expect(result == maximizer);
+            };
+            perform_test(projective_rational_t{19'282, 23'129u}, projective_rational_t{98, 519u},
+                         projective_rational_t{661, 8'331u}, nrange_t{5'123, 12'150});
         };
     };
 }
