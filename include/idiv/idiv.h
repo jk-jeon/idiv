@@ -771,7 +771,7 @@ namespace jkj {
                 // smallest minimizer of nx - floor(nx), where n is in [1:n0 - nmin].
                 auto const n1 = [&] {
                     xcf_copy.rewind();
-                    auto const nmax = util::abs(right_minimizer - nrange.lower_bound());
+                    auto const nmax = util::abs(left_minimizer - nrange.lower_bound());
                     auto smallest_maximizer =
                         find_extrema_of_fractional_part(xcf_copy, nmax).smallest_minimizer;
                     return util::div_floor(nmax, smallest_maximizer) * smallest_maximizer;
@@ -797,7 +797,7 @@ namespace jkj {
                 // of the largest maximizer of nx - floor(nx), where n is in [1:nmax - n0].
                 auto const n1 = [&] {
                     xcf_copy.rewind();
-                    auto const nmax = util::abs(left_minimizer - nrange.lower_bound());
+                    auto const nmax = util::abs(nrange.upper_bound() - right_minimizer);
                     auto smallest_minimizer =
                         find_extrema_of_fractional_part(xcf_copy, nmax).largest_maximizer;
                     return util::div_floor(nmax, smallest_minimizer) * smallest_minimizer;
