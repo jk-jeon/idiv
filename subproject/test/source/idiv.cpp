@@ -172,7 +172,7 @@ void idiv_test() {
                          projective_rational_t{-4'206'456, 33'668'149u}, nrange_t{-1000, 1000});
         };
 
-        should("find_maxima_of_floor_subtract_quotient_positive_range") = [] {
+        should("find_maxima/minima_of_floor_subtract_quotient_positive_range") = [] {
             auto perform_test = [](projective_rational_t const& x, projective_rational_t const& y,
                                    projective_rational_t const& zeta, nrange_t const& nrange) {
                 auto xcf = cntfrc::make_generator<cntfrc::index_tracker,
@@ -185,30 +185,52 @@ void idiv_test() {
                                                      cntfrc::previous_previous_convergent_tracker>(
                     cntfrc::impl::rational{zeta});
 
-                auto result = idiv::find_maxima_of_floor_subtract_quotient_positive_range(
-                    xcf, ycf, zetacf, nrange);
-                expect(result >= nrange.lower_bound() && result <= nrange.upper_bound());
+                auto const maximizer_computed =
+                    idiv::find_maxima_of_floor_subtract_quotient_positive_range(xcf, ycf, zetacf,
+                                                                                nrange);
+                expect(maximizer_computed >= nrange.lower_bound() &&
+                       maximizer_computed <= nrange.upper_bound());
+
+                auto const minimizer_computed =
+                    idiv::find_minima_of_floor_subtract_quotient_positive_range(xcf, ycf, zetacf,
+                                                                                nrange);
+                expect(minimizer_computed >= nrange.lower_bound() &&
+                       minimizer_computed <= nrange.upper_bound());
 
                 auto const xdyd = x.denominator * y.denominator;
                 auto const xnyd = x.numerator * y.denominator;
                 auto const ynxd = y.numerator * x.denominator;
-                auto const max_value_computed = make_frac_from_signed(
-                    zeta.denominator * util::div_floor(result * xnyd + ynxd, xdyd) - zeta.numerator,
-                    result * zeta.denominator);
-                auto maximizer = result;
-                auto max_value = max_value_computed;
+
+                auto maximizer = maximizer_computed;
+                auto max_value = make_frac_from_signed(
+                    zeta.denominator * util::div_floor(maximizer * xnyd + ynxd, xdyd) -
+                        zeta.numerator,
+                    maximizer * zeta.denominator);
+
+                auto minimizer = minimizer_computed;
+                auto min_value = make_frac_from_signed(
+                    zeta.denominator * util::div_floor(minimizer * xnyd + ynxd, xdyd) -
+                        zeta.numerator,
+                    minimizer * zeta.denominator);
+
                 for (bigint::int_var n = nrange.lower_bound(); n <= nrange.upper_bound(); ++n) {
                     auto const value = make_frac_from_signed(
                         zeta.denominator * util::div_floor(n * xnyd + ynxd, xdyd) - zeta.numerator,
                         n * zeta.denominator);
 
                     if (value > max_value) {
-                        max_value = value;
                         maximizer = n;
+                        max_value = value;
+                    }
+
+                    if (value < min_value) {
+                        minimizer = n;
+                        min_value = value;
                     }
                 }
 
-                expect(result == maximizer);
+                expect(maximizer_computed == maximizer);
+                expect(minimizer_computed == minimizer);
             };
             perform_test(projective_rational_t{19'282, 23'129u}, projective_rational_t{98, 519u},
                          projective_rational_t{661, 8'331u}, nrange_t{5'123, 12'150});
