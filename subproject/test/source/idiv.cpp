@@ -95,7 +95,7 @@ void idiv_test() {
             perform_test(6614777, 12961230u, 150);
         };
 
-        should("find_suboptimal_multiply_add_shift") = [] {
+        should("find_simultaneous_multiply_add_shift") = [] {
             auto perform_test = [](projective_rational_t const& x, projective_rational_t const& y,
                                    nrange_t const& nrange) {
                 auto xcf = cntfrc::make_generator<cntfrc::index_tracker,
@@ -105,7 +105,7 @@ void idiv_test() {
                                                   cntfrc::previous_previous_convergent_tracker>(
                     cntfrc::impl::rational{y});
 
-                auto result = idiv::find_suboptimal_multiply_add_shift(xcf, ycf, nrange);
+                auto result = idiv::find_simultaneous_multiply_add_shift(xcf, ycf, nrange);
 
                 auto const xdyd = x.denominator * y.denominator;
                 auto const xnyd = x.numerator * y.denominator;

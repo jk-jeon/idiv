@@ -195,7 +195,7 @@ namespace jkj {
         // (2) floor(nx + y) = floor((nm + s)/2^k) holds for all n in [nmin:nmax], and
         // (3) floor(nx) = floor(nm/2^k) holds for all n in [0:nmax-nmin].
         template <class ContinuedFractionGeneratorX, class ContinuedFractionGeneratorY>
-        constexpr multiply_add_shift_info find_suboptimal_multiply_add_shift(
+        constexpr multiply_add_shift_info find_simultaneous_multiply_add_shift(
             ContinuedFractionGeneratorX&& xcf, ContinuedFractionGeneratorY&& ycf,
             interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
             // TODO: deal with possible rational dependence between x and y.
@@ -406,7 +406,7 @@ namespace jkj {
                                                                       nrange.lower_bound()};
 
             // First, find fine enough approximations of x and y.
-            auto approx_info = find_suboptimal_multiply_add_shift(
+            auto approx_info = find_simultaneous_multiply_add_shift(
                 std::forward<ContinuedFractionGeneratorX>(xcf),
                 std::forward<ContinuedFractionGeneratorY>(ycf), nrange);
             auto xi_cf =
@@ -612,7 +612,7 @@ namespace jkj {
             auto approx_x_y_info = [&] {
                 auto xcf_copy = xcf;
                 auto ycf_copy = ycf;
-                return find_suboptimal_multiply_add_shift(xcf_copy, ycf_copy, nrange);
+                return find_simultaneous_multiply_add_shift(xcf_copy, ycf_copy, nrange);
             }();
             auto xcf_copy = cntfrc::make_caching_generator(
                 cntfrc::make_generator<cntfrc::partial_fraction_tracker,
