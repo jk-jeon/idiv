@@ -140,6 +140,12 @@ namespace jkj {
             // Go back to the initial state.
             constexpr void rewind() noexcept { current_index_ = -1; }
         };
+
+        // A convenient factory function.
+        template <class Generator>
+        constexpr auto make_caching_generator(Generator&& cf) {
+            return caching_generator<std::remove_cvref_t<Generator>>{static_cast<Generator&&>(cf)};
+        }
     }
 }
 
