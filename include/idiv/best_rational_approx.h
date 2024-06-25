@@ -18,8 +18,9 @@
 #ifndef JKJ_HEADER_BEST_RATIONAL_APPROX
 #define JKJ_HEADER_BEST_RATIONAL_APPROX
 
-#include "projective_rational.h"
+#include "continued_fraction.h"
 #include "interval.h"
+#include "projective_rational.h"
 #include <cassert>
 #include <cstdlib>
 
@@ -96,6 +97,12 @@ namespace jkj {
         template <class ContinuedFractionGenerator, class UInt>
         constexpr auto find_best_rational_approx(ContinuedFractionGenerator&& cf,
                                                  UInt const& nmax) {
+            static_assert(
+                std::remove_cvref_t<ContinuedFractionGenerator>::template is_implementing_mixins<
+                    cntfrc::index_tracker, cntfrc::previous_previous_convergent_tracker>(),
+                "the passed continued fraction generator must implement index_tracker and "
+                "previous_previous_convergent_tracker");
+
             using convergent_type =
                 typename std::remove_cvref_t<ContinuedFractionGenerator>::convergent_type;
             using rational_type = decltype(project_to_rational(std::declval<convergent_type>()));
@@ -119,6 +126,12 @@ namespace jkj {
         template <class ContinuedFractionGenerator, class UInt>
         constexpr auto find_floor_quotient_range(ContinuedFractionGenerator&& cf,
                                                  UInt const& nmax) {
+            static_assert(
+                std::remove_cvref_t<ContinuedFractionGenerator>::template is_implementing_mixins<
+                    cntfrc::index_tracker, cntfrc::previous_previous_convergent_tracker>(),
+                "the passed continued fraction generator must implement index_tracker and "
+                "previous_previous_convergent_tracker");
+
             using convergent_type =
                 typename std::remove_cvref_t<ContinuedFractionGenerator>::convergent_type;
             using rational_type = decltype(project_to_rational(std::declval<convergent_type>()));
@@ -174,6 +187,12 @@ namespace jkj {
         template <class ContinuedFractionGenerator, class UInt>
         constexpr auto find_extrema_of_fractional_part(ContinuedFractionGenerator&& cf,
                                                        UInt const& nmax) {
+            static_assert(
+                std::remove_cvref_t<ContinuedFractionGenerator>::template is_implementing_mixins<
+                    cntfrc::index_tracker, cntfrc::previous_previous_convergent_tracker>(),
+                "the passed continued fraction generator must implement index_tracker and "
+                "previous_previous_convergent_tracker");
+
             using convergent_type =
                 typename std::remove_cvref_t<ContinuedFractionGenerator>::convergent_type;
             using return_type =
