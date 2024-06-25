@@ -635,6 +635,8 @@ namespace jkj {
                 "the first and the third continued fraction generators must implement "
                 "index_tracker and previous_previous_convergent_tracker");
 
+            util::constexpr_assert(nrange.lower_bound() > 0);
+
             // Find good enough approximations of x and y.
             auto approx_x_y_info = [&] {
                 auto xcf_copy = xcf;
@@ -743,6 +745,8 @@ namespace jkj {
                             cntfrc::index_tracker, cntfrc::previous_previous_convergent_tracker>(),
                 "the first and the third continued fraction generators must implement "
                 "index_tracker and previous_previous_convergent_tracker");
+
+            util::constexpr_assert(nrange.lower_bound() > 0);
 
             // Find good enough approximations of x and y.
             auto approx_x_y_info = [&] {
