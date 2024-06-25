@@ -19,6 +19,7 @@
 #define JKJ_HEADER_IDIV
 
 #include "best_rational_approx.h"
+#include "caching_generator.h"
 #include "gosper_continued_fraction.h"
 #include "rational_continued_fraction.h"
 #include "bigint.h"
@@ -195,7 +196,7 @@ namespace jkj {
         // (3) floor(nx) = floor(nm/2^k) holds for all n in [0:nmax-nmin].
         template <class ContinuedFractionGeneratorX, class ContinuedFractionGeneratorY>
         constexpr multiply_add_shift_info find_suboptimal_multiply_add_shift(
-            ContinuedFractionGeneratorX const& xcf, ContinuedFractionGeneratorY const& ycf,
+            ContinuedFractionGeneratorX&& xcf, ContinuedFractionGeneratorY&& ycf,
             interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
             // TODO: deal with possible rational dependence between x and y.
 
@@ -595,6 +596,147 @@ namespace jkj {
             }
 
             return result;
+        }
+
+        // Given real numbers x, y, zeta and a range [nmin:nmax] of integers, find a maximizer of
+        // (floor(nx+y) - zeta) / n.
+        // Precondition: 0 < nmin <= nmax.
+        template <class ContinuedFractionGeneratorX, class ContinuedFractionGeneratorY,
+                  class ContinuedFractionGeneratorZeta>
+        constexpr bigint::int_var find_extrema_of_floor_subtract_quotient_positive_range(
+            ContinuedFractionGeneratorX&& xcf, ContinuedFractionGeneratorY&& ycf,
+            ContinuedFractionGeneratorZeta&& zetacf,
+            interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
+            auto zetacf_copy = cntfrc::caching_generator<ContinuedFractionGeneratorZeta>{
+                static_cast<ContinuedFractionGeneratorZeta&&>(zetacf)};
+
+            // Find good enough approximations of x and y.
+            auto approx_x_y_info = find_suboptimal_multiply_add_shift(xcf, ycf, nrange);
+            auto xcf_copy = cntfrc::make_caching_generator(
+                cntfrc::make_generator<cntfrc::partial_fraction_tracker,
+                                       cntfrc::convergent_tracker>(
+                    cntfrc::impl::rational{cntfrc::projective_rational{
+                        std::move(approx_x_y_info.multiplier),
+                        bigint::uint_var::power_of_2(approx_x_y_info.shift_amount)}}));
+
+            // Find the smallest minimizer of the fractional part.
+            auto const n00 =
+                find_extrema_of_fractional_part(
+                    xcf_copy,
+                    cntfrc::make_generator<cntfrc::index_tracker, cntfrc::convergent_tracker>(
+                        cntfrc::impl::rational{cntfrc::projective_rational{
+                            std::move(approx_x_y_info.adder),
+                            bigint::uint_var::power_of_2(approx_x_y_info.shift_amount)}}),
+                    nrange)
+                    .smallest_minimizer;
+
+            // Solve the maximization problem on the left.
+            auto left_maximizer = n00;
+            while (true) {
+                // n1 is the largest minimizer of (floor(nx) + 1) / n, where n is in [1:n0 - nmin].
+                xcf_copy.rewind();
+                auto const n1 =
+                    find_extrema_of_fractional_part(xcf_copy, left_maximizer - nrange.lower_bound())
+                        .largest_minimizer;
+
+                // Check if (floor(n1 x) + 1)/n1 > (floor(n0 x + y) - zeta)/n0.
+                auto const lhs =
+                    ((n1 * approx_x_y_info.multiplier) >> approx_x_y_info.shift_amount) + 1;
+
+                auto const rhs = [&] {
+                    zetacf_copy.rewind();
+                    auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
+                        cntfrc::impl::unary_gosper{
+                            zetacf_copy,
+                            {// numerator
+                             -n1,
+                             n1 * ((left_maximizer * approx_x_y_info.multiplier +
+                                    approx_x_y_info.adder) >>
+                                   approx_x_y_info.shift_amount),
+                             // denominator
+                             0, left_maximizer}});
+                    cf.update();
+                    return cf.current_partial_fraction().denominator;
+                }();
+
+                if (lhs > rhs) {
+                    break;
+                }
+
+                // Check if n0 - n1 = nmin.
+                left_maximizer -= n1;
+                if (left_maximizer == nrange.lower_bound()) {
+                    break;
+                }
+            }
+
+            // Solve the maximization problem on the right.
+            auto right_maximizer = n00;
+            while (true) {
+                // n1 is the largest maximizer of floor(nx)/ n, where n is in [1:nmax - n0].
+                auto const n1 = [&] {
+                    xcf_copy.rewind();
+                    auto const nmax = nrange.upper_bound() - right_maximizer;
+                    auto smallest_maximizer =
+                        find_extrema_of_fractional_part(xcf, nmax).largest_maximizer;
+                    return util::div_floor(nmax, smallest_maximizer) * smallest_maximizer;
+                }();
+
+                // Check if floor(n1 x)/n1 < (floor(n0 x + y) - zeta)/n0.
+                auto const lhs =
+                    -((n1 * approx_x_y_info.multiplier) >> approx_x_y_info.shift_amount);
+
+                auto const rhs = [&] {
+                    zetacf_copy.rewind();
+                    auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
+                        cntfrc::impl::unary_gosper{
+                            zetacf_copy,
+                            {// numerator
+                             n1,
+                             -n1 * ((right_maximizer * approx_x_y_info.multiplier +
+                                     approx_x_y_info.adder) >>
+                                    approx_x_y_info.shift_amount),
+                             // denominator
+                             0, right_maximizer}});
+                    cf.update();
+                    return cf.current_partial_fraction().denominator;
+                }();
+
+                if (lhs > rhs) {
+                    break;
+                }
+
+                // Check if n0 + n1 = nmax.
+                right_maximizer += n1;
+                if (right_maximizer == nrange.upper_bound()) {
+                    break;
+                }
+            }
+
+            // Compare the maximizers on the left and the right, and choose the better one.
+            // (floor(nl x + y) - zeta)/nl <= (floor(nr x + y) - zeta)/nr holds if and only if
+            // nr floor(nl x + y) - nl floor(nr x + y) <= floor((nr - nl) zeta).
+            auto const lhs =
+                right_maximizer *
+                    ((left_maximizer * approx_x_y_info.multiplier + approx_x_y_info.adder) >>
+                     approx_x_y_info.shift_amount) -
+                left_maximizer *
+                    ((right_maximizer * approx_x_y_info.multiplier + approx_x_y_info.adder) >>
+                     approx_x_y_info.shift_amount);
+
+            auto const rhs = [&] {
+                zetacf_copy.rewind();
+                auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
+                    cntfrc::impl::unary_gosper{zetacf_copy,
+                                               {// numerator
+                                                right_maximizer - left_maximizer, 0,
+                                                // denominator
+                                                0, 1}});
+                cf.update();
+                return cf.current_partial_fraction().denominator;
+            }();
+
+            return lhs <= rhs ? right_maximizer : left_maximizer;
         }
     }
 }
