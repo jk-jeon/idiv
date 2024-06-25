@@ -109,7 +109,7 @@ namespace jkj {
         }
 
         // For a given real number x and a positive integer nmax, find the interval
-        // [max_n floor(nx)/n, min_n (floor(nx)+1)/n), where n ranges from {1, ... , nmax}. The
+        // [max_n floor(nx)/n, min_n (floor(nx)+1)/n)], where n ranges from {1, ... , nmax}. The
         // number x is specified in terms of a continued fraction generator giving its continued
         // fraction expansion. The generator needs to have index_tracker and
         // previous_previous_convergent_tracker within it, and it also needs to be at its initial
