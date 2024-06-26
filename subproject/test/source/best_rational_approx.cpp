@@ -25,8 +25,6 @@ void best_rational_approx_test() {
     using namespace jkj;
 
     "[Best rational approximation]"_test = [] {
-        using projective_rational_t =
-            cntfrc::projective_rational<bigint::int_var, bigint::uint_var>;
         using rational_t = frac<bigint::int_var, bigint::uint_var>;
 
         should("best_rational_approx") = [] {
@@ -34,8 +32,7 @@ void best_rational_approx_test() {
                                    bigint::uint_var const& denominator, std::size_t nmax) {
                 auto cf = cntfrc::make_generator<cntfrc::index_tracker,
                                                  cntfrc::previous_previous_convergent_tracker>(
-                    cntfrc::impl::rational<bigint::int_var, bigint::uint_var>{
-                        projective_rational_t{numerator, denominator}});
+                    cntfrc::impl::rational{numerator, denominator});
 
                 auto result = idiv::find_best_rational_approx(cf, nmax);
 
@@ -67,8 +64,7 @@ void best_rational_approx_test() {
                                    bigint::uint_var const& denominator, std::size_t nmax) {
                 auto cf = cntfrc::make_generator<cntfrc::index_tracker,
                                                  cntfrc::previous_previous_convergent_tracker>(
-                    cntfrc::impl::rational<bigint::int_var, bigint::uint_var>{
-                        projective_rational_t{numerator, denominator}});
+                    cntfrc::impl::rational{numerator, denominator});
 
                 auto result = idiv::find_floor_quotient_range(cf, nmax);
 
@@ -101,8 +97,7 @@ void best_rational_approx_test() {
                                    bigint::uint_var const& denominator, std::size_t nmax) {
                 auto cf = cntfrc::make_generator<cntfrc::index_tracker,
                                                  cntfrc::previous_previous_convergent_tracker>(
-                    cntfrc::impl::rational<bigint::int_var, bigint::uint_var>{
-                        projective_rational_t{numerator, denominator}});
+                    cntfrc::impl::rational{numerator, denominator});
 
                 auto result = idiv::find_extrema_of_fractional_part(cf, nmax);
                 expect(result.smallest_minimizer >= 1 && result.smallest_minimizer <= nmax);

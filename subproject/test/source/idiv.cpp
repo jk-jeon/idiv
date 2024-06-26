@@ -63,7 +63,7 @@ void idiv_test() {
                                    bigint::uint_var const& denominator, std::size_t nmax) {
                 auto cf = cntfrc::make_generator<cntfrc::index_tracker,
                                                  cntfrc::previous_previous_convergent_tracker>(
-                    cntfrc::impl::rational{projective_rational_t{numerator, denominator}});
+                    cntfrc::impl::rational{numerator, denominator});
 
                 auto result = idiv::find_optimal_multiply_shift(cf, nmax);
 
@@ -187,13 +187,13 @@ void idiv_test() {
 
                 auto const maximizer_computed =
                     idiv::find_maximizer_of_floor_subtract_quotient_positive_range(xcf, ycf, zetacf,
-                                                                                nrange);
+                                                                                   nrange);
                 expect(maximizer_computed >= nrange.lower_bound() &&
                        maximizer_computed <= nrange.upper_bound());
 
                 auto const minimizer_computed =
                     idiv::find_minimizer_of_floor_subtract_quotient_positive_range(xcf, ycf, zetacf,
-                                                                                nrange);
+                                                                                   nrange);
                 expect(minimizer_computed >= nrange.lower_bound() &&
                        minimizer_computed <= nrange.upper_bound());
 

@@ -29,8 +29,7 @@ void log_continued_fraction_test() {
         using unsigned_frac_t = frac<bigint::uint_var, bigint::uint_var>;
 
         should("natural_log_calculator") = [] {
-            unsigned_frac_t error_bound{
-                1u, bigint::uint_var(bigint::decimal_uint_const_v<1'000'000, 0, 0, 0, 0, 0>)};
+            unsigned_frac_t error_bound{1u, bigint::decimal_uint_const_v<1'000'000, 0, 0, 0, 0, 0>};
 
             {
                 // Compute ln(2) up to 100 digits.
