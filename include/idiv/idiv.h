@@ -136,8 +136,8 @@ namespace jkj {
                         auto factor_out_power_of_2_limited = [&] {
                             auto pow2_factors = factor_out_power_of_2(multiplier);
                             if (pow2_factors > k) {
-                                k = 0;
                                 multiplier <<= (pow2_factors - k);
+                                k = 0;
                             }
                             else {
                                 k -= pow2_factors;
