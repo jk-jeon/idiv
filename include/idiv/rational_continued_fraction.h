@@ -46,7 +46,10 @@ namespace jkj {
                 }
 
                 explicit constexpr rational(projective_rational<Int, UInt> r)
-                    : fraction_{std::move(r).numerator, std::move(r).denominator} {}
+                    : fraction_{std::move(r)} {}
+
+                explicit constexpr rational(Int numerator, UInt denominator)
+                    : fraction_{std::move(numerator), std::move(denominator)} {}
 
                 template <class Callback>
                 constexpr void with_next_partial_fraction(Callback&& callback) {
@@ -62,6 +65,9 @@ namespace jkj {
 
             template <class Int, class UInt>
             rational(projective_rational<Int, UInt>) -> rational<Int, UInt, unity>;
+
+            template <class Int, class UInt>
+            rational(Int, UInt) -> rational<Int, UInt, unity>;
         }
     }
 }
