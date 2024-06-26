@@ -204,25 +204,17 @@ namespace jkj {
         constexpr multiply_add_shift_info find_simultaneous_multiply_add_shift(
             ContinuedFractionGeneratorX&& xcf, ContinuedFractionGeneratorY&& ycf,
             interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
-            static_assert(
-                std::remove_cvref_t<ContinuedFractionGeneratorX>::template is_implementing_mixins<
-                    cntfrc::index_tracker, cntfrc::previous_previous_convergent_tracker>(),
-                "the first continued fraction generator must implement index_tracker and "
-                "previous_previous_convergent_tracker");
-
             // TODO: deal with possible rational dependence between x and y.
 
-            auto xcf_copy = xcf.copy();
+            auto xcf_copy = cntfrc::make_generator<cntfrc::index_tracker,
+                                                   cntfrc::previous_previous_convergent_tracker>(
+                xcf.copy_internal_implementation());
 
             util::constexpr_assert(nrange.upper_bound() > nrange.lower_bound());
             auto const& nmin = nrange.lower_bound();
             auto const nlength = util::abs(nrange.upper_bound() - nrange.lower_bound());
 
-            // Step 1. Find the range of xi satisfying floor(nx) = floor(nxi) for all n.
-            auto xi_range = find_floor_quotient_range(xcf_copy, nlength);
-            auto xi_info = find_optimal_multiply_shift(xi_range);
-
-            // Step 2. Subtract out the integer part of y.
+            // Step 1. Subtract out the integer part of y.
             auto floor_y = [&] {
                 auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
                     cntfrc::make_binary_gosper_from_impl(xcf.copy_internal_implementation(),
@@ -234,6 +226,18 @@ namespace jkj {
                 cf.update();
                 return cf.current_partial_fraction().denominator;
             }();
+
+            // Step 2. Find the range of xi satisfying floor(nx) = floor(nxi) for all n.
+            if (util::is_zero(nlength)) {
+                // When nmin = nmax, we can take xi to be a whatever number.
+                // For sanity, we choose xi = floor(x).
+                xcf_copy.update();
+                auto xi = xcf_copy.current_convergent().numerator;
+                auto zeta = floor_y - nrange.lower_bound() * xi;
+                return {std::move(xi), std::move(zeta), 0};
+            }
+            auto xi_range = find_floor_quotient_range(xcf_copy, nlength);
+            auto xi_info = find_optimal_multiply_shift(xi_range);
 
             // Step 3. Determine if any of L, R is empty.
             bool is_L_empty = [&] {
@@ -414,12 +418,6 @@ namespace jkj {
         find_extrema_of_fractional_part(
             ContinuedFractionGeneratorX&& xcf, ContinuedFractionGeneratorY&& ycf,
             interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
-            static_assert(
-                std::remove_cvref_t<ContinuedFractionGeneratorX>::template is_implementing_mixins<
-                    cntfrc::index_tracker, cntfrc::previous_previous_convergent_tracker>(),
-                "the first continued fraction generator must implement index_tracker and "
-                "previous_previous_convergent_tracker");
-
             extrema_of_fractional_part_output<bigint::int_var> result{nrange.lower_bound(),
                                                                       nrange.lower_bound()};
 
@@ -625,15 +623,6 @@ namespace jkj {
             ContinuedFractionGeneratorX&& xcf, ContinuedFractionGeneratorY&& ycf,
             ContinuedFractionGeneratorZeta&& zetacf,
             interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
-            static_assert(
-                std::remove_cvref_t<ContinuedFractionGeneratorX>::template is_implementing_mixins<
-                    cntfrc::index_tracker, cntfrc::previous_previous_convergent_tracker>() &&
-                    std::remove_cvref_t<ContinuedFractionGeneratorZeta>::
-                        template is_implementing_mixins<
-                            cntfrc::index_tracker, cntfrc::previous_previous_convergent_tracker>(),
-                "the first and the third continued fraction generators must implement "
-                "index_tracker and previous_previous_convergent_tracker");
-
             util::constexpr_assert(nrange.lower_bound() > 0);
 
             // Find good enough approximations of x and y.
@@ -648,7 +637,10 @@ namespace jkj {
             // Find a good enough approximation of zeta.
             // Because of potential aliasing of zetacf with xcf/ycf, we make a copy here.
             auto approx_zeta_info = find_best_rational_approx(
-                zetacf.copy(), nrange.upper_bound() - nrange.lower_bound());
+                cntfrc::make_generator<cntfrc::index_tracker,
+                                       cntfrc::previous_previous_convergent_tracker>(
+                    zetacf.copy_internal_implementation()),
+                nrange.upper_bound() - nrange.lower_bound());
 
             // Find the smallest minimizer of the fractional part.
             auto const n00 = find_extrema_of_fractional_part(xcf, ycf, nrange).smallest_minimizer;
