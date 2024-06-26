@@ -534,6 +534,12 @@ namespace jkj {
                     return impl_;
                 }
 
+                // Make a copy of the generator. The internal implementation is copied in value even
+                // if it were of a reference type.
+                constexpr auto copy() const {
+                    return generator_impl<std::remove_cvref_t<Impl>, Mixins...>{impl_};
+                }
+
                 // Returns true if succeeded obtaining a further partial fraction.
                 constexpr bool update() {
                     if (!terminated_) {
