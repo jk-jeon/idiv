@@ -479,11 +479,26 @@ namespace jkj {
                     typename get_required_mixins<Impl>::type{}, mixin_list<AdditionalMixins...>{});
             }
 
+            template <class T>
+            struct get_decay_type_impl {
+                using type = std::remove_cvref_t<T>;
+            };
+
+            template <class T>
+                requires requires { typename T::decay_type; }
+            struct get_decay_type_impl<T> {
+                using type = typename T::decay_type;
+            };
+
+            template <class T>
+            using get_decay_type = typename get_decay_type_impl<T>::type;
+
             // The actual implementation of the generator class.
             template <class Impl, template <class, class> class... Mixins>
             class generator_impl : public Mixins<Impl, generator_impl<Impl, Mixins...>>... {
             public:
                 using impl_type = Impl;
+                using decay_type = generator_impl<get_decay_type<Impl>, Mixins...>;
                 using partial_fraction_type = typename Impl::partial_fraction_type;
                 using convergent_type = typename Impl::convergent_type;
                 using interval_type = typename Impl::interval_type;
@@ -529,16 +544,14 @@ namespace jkj {
                 explicit constexpr generator_impl(Impl impl)
                     : Mixins<Impl, generator_impl>{impl}..., impl_{static_cast<Impl&&>(impl)} {}
 
-                // Make a copy of the internal implementation with its current state.
-                constexpr std::remove_cvref_t<Impl> copy_internal_implementation() const {
+                // Make a deep copy of the internal implementation with its current state.
+                constexpr get_decay_type<Impl> copy_internal_implementation() const {
                     return impl_;
                 }
 
                 // Make a copy of the generator. The internal implementation is copied in value even
                 // if it were of a reference type.
-                constexpr auto copy() const {
-                    return generator_impl<std::remove_cvref_t<Impl>, Mixins...>{impl_};
-                }
+                constexpr decay_type copy() const { return decay_type{impl_}; }
 
                 // Returns true if succeeded obtaining a further partial fraction.
                 constexpr bool update() {

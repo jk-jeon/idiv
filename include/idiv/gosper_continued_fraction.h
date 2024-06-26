@@ -83,6 +83,8 @@ namespace jkj {
                     "the internal continued fraction generator for unary_gosper is required to "
                     "implement interval_tracker");
 
+                using decay_type =
+                    unary_gosper<typename ContinuedFractionGenerator::decay_type, Unity>;
                 using int_type = decltype(ContinuedFractionGenerator::convergent_type::numerator);
                 using partial_fraction_type = projective_rational<Unity, int_type>;
                 using convergent_type = typename ContinuedFractionGenerator::convergent_type;
@@ -338,6 +340,9 @@ namespace jkj {
                     "the internal continued fraction generators for binary_gosper are required to "
                     "implement interval_tracker");
 
+                using decay_type =
+                    binary_gosper<typename ContinuedFractionGeneratorX::decay_type,
+                                  typename ContinuedFractionGeneratorY::decay_type, Unity>;
                 using int_type = decltype(ContinuedFractionGeneratorX::convergent_type::numerator);
                 using partial_fraction_type = projective_rational<Unity, int_type>;
                 using convergent_type = typename ContinuedFractionGeneratorX::convergent_type;
