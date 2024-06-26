@@ -21,5 +21,6 @@ function(add_example NAME)
 endfunction()
 
 add_example(empty_example)
+add_example(jeaiii_analysis)
 
 add_folders(Example)
