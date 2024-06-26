@@ -463,13 +463,18 @@ namespace jkj {
                     topological_sort<wrapped_mixin_list::size>(mixin_dependency_graph);
 
                 static_assert(sorted_mixin_indices.succeed,
-                              "mixin's ordering constraint should not form a cylce");
+                              "mixin's ordering constraint should not form a cycle");
 
                 // Convert the index array into a tmp::typelist and return.
-                return [&sorted_mixin_indices]<std::size_t... I>(std::index_sequence<I...>) {
-                    return tmp::typelist<tmp::get_type<sorted_mixin_indices.sorted_indices[I],
-                                                       wrapped_mixin_list>...>{};
-                }(std::make_index_sequence<wrapped_mixin_list::size>{});
+                if constexpr (wrapped_mixin_list::size == 0) {
+                    return tmp::typelist<>{};
+                }
+                else {
+                    return [&sorted_mixin_indices]<std::size_t... I>(std::index_sequence<I...>) {
+                        return tmp::typelist<tmp::get_type<sorted_mixin_indices.sorted_indices[I],
+                                                           wrapped_mixin_list>...>{};
+                    }(std::make_index_sequence<wrapped_mixin_list::size>{});
+                }
             }
 
             template <class Impl, template <class, class> class... AdditionalMixins>

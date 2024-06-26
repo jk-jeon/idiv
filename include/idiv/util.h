@@ -585,25 +585,30 @@ namespace jkj {
 
             template <class... Types>
             constexpr auto remove_duplicate_impl(typelist<Types...>) noexcept {
-                using list = typelist<Types...>;
-                constexpr auto prefix_sum = [] {
-                    std::size_t count = 0;
-                    std::size_t index = 0;
-                    util::array<std::size_t, sizeof...(Types)> result{};
-                    auto impl = [&](auto arg) {
-                        if (find_first_index<typename decltype(arg)::type>(list{}) == index) {
-                            result[index] = ++count;
-                        }
-                        else {
-                            result[index] = count;
-                        }
-                        ++index;
-                    };
-                    (impl(std::type_identity<Types>{}), ...);
-                    return result;
-                }();
+                if constexpr (sizeof...(Types) == 0) {
+                    return typelist<>{};
+                }
+                else {
+                    using list = typelist<Types...>;
+                    constexpr auto prefix_sum = [] {
+                        std::size_t count = 0;
+                        std::size_t index = 0;
+                        util::array<std::size_t, sizeof...(Types)> result{};
+                        auto impl = [&](auto arg) {
+                            if (find_first_index<typename decltype(arg)::type>(list{}) == index) {
+                                result[index] = ++count;
+                            }
+                            else {
+                                result[index] = count;
+                            }
+                            ++index;
+                        };
+                        (impl(std::type_identity<Types>{}), ...);
+                        return result;
+                    }();
 
-                return prefix_sum_compaction<prefix_sum>(list{});
+                    return prefix_sum_compaction<prefix_sum>(list{});
+                }
             }
         }
 
