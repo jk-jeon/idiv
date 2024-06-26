@@ -132,32 +132,45 @@ namespace jkj {
                         }
                     }();
 
-                    if (util::is_even(multiplier)) {
-                        k -= factor_out_power_of_2(multiplier);
-                    }
-                    else {
-                        if (interval_sign == bigint::sign_t::positive) {
-                            auto next_lattice_point = multiplier + 1u;
-                            if ((itv_type::right_endpoint_type() == endpoint_type_t::open &&
-                                 next_lattice_point * itv.upper_bound().denominator <
-                                     (itv.upper_bound().numerator << k)) ||
-                                (itv_type::right_endpoint_type() == endpoint_type_t::closed &&
-                                 next_lattice_point * itv.upper_bound().denominator <=
-                                     (itv.upper_bound().numerator << k))) {
-                                multiplier = std::move(next_lattice_point);
-                                k -= factor_out_power_of_2(multiplier);
+                    if (k > 0) {
+                        auto factor_out_power_of_2_limited = [&] {
+                            auto pow2_factors = factor_out_power_of_2(multiplier);
+                            if (pow2_factors > k) {
+                                k = 0;
+                                multiplier <<= (pow2_factors - k);
                             }
+                            else {
+                                k -= pow2_factors;
+                            }
+                        };
+
+                        if (util::is_even(multiplier)) {
+                            factor_out_power_of_2_limited();
                         }
                         else {
-                            auto next_lattice_point = multiplier - 1u;
-                            if ((itv_type::left_endpoint_type() == endpoint_type_t::open &&
-                                 next_lattice_point * itv.lower_bound().denominator >
-                                     (itv.lower_bound().numerator << k)) ||
-                                (itv_type::left_endpoint_type() == endpoint_type_t::closed &&
-                                 next_lattice_point * itv.lower_bound().denominator <=
-                                     (itv.lower_bound().numerator << k))) {
-                                multiplier = std::move(next_lattice_point);
-                                k -= factor_out_power_of_2(multiplier);
+                            if (interval_sign == bigint::sign_t::positive) {
+                                auto next_lattice_point = multiplier + 1u;
+                                if ((itv_type::right_endpoint_type() == endpoint_type_t::open &&
+                                     next_lattice_point * itv.upper_bound().denominator <
+                                         (itv.upper_bound().numerator << k)) ||
+                                    (itv_type::right_endpoint_type() == endpoint_type_t::closed &&
+                                     next_lattice_point * itv.upper_bound().denominator <=
+                                         (itv.upper_bound().numerator << k))) {
+                                    multiplier = std::move(next_lattice_point);
+                                    factor_out_power_of_2_limited();
+                                }
+                            }
+                            else {
+                                auto next_lattice_point = multiplier - 1u;
+                                if ((itv_type::left_endpoint_type() == endpoint_type_t::open &&
+                                     next_lattice_point * itv.lower_bound().denominator >
+                                         (itv.lower_bound().numerator << k)) ||
+                                    (itv_type::left_endpoint_type() == endpoint_type_t::closed &&
+                                     next_lattice_point * itv.lower_bound().denominator <=
+                                         (itv.lower_bound().numerator << k))) {
+                                    multiplier = std::move(next_lattice_point);
+                                    factor_out_power_of_2_limited();
+                                }
                             }
                         }
                     }
