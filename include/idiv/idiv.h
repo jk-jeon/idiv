@@ -210,7 +210,6 @@ namespace jkj {
                                                    cntfrc::previous_previous_convergent_tracker>(
                 xcf.copy_internal_implementation());
 
-            util::constexpr_assert(nrange.upper_bound() > nrange.lower_bound());
             auto const& nmin = nrange.lower_bound();
             auto const nlength = util::abs(nrange.upper_bound() - nrange.lower_bound());
 
@@ -420,6 +419,10 @@ namespace jkj {
             interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
             extrema_of_fractional_part_output<bigint::int_var> result{nrange.lower_bound(),
                                                                       nrange.lower_bound()};
+
+            if (nrange.lower_bound() == nrange.upper_bound()) {
+                return result;
+            }
 
             // First, find fine enough approximations of x and y.
             auto approx_info = find_simultaneous_multiply_add_shift(
@@ -636,11 +639,12 @@ namespace jkj {
 
             // Find a good enough approximation of zeta.
             // Because of potential aliasing of zetacf with xcf/ycf, we make a copy here.
+            // "+ 1u" is just to make the case nmin == nmax work correctly.
             auto approx_zeta_info = find_best_rational_approx(
                 cntfrc::make_generator<cntfrc::index_tracker,
                                        cntfrc::previous_previous_convergent_tracker>(
                     zetacf.copy_internal_implementation()),
-                nrange.upper_bound() - nrange.lower_bound());
+                util::abs(nrange.upper_bound() - nrange.lower_bound()) + 1u);
 
             // Find the smallest minimizer of the fractional part.
             auto const n00 = find_extrema_of_fractional_part(xcf, ycf, nrange).smallest_minimizer;
@@ -725,15 +729,6 @@ namespace jkj {
             ContinuedFractionGeneratorX&& xcf, ContinuedFractionGeneratorY&& ycf,
             ContinuedFractionGeneratorZeta&& zetacf,
             interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
-            static_assert(
-                std::remove_cvref_t<ContinuedFractionGeneratorX>::template is_implementing_mixins<
-                    cntfrc::index_tracker, cntfrc::previous_previous_convergent_tracker>() &&
-                    std::remove_cvref_t<ContinuedFractionGeneratorZeta>::
-                        template is_implementing_mixins<
-                            cntfrc::index_tracker, cntfrc::previous_previous_convergent_tracker>(),
-                "the first and the third continued fraction generators must implement "
-                "index_tracker and previous_previous_convergent_tracker");
-
             util::constexpr_assert(nrange.lower_bound() > 0);
 
             // Find good enough approximations of x and y.
@@ -747,8 +742,12 @@ namespace jkj {
 
             // Find a good enough approximation of zeta.
             // Because of potential aliasing of zetacf with xcf/ycf, we make a copy here.
+            // "+ 1u" is just to make the case nmin == nmax work correctly.
             auto approx_zeta_info = find_best_rational_approx(
-                zetacf.copy(), nrange.upper_bound() - nrange.lower_bound());
+                cntfrc::make_generator<cntfrc::index_tracker,
+                                       cntfrc::previous_previous_convergent_tracker>(
+                    zetacf.copy_internal_implementation()),
+                util::abs(nrange.upper_bound() - nrange.lower_bound()) + 1u);
 
             // Find the largest maximizer of the fractional part.
             auto const n00 = find_extrema_of_fractional_part(xcf, ycf, nrange).largest_maximizer;
