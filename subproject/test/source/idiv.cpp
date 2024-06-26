@@ -98,12 +98,8 @@ void idiv_test() {
         should("find_simultaneous_multiply_add_shift") = [] {
             auto perform_test = [](projective_rational_t const& x, projective_rational_t const& y,
                                    nrange_t const& nrange) {
-                auto xcf = cntfrc::make_generator<cntfrc::index_tracker,
-                                                  cntfrc::previous_previous_convergent_tracker>(
-                    cntfrc::impl::rational{x});
-                auto ycf = cntfrc::make_generator<cntfrc::index_tracker,
-                                                  cntfrc::previous_previous_convergent_tracker>(
-                    cntfrc::impl::rational{y});
+                auto xcf = cntfrc::make_generator(cntfrc::impl::rational{x});
+                auto ycf = cntfrc::make_generator(cntfrc::impl::rational{y});
 
                 auto result = idiv::find_simultaneous_multiply_add_shift(xcf, ycf, nrange);
 
@@ -129,12 +125,8 @@ void idiv_test() {
         should("find_extrema_of_fractional_part (two unknowns)") = [] {
             auto perform_test = [](projective_rational_t const& x, projective_rational_t const& y,
                                    nrange_t const& nrange) {
-                auto xcf = cntfrc::make_generator<cntfrc::index_tracker,
-                                                  cntfrc::previous_previous_convergent_tracker>(
-                    cntfrc::impl::rational{x});
-                auto ycf = cntfrc::make_generator<cntfrc::index_tracker,
-                                                  cntfrc::previous_previous_convergent_tracker>(
-                    cntfrc::impl::rational{y});
+                auto xcf = cntfrc::make_generator(cntfrc::impl::rational{x});
+                auto ycf = cntfrc::make_generator(cntfrc::impl::rational{y});
 
                 auto result = idiv::find_extrema_of_fractional_part(xcf, ycf, nrange);
                 expect(result.smallest_minimizer >= nrange.lower_bound() &&
@@ -175,15 +167,9 @@ void idiv_test() {
         should("find_maximizer/minimizer_of_floor_subtract_quotient_positive_range") = [] {
             auto perform_test = [](projective_rational_t const& x, projective_rational_t const& y,
                                    projective_rational_t const& zeta, nrange_t const& nrange) {
-                auto xcf = cntfrc::make_generator<cntfrc::index_tracker,
-                                                  cntfrc::previous_previous_convergent_tracker>(
-                    cntfrc::impl::rational{x});
-                auto ycf = cntfrc::make_generator<cntfrc::index_tracker,
-                                                  cntfrc::previous_previous_convergent_tracker>(
-                    cntfrc::impl::rational{y});
-                auto zetacf = cntfrc::make_generator<cntfrc::index_tracker,
-                                                     cntfrc::previous_previous_convergent_tracker>(
-                    cntfrc::impl::rational{zeta});
+                auto xcf = cntfrc::make_generator(cntfrc::impl::rational{x});
+                auto ycf = cntfrc::make_generator(cntfrc::impl::rational{y});
+                auto zetacf = cntfrc::make_generator(cntfrc::impl::rational{zeta});
 
                 auto const maximizer_computed =
                     idiv::find_maximizer_of_floor_subtract_quotient_positive_range(xcf, ycf, zetacf,
