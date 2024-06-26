@@ -212,7 +212,7 @@ namespace jkj {
 
             // TODO: deal with possible rational dependence between x and y.
 
-            auto xcf_copy = xcf;
+            auto xcf_copy = xcf.copy();
 
             util::constexpr_assert(nrange.upper_bound() > nrange.lower_bound());
             auto const& nmin = nrange.lower_bound();
@@ -430,9 +430,8 @@ namespace jkj {
             auto xi_cf =
                 cntfrc::make_generator<cntfrc::index_tracker, cntfrc::partial_fraction_tracker,
                                        cntfrc::previous_previous_convergent_tracker>(
-                    cntfrc::impl::rational{cntfrc::projective_rational{
-                        approx_info.multiplier,
-                        bigint::uint_var::power_of_2(approx_info.shift_amount)}});
+                    cntfrc::impl::rational{approx_info.multiplier,
+                                           bigint::uint_var::power_of_2(approx_info.shift_amount)});
 
             // RHS times 2^k.
             auto compute_scaled_threshold_for_maximizer = [&](auto const& n) {
@@ -638,21 +637,18 @@ namespace jkj {
             util::constexpr_assert(nrange.lower_bound() > 0);
 
             // Find good enough approximations of x and y.
-            auto approx_x_y_info = [&] {
-                auto xcf_copy = xcf;
-                auto ycf_copy = ycf;
-                return find_simultaneous_multiply_add_shift(xcf_copy, ycf_copy, nrange);
-            }();
+            auto approx_x_y_info =
+                find_simultaneous_multiply_add_shift(xcf.copy(), ycf.copy(), nrange);
             auto xcf_copy = cntfrc::make_caching_generator(
                 cntfrc::make_generator<cntfrc::partial_fraction_tracker,
-                                       cntfrc::convergent_tracker>(
-                    cntfrc::impl::rational{cntfrc::projective_rational{
-                        approx_x_y_info.multiplier,
-                        bigint::uint_var::power_of_2(approx_x_y_info.shift_amount)}}));
+                                       cntfrc::convergent_tracker>(cntfrc::impl::rational{
+                    approx_x_y_info.multiplier,
+                    bigint::uint_var::power_of_2(approx_x_y_info.shift_amount)}));
 
             // Find a good enough approximation of zeta.
-            auto approx_zeta_info =
-                find_best_rational_approx(zetacf, nrange.upper_bound() - nrange.lower_bound());
+            // Because of potential aliasing of zetacf with xcf/ycf, we make a copy here.
+            auto approx_zeta_info = find_best_rational_approx(
+                zetacf.copy(), nrange.upper_bound() - nrange.lower_bound());
 
             // Find the smallest minimizer of the fractional part.
             auto const n00 = find_extrema_of_fractional_part(xcf, ycf, nrange).smallest_minimizer;
@@ -749,21 +745,18 @@ namespace jkj {
             util::constexpr_assert(nrange.lower_bound() > 0);
 
             // Find good enough approximations of x and y.
-            auto approx_x_y_info = [&] {
-                auto xcf_copy = xcf;
-                auto ycf_copy = ycf;
-                return find_simultaneous_multiply_add_shift(xcf_copy, ycf_copy, nrange);
-            }();
+            auto approx_x_y_info =
+                find_simultaneous_multiply_add_shift(xcf.copy(), ycf.copy(), nrange);
             auto xcf_copy = cntfrc::make_caching_generator(
                 cntfrc::make_generator<cntfrc::partial_fraction_tracker,
-                                       cntfrc::convergent_tracker>(
-                    cntfrc::impl::rational{cntfrc::projective_rational{
-                        approx_x_y_info.multiplier,
-                        bigint::uint_var::power_of_2(approx_x_y_info.shift_amount)}}));
+                                       cntfrc::convergent_tracker>(cntfrc::impl::rational{
+                    approx_x_y_info.multiplier,
+                    bigint::uint_var::power_of_2(approx_x_y_info.shift_amount)}));
 
             // Find a good enough approximation of zeta.
-            auto approx_zeta_info =
-                find_best_rational_approx(zetacf, nrange.upper_bound() - nrange.lower_bound());
+            // Because of potential aliasing of zetacf with xcf/ycf, we make a copy here.
+            auto approx_zeta_info = find_best_rational_approx(
+                zetacf.copy(), nrange.upper_bound() - nrange.lower_bound());
 
             // Find the largest maximizer of the fractional part.
             auto const n00 = find_extrema_of_fractional_part(xcf, ycf, nrange).largest_maximizer;

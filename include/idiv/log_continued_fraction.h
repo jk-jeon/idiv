@@ -84,11 +84,10 @@ namespace jkj {
                     // For given input x, we find the reduced form of z s.t. x = (1+z)/(1-z), i.e.,
                     // z = (x-1)/(x+1). Note that z always lies in (-1,1) for x in (0,infty).
                     auto z = [&] {
-                        auto cf = make_generator<convergent_tracker>(
-                            cntfrc::impl::rational{projective_rational<Int, UInt>{
-                                util::to_signed(positive_rational.numerator) -
-                                    positive_rational.denominator,
-                                positive_rational.numerator + positive_rational.denominator}});
+                        auto cf = make_generator<convergent_tracker>(cntfrc::impl::rational{
+                            util::to_signed(positive_rational.numerator) -
+                                positive_rational.denominator,
+                            positive_rational.numerator + positive_rational.denominator});
 
                         while (!cf.terminated()) {
                             cf.update();
