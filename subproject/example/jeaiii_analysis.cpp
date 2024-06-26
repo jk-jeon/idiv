@@ -50,16 +50,17 @@ jeaiii_analysis_floor(
     namespace cntfrc = jkj::cntfrc;
 
     // To compute ceil(nx) and ceil((n+1)x).
-    auto approx_x =
-        jkj::idiv::find_best_rational_approx(xcf.copy(), nrange.upper_bound() + 1u).above;
+    auto approx_x = jkj::idiv::find_best_rational_approx(
+                        cntfrc::make_generator<cntfrc::index_tracker,
+                                               cntfrc::previous_previous_convergent_tracker>(
+                            xcf.copy_internal_implementation()),
+                        nrange.upper_bound() + 1u)
+                        .above;
 
-    auto minus_xcf =
-        cntfrc::make_generator<cntfrc::index_tracker, cntfrc::previous_previous_convergent_tracker>(
-            cntfrc::impl::unary_gosper{static_cast<ContinuedFractionGenerator&&>(xcf),
-                                       {-1, 0, 0, 1}});
-    auto zero_cf =
-        cntfrc::make_generator<cntfrc::index_tracker, cntfrc::previous_previous_convergent_tracker>(
-            cntfrc::impl::rational<jkj::bigint::int_var, jkj::bigint::uint_var>{0, 1u});
+    auto minus_xcf = cntfrc::make_generator(
+        cntfrc::impl::unary_gosper{static_cast<ContinuedFractionGenerator&&>(xcf), {-1, 0, 0, 1}});
+    auto zero_cf = cntfrc::make_generator(
+        cntfrc::impl::rational<jkj::bigint::int_var, jkj::bigint::uint_var>{0, 1u});
 
     auto maximizer = jkj::idiv::find_maximizer_of_floor_subtract_quotient_positive_range(
         minus_xcf.copy(), minus_xcf.copy(), zero_cf.copy(), nrange);
@@ -118,20 +119,20 @@ jeaiii_analysis_floor_plus_one(
     namespace cntfrc = jkj::cntfrc;
 
     // To compute ceil(nx) and ceil((n+1)x).
-    auto approx_x =
-        jkj::idiv::find_best_rational_approx(xcf.copy(), nrange.upper_bound() + 1u).above;
+    auto approx_x = jkj::idiv::find_best_rational_approx(
+                        cntfrc::make_generator<cntfrc::index_tracker,
+                                               cntfrc::previous_previous_convergent_tracker>(
+                            xcf.copy_internal_implementation()),
+                        nrange.upper_bound() + 1u)
+                        .above;
 
-    auto minus_xcf =
-        cntfrc::make_generator<cntfrc::index_tracker, cntfrc::previous_previous_convergent_tracker>(
-            cntfrc::impl::unary_gosper{static_cast<ContinuedFractionGenerator&&>(xcf),
-                                       {-1, 0, 0, 1}});
-    auto zero_cf =
-        cntfrc::make_generator<cntfrc::index_tracker, cntfrc::previous_previous_convergent_tracker>(
-            cntfrc::impl::rational<jkj::bigint::int_var, jkj::bigint::uint_var>{0, 1u});
+    auto minus_xcf = cntfrc::make_generator(
+        cntfrc::impl::unary_gosper{static_cast<ContinuedFractionGenerator&&>(xcf), {-1, 0, 0, 1}});
+    auto zero_cf = cntfrc::make_generator(
+        cntfrc::impl::rational<jkj::bigint::int_var, jkj::bigint::uint_var>{0, 1u});
 
-    auto minus_one_cf =
-        cntfrc::make_generator<cntfrc::index_tracker, cntfrc::previous_previous_convergent_tracker>(
-            cntfrc::impl::rational<jkj::bigint::int_var, jkj::bigint::uint_var>{-1, 1u});
+    auto minus_one_cf = cntfrc::make_generator(
+        cntfrc::impl::rational<jkj::bigint::int_var, jkj::bigint::uint_var>{-1, 1u});
 
     auto maximizer = jkj::idiv::find_maximizer_of_floor_subtract_quotient_positive_range(
         minus_xcf.copy(), minus_xcf.copy(), minus_one_cf.copy(), nrange);
@@ -228,9 +229,7 @@ int main() {
         {
             std::cout << "[Analysis for the floor case]\n";
             auto const admissible_range = jeaiii_analysis_floor(
-                cntfrc::make_generator<cntfrc::index_tracker,
-                                       cntfrc::previous_previous_convergent_tracker,
-                                       cntfrc::interval_tracker>(cntfrc::impl::rational{
+                cntfrc::make_generator<cntfrc::interval_tracker>(cntfrc::impl::rational{
                     jkj::util::to_signed(jkj::bigint::uint_var::power_of_2(D)),
                     jkj::util::pow_uint(jkj::bigint::uint_var{10}, k)}),
                 jkj::interval<jkj::bigint::int_var, jkj::interval_type_t::bounded_closed>{
@@ -264,9 +263,7 @@ int main() {
         {
             std::cout << "[Analysis for the floor-plus-1 case]\n";
             auto const admissible_range = jeaiii_analysis_floor_plus_one(
-                cntfrc::make_generator<cntfrc::index_tracker,
-                                       cntfrc::previous_previous_convergent_tracker,
-                                       cntfrc::interval_tracker>(cntfrc::impl::rational{
+                cntfrc::make_generator<cntfrc::interval_tracker>(cntfrc::impl::rational{
                     jkj::util::to_signed(jkj::bigint::uint_var::power_of_2(D)),
                     jkj::util::pow_uint(jkj::bigint::uint_var{10}, k)}),
                 jkj::interval<jkj::bigint::int_var, jkj::interval_type_t::bounded_closed>{
