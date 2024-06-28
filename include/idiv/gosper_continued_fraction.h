@@ -52,9 +52,9 @@ namespace jkj {
                                                          Int{transform.num_to_den}};
                     }
                     template <class CyclicInterval, class T>
-                    static constexpr bool contains_in_closure(CyclicInterval const& itv,
+                    static constexpr bool contains_in_closure(CyclicInterval const& vitv,
                                                               T const& x) {
-                        return itv.visit([&x](auto&& itv) {
+                        return vitv.visit([&x](auto&& itv) {
                             using enum cyclic_interval_type_t;
                             using itv_type = std::remove_cvref_t<decltype(itv)>;
                             static_assert(itv_type::interval_type() != empty);
@@ -373,14 +373,14 @@ namespace jkj {
                     cyclic_interval_type_t::closed, cyclic_interval_type_t::entire>
                 map_cyclic_interval(
                     linear_fractional_transform<NumNum, DenNum, NumDen, DenDen> const& transform,
-                    InputIntervalType const& itv, int determinant_sign) {
+                    InputIntervalType const& vitv, int determinant_sign) {
                     using return_type =
                         variable_shape_cyclic_interval<projective_rational<int_type, int_type>,
                                                        cyclic_interval_type_t::single_point,
                                                        cyclic_interval_type_t::closed,
                                                        cyclic_interval_type_t::entire>;
 
-                    return itv.visit([&transform, determinant_sign](auto&& itv) -> return_type {
+                    return vitv.visit([&transform, determinant_sign](auto&& itv) -> return_type {
                         using enum cyclic_interval_type_t;
                         using value_type = projective_rational<int_type, int_type>;
                         using itv_type = std::remove_cvref_t<decltype(itv)>;
@@ -417,9 +417,10 @@ namespace jkj {
 
                 // Check a predicate on each component. Assumes itv1, itv2 are both closed.
                 template <class InputIntervalType1, class InputIntervalType2, class Pred>
-                static constexpr bool check_intersection(InputIntervalType1 const& itv1,
-                                                         InputIntervalType2 const& itv2, Pred&& f) {
-                    return itv1.visit([&itv2, &f](auto&& itv1) {
+                static constexpr bool check_intersection(InputIntervalType1 const& vitv1,
+                                                         InputIntervalType2 const& vitv2,
+                                                         Pred&& f) {
+                    return vitv1.visit([&vitv2, &f](auto&& itv1) {
                         using enum cyclic_interval_type_t;
                         using value_type = projective_rational<int_type, int_type>;
                         using empty_interval = cyclic_interval<value_type, empty>;
@@ -432,11 +433,11 @@ namespace jkj {
                             return f(empty_interval{});
                         }
                         else if constexpr (itv1_type == entire) {
-                            return itv2.visit(f);
+                            return vitv2.visit(f);
                         }
                         else if constexpr (itv1_type == single_point) {
                             if (detail::gosper_util<int_type>::contains_in_closure(
-                                    itv2, itv1.lower_bound())) {
+                                    vitv2, itv1.lower_bound())) {
                                 return f(single_point_interval{itv1.lower_bound()});
                             }
                             else {
@@ -444,7 +445,7 @@ namespace jkj {
                             }
                         }
                         else {
-                            return itv2.visit([&itv1, &f](auto&& itv2) {
+                            return vitv2.visit([&itv1, &f](auto&& itv2) {
                                 constexpr auto itv2_type = itv2.interval_type();
 
                                 if constexpr (itv2_type == empty) {
