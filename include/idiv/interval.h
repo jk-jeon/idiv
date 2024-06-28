@@ -891,7 +891,8 @@ namespace jkj {
 
             using value_type = std::remove_cvref_t<Value>;
 
-            template <class T, Enum it> requires std::is_constructible_v<Value, T>
+            template <class T, Enum it>
+                requires std::is_constructible_v<Value, T>
             constexpr variable_shape_interval_impl(StaticIntervalTemplate<T, it> itv) noexcept
                 : interval_type_{it} {
                 static_assert(is_allowed_interval_type(it),
@@ -915,10 +916,12 @@ namespace jkj {
 
                 interval_type_ = it;
                 if constexpr (requires { itv.lower_bound(); }) {
-                    lower_bound_ = static_cast<cyclic_interval<Value, it>&&>(itv).lower_bound();
+                    lower_bound_ =
+                        static_cast<StaticIntervalTemplate<Value, it>&&>(itv).lower_bound();
                 }
                 if constexpr (requires { itv.upper_bound(); }) {
-                    upper_bound_ = static_cast<cyclic_interval<Value, it>&&>(itv).upper_bound();
+                    upper_bound_ =
+                        static_cast<StaticIntervalTemplate<Value, it>&&>(itv).upper_bound();
                 }
                 return *this;
             }
