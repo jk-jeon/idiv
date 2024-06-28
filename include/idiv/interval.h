@@ -877,6 +877,9 @@ namespace jkj {
             static constexpr auto allowed_interval_types_ = allowed_interval_types_arg;
 
         public:
+            template <class, class Enum_, template <class, Enum_> class, auto>
+            friend class variable_shape_interval_impl;
+
             static constexpr auto const& allowed_interval_types() noexcept {
                 return allowed_interval_types_;
             }
@@ -887,6 +890,16 @@ namespace jkj {
                     }
                 }
                 return false;
+            }
+            template <std::size_t NOther>
+            static constexpr bool are_allowed_interval_types(
+                util::array<Enum, NOther> const& allowed_interval_types_arg_other) noexcept {
+                for (std::size_t idx = 0; idx < NOther; ++idx) {
+                    if (!is_allowed_interval_type(allowed_interval_types_arg_other[idx])) {
+                        return false;
+                    }
+                }
+                return true;
             }
 
             using value_type = std::remove_cvref_t<Value>;
@@ -908,6 +921,30 @@ namespace jkj {
                 }
             }
 
+            template <class T, std::size_t NOther,
+                      util::array<Enum, NOther> allowed_interval_types_arg_other>
+                requires std::is_constructible_v<Value, T>
+            constexpr variable_shape_interval_impl(
+                variable_shape_interval_impl<T, Enum, StaticIntervalTemplate,
+                                             allowed_interval_types_arg_other> const& itv) noexcept
+                : interval_type_{itv.interval_type()}, lower_bound_{itv.lower_bound_},
+                  upper_bound_{itv.upper_bound_} {
+                static_assert(are_allowed_interval_types(allowed_interval_types_arg_other),
+                              "one of the possible interval type is not allowed");
+            }
+
+            template <class T, std::size_t NOther,
+                      util::array<Enum, NOther> allowed_interval_types_arg_other>
+                requires std::is_constructible_v<Value, T>
+            constexpr variable_shape_interval_impl(
+                variable_shape_interval_impl<T, Enum, StaticIntervalTemplate,
+                                             allowed_interval_types_arg_other>&& itv) noexcept
+                : interval_type_{itv.interval_type()}, lower_bound_{std::move(itv.lower_bound_)},
+                  upper_bound_{std::move(itv.upper_bound_)} {
+                static_assert(are_allowed_interval_types(allowed_interval_types_arg_other),
+                              "one of the possible interval type is not allowed");
+            }
+
             template <Enum it>
             constexpr variable_shape_interval_impl&
             operator=(StaticIntervalTemplate<Value, it> itv) noexcept {
@@ -923,6 +960,37 @@ namespace jkj {
                     upper_bound_ =
                         static_cast<StaticIntervalTemplate<Value, it>&&>(itv).upper_bound();
                 }
+                return *this;
+            }
+
+            template <class T, std::size_t NOther,
+                      util::array<Enum, NOther> allowed_interval_types_arg_other>
+                requires std::is_constructible_v<Value, T>
+            constexpr variable_shape_interval_impl&
+            operator=(variable_shape_interval_impl<T, Enum, StaticIntervalTemplate,
+                                                   allowed_interval_types_arg_other> const&
+                          itv) noexcept {
+                static_assert(are_allowed_interval_types(allowed_interval_types_arg_other),
+                              "one of the possible interval type is not allowed");
+
+                interval_type_ = itv.interval_type();
+                lower_bound_ = itv.lower_bound_;
+                upper_bound_ = itv.upper_bound_;
+                return *this;
+            }
+
+            template <class T, std::size_t NOther,
+                      util::array<Enum, NOther> allowed_interval_types_arg_other>
+                requires std::is_constructible_v<Value, T>
+            constexpr variable_shape_interval_impl& operator=(
+                variable_shape_interval_impl<T, Enum, StaticIntervalTemplate,
+                                             allowed_interval_types_arg_other>&& itv) noexcept {
+                static_assert(are_allowed_interval_types(allowed_interval_types_arg_other),
+                              "one of the possible interval type is not allowed");
+
+                interval_type_ = itv.interval_type();
+                lower_bound_ = std::move(itv.lower_bound_);
+                upper_bound_ = std::move(itv.upper_bound_);
                 return *this;
             }
 
