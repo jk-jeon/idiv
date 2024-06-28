@@ -164,3 +164,4 @@ void integer_util_test() {
         expect(util::pow_uint(10, 9u) == 1'000'000'000);
     };
 }
+

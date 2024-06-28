@@ -77,3 +77,4 @@ void rational_continued_fraction_test() {
         }
     };
 }
+
