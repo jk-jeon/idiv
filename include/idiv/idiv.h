@@ -23,6 +23,8 @@
 #include "gosper_continued_fraction.h"
 #include "rational_continued_fraction.h"
 #include "bigint.h"
+#include <algorithm>
+#include <ranges>
 
 namespace jkj {
     namespace idiv {
@@ -35,8 +37,8 @@ namespace jkj {
         // at least one number of the form m/2^k for an integer m belongs to the interval, find
         // such m with the smallest absolute value, and then return (m,k).
         template <class RationalInterval>
-        constexpr multiply_shift_info find_optimal_multiply_shift(RationalInterval const& itv) {
-            return itv.visit([](auto&& itv) -> multiply_shift_info {
+        constexpr multiply_shift_info find_optimal_multiply_shift(RationalInterval const& vitv) {
+            return vitv.visit([](auto&& itv) -> multiply_shift_info {
                 using enum interval_type_t;
                 using itv_type = std::remove_cvref_t<decltype(itv)>;
                 static_assert(itv_type::interval_type() != empty);
@@ -834,6 +836,937 @@ namespace jkj {
                                              approx_zeta_info.below.denominator);
 
             return lhs <= rhs ? left_minimizer : right_minimizer;
+        }
+
+        // Given real numbers x, y, and a range [nmin:nmax] of integers, find the set of (xi,zeta)
+        // such that floor(nx + y) = floor(n xi + zeta) holds for all n in [nmin:nmax]. The set is
+        // represented as the union of nonempty sets of one of the forms
+        // {(xi,zeta) in R x J | (a-zeta)/b < xi < (c-zeta)/d},
+        // {(xi,zeta) in R x J | (a-zeta)/b < xi <= (c-zeta)/d},
+        // {(xi,zeta) in R x J | (a-zeta)/b <= xi < (c-zeta)/d} and
+        // {(xi,zeta) in R x J | (a-zeta)/b <= xi <= (c-zeta)/d},
+        // where J is a nonempty interval, b, d are positive integers, and a, c are integers,
+        // and the projection J onto the zeta-component of each of these sets is disjoint from each
+        // other. We can in fact assume that J is either open and bounded, a singleton set, or the
+        // entire R.
+        struct elementary_xi_zeta_region {
+            variable_shape_interval<frac<bigint::int_var, bigint::uint_var>,
+                                    interval_type_t::bounded_open, interval_type_t::bounded_closed,
+                                    interval_type_t::entire>
+                zeta_range;
+
+            bigint::int_var xi_left_endpoint_numerator;
+            bigint::int_var xi_left_endpoint_denominator;
+
+            bigint::int_var xi_right_endpoint_numerator;
+            bigint::int_var xi_right_endpoint_denominator;
+
+            bool xi_left_endpoint_included;
+            bool xi_right_endpoint_included;
+        };
+
+        template <class ContinuedFractionGeneratorX, class ContinuedFractionGeneratorY,
+                  std::ranges::range RangeOfIntegerIntervals>
+        constexpr std::vector<elementary_xi_zeta_region>
+        find_xi_zeta_region(ContinuedFractionGeneratorX&& xcf, ContinuedFractionGeneratorY&& ycf,
+                            RangeOfIntegerIntervals&& range_of_nranges) {
+            using frac_t = frac<bigint::int_var, bigint::uint_var>;
+
+            // Sanity check.
+            util::constexpr_assert(!std::ranges::empty(range_of_nranges));
+
+            // Get the reduced form of the number num/den, where num and den are rationals.
+            auto get_reduced_quotient = [](auto const& num, auto const& den) {
+                auto num_int = num.numerator * den.denominator;
+                auto den_int = num.denominator * den.numerator;
+                if (util::is_strictly_negative(den_int)) {
+                    num_int = -std::move(num_int);
+                    den_int = -std::move(den_int);
+                }
+                return find_best_rational_approx(
+                           cntfrc::make_generator<cntfrc::index_tracker,
+                                                  cntfrc::previous_previous_convergent_tracker>(
+                               cntfrc::impl::rational{num_int, util::abs(den_int)}),
+                           util::abs(den_int))
+                    .below;
+            };
+
+
+            ////////////////////////////////////////////////////////////////////////////////////
+            // Step 1 - Write the region as the intersection of half-spaces.
+            ////////////////////////////////////////////////////////////////////////////////////
+
+            enum class elementary_problem_sign : bool { positive, negative };
+            struct half_space_info {
+                frac_t zeta_coeff;
+                frac_t eta_coeff;
+                enum class boundary_type_t : bool { inclusive, exclusive } boundary_type;
+            };
+            std::vector<half_space_info> right_half_spaces; // Lower bounds for xi.
+            std::vector<half_space_info> left_half_spaces;  // Upper bounds for xi.
+            bool nrange_contains_zero = false;
+            bigint::int_var floor_y; // Used in Step 4.
+
+            {
+                // First, rewrite the domain into a disjoint union of intervals.
+                std::vector<interval<bigint::int_var, interval_type_t::bounded_closed>>
+                    normalized_nranges(std::forward<RangeOfIntegerIntervals>(range_of_nranges));
+                std::ranges::sort(normalized_nranges, [](auto&& lhs, auto&& rhs) {
+                    return lhs.lower_bound() < rhs.lower_bound();
+                });
+
+                auto current_pos = normalized_nranges.begin();
+                for (auto merge_target_pos = current_pos + 1;
+                     merge_target_pos < normalized_nranges.end(); ++merge_target_pos) {
+                    // Merge if possible.
+                    if (current_pos->upper_bound() + 1 >= merge_target_pos->lower_bound()) {
+                        if (current_pos->upper_bound() < merge_target_pos->upper_bound()) {
+                            current_pos->upper_bound() = std::move(merge_target_pos->upper_bound());
+                        }
+                    }
+                    else {
+                        ++current_pos;
+                        util::constexpr_assert(current_pos <= merge_target_pos);
+                        if (current_pos != merge_target_pos) {
+                            *current_pos = std::move(*merge_target_pos);
+                        }
+                    }
+                }
+                normalized_nranges.erase(++current_pos);
+
+                // Compute good enough approximations of (x,y) and (-x,y) for future computations.
+                auto const approx_plus_x_y_info = find_simultaneous_multiply_add_shift(
+                    xcf.copy(), ycf.copy(),
+                    {util::is_strictly_negative(normalized_nranges.front().lower_bound())
+                         ? 0
+                         : normalized_nranges.front().lower_bound(),
+                     util::is_strictly_negative(normalized_nranges.back().upper_bound())
+                         ? 0
+                         : normalized_nranges.back().upper_bound()});
+
+                auto const approx_minus_x_y_info = find_simultaneous_multiply_add_shift(
+                    cntfrc::make_generator(cntfrc::make_unary_gosper_from_impl(xcf, {-1, 0, 0, 1})),
+                    ycf,
+                    {util::is_strictly_positive(normalized_nranges.back().upper_bound())
+                         ? 0
+                         : -normalized_nranges.back().upper_bound(),
+                     util::is_strictly_positive(normalized_nranges.front().lower_bound())
+                         ? 0
+                         : -normalized_nranges.front().lower_bound()});
+
+                auto xcf_plus_side = cntfrc::make_caching_generator(
+                    cntfrc::make_generator<cntfrc::partial_fraction_tracker,
+                                           cntfrc::convergent_tracker>(cntfrc::impl::rational{
+                        approx_plus_x_y_info.multiplier,
+                        bigint::uint_var::power_of_2(approx_plus_x_y_info.shift_amount)}));
+
+                auto ycf_plus_side = cntfrc::make_caching_generator(
+                    cntfrc::make_generator<cntfrc::partial_fraction_tracker,
+                                           cntfrc::convergent_tracker>(cntfrc::impl::rational{
+                        approx_plus_x_y_info.adder,
+                        bigint::uint_var::power_of_2(approx_plus_x_y_info.shift_amount)}));
+
+                auto xcf_minus_side = cntfrc::make_caching_generator(
+                    cntfrc::make_generator<cntfrc::partial_fraction_tracker,
+                                           cntfrc::convergent_tracker>(cntfrc::impl::rational{
+                        approx_minus_x_y_info.multiplier,
+                        bigint::uint_var::power_of_2(approx_minus_x_y_info.shift_amount)}));
+
+                auto ycf_minus_side = cntfrc::make_caching_generator(
+                    cntfrc::make_generator<cntfrc::partial_fraction_tracker,
+                                           cntfrc::convergent_tracker>(cntfrc::impl::rational{
+                        approx_minus_x_y_info.adder,
+                        bigint::uint_var::power_of_2(approx_minus_x_y_info.shift_amount)}));
+
+                floor_y = (approx_plus_x_y_info.adder >> approx_plus_x_y_info.shift_amount);
+
+                // For each disjoint component, decompose it further into elementary domains.
+                // For each elementary problem, find all half-spaces that determine the solution
+                // region.
+                {
+                    // For the maximization on the left, the half-space at the base point is
+                    // included.
+                    auto solve_maximization_on_left = [&](bigint::uint_var base_point,
+                                                          bigint::uint_var max_diff,
+                                                          elementary_problem_sign sign) {
+                        auto const& approx_x_y_info = sign == elementary_problem_sign::positive
+                                                          ? approx_plus_x_y_info
+                                                          : approx_minus_x_y_info;
+                        auto& approx_xcf = sign == elementary_problem_sign::positive
+                                               ? xcf_plus_side
+                                               : xcf_minus_side;
+                        auto& half_spaces = sign == elementary_problem_sign::positive
+                                                ? right_half_spaces
+                                                : left_half_spaces;
+
+                        while (!util::is_zero(max_diff)) {
+                            half_spaces.push_back({{1, base_point},
+                                                   {-((base_point * approx_x_y_info.multiplier +
+                                                       approx_x_y_info.adder) >>
+                                                      approx_x_y_info.shift_amount),
+                                                    base_point},
+                                                   half_space_info::boundary_type_t::inclusive});
+
+                            auto movement = find_extrema_of_fractional_part(approx_xcf, max_diff)
+                                                .largest_maximizer;
+                            approx_xcf.rewind();
+                            movement *= util::div_floor(max_diff, movement);
+                            base_point -= movement;
+                            max_diff -= std::move(movement);
+                        }
+
+                        half_spaces.push_back(
+                            {{1, base_point},
+                             {-((base_point * approx_x_y_info.multiplier + approx_x_y_info.adder) >>
+                                approx_x_y_info.shift_amount),
+                              base_point},
+                             half_space_info::boundary_type_t::inclusive});
+                    };
+                    // For the maximization on the right, the half-space at the base point is not
+                    // included.
+                    auto solve_maximization_on_right = [&](bigint::uint_var base_point,
+                                                           bigint::uint_var max_diff,
+                                                           elementary_problem_sign sign) {
+                        auto const& approx_x_y_info = sign == elementary_problem_sign::positive
+                                                          ? approx_plus_x_y_info
+                                                          : approx_minus_x_y_info;
+                        auto& approx_xcf = sign == elementary_problem_sign::positive
+                                               ? xcf_plus_side
+                                               : xcf_minus_side;
+                        auto& half_spaces = sign == elementary_problem_sign::positive
+                                                ? right_half_spaces
+                                                : left_half_spaces;
+
+                        while (!util::is_zero(max_diff)) {
+                            auto movement = find_extrema_of_fractional_part(approx_xcf, max_diff)
+                                                .smallest_minimizer;
+                            approx_xcf.rewind();
+                            movement *= util::div_floor(max_diff, movement);
+                            base_point += movement;
+                            max_diff -= std::move(movement);
+
+                            half_spaces.push_back({{1, base_point},
+                                                   {-((base_point * approx_x_y_info.multiplier +
+                                                       approx_x_y_info.adder) >>
+                                                      approx_x_y_info.shift_amount),
+                                                    base_point},
+                                                   half_space_info::boundary_type_t::inclusive});
+                        }
+                    };
+                    // For the minimization on the left, the half-space at the base point is
+                    // included.
+                    auto solve_minimization_on_left = [&](bigint::uint_var base_point,
+                                                          bigint::uint_var max_diff,
+                                                          elementary_problem_sign sign) {
+                        auto const& approx_x_y_info = sign == elementary_problem_sign::positive
+                                                          ? approx_plus_x_y_info
+                                                          : approx_minus_x_y_info;
+                        auto& approx_xcf = sign == elementary_problem_sign::positive
+                                               ? xcf_plus_side
+                                               : xcf_minus_side;
+                        auto& half_spaces = sign == elementary_problem_sign::positive
+                                                ? left_half_spaces
+                                                : right_half_spaces;
+
+                        while (!util::is_zero(max_diff)) {
+                            half_spaces.push_back({{1, base_point},
+                                                   {1 - ((base_point * approx_x_y_info.multiplier +
+                                                          approx_x_y_info.adder) >>
+                                                         approx_x_y_info.shift_amount),
+                                                    base_point},
+                                                   half_space_info::boundary_type_t::exclusive});
+
+                            auto movement = find_extrema_of_fractional_part(approx_xcf, max_diff)
+                                                .smallest_minimizer;
+                            approx_xcf.rewind();
+                            movement *= util::div_floor(max_diff, movement);
+                            base_point -= movement;
+                            max_diff -= std::move(movement);
+                        }
+
+                        half_spaces.push_back({{1, base_point},
+                                               {1 - ((base_point * approx_x_y_info.multiplier +
+                                                      approx_x_y_info.adder) >>
+                                                     approx_x_y_info.shift_amount),
+                                                base_point},
+                                               half_space_info::boundary_type_t::exclusive});
+                    };
+                    // For the minimization on the right, the half-space at the base point is not
+                    // included.
+                    auto solve_minimization_on_right = [&](bigint::uint_var base_point,
+                                                           bigint::uint_var max_diff,
+                                                           elementary_problem_sign sign) {
+                        auto const& approx_x_y_info = sign == elementary_problem_sign::positive
+                                                          ? approx_plus_x_y_info
+                                                          : approx_minus_x_y_info;
+                        auto& approx_xcf = sign == elementary_problem_sign::positive
+                                               ? xcf_plus_side
+                                               : xcf_minus_side;
+                        auto& half_spaces = sign == elementary_problem_sign::positive
+                                                ? left_half_spaces
+                                                : right_half_spaces;
+
+                        while (!util::is_zero(max_diff)) {
+                            auto movement = find_extrema_of_fractional_part(approx_xcf, max_diff)
+                                                .largest_maximizer;
+                            approx_xcf.rewind();
+                            movement *= util::div_floor(max_diff, movement);
+                            base_point += movement;
+                            max_diff -= std::move(movement);
+
+                            half_spaces.push_back({{1, base_point},
+                                                   {1 - ((base_point * approx_x_y_info.multiplier +
+                                                          approx_x_y_info.adder) >>
+                                                         approx_x_y_info.shift_amount),
+                                                    base_point},
+                                                   half_space_info::boundary_type_t::exclusive});
+                        }
+                    };
+
+                    auto process_single_sign_interval =
+                        [&](interval<bigint::int_var, interval_type_t::bounded_closed> const&
+                                nrange,
+                            elementary_problem_sign sign, auto&& pm_xcf, auto&& pm_ycf) {
+                            auto base_points =
+                                find_extrema_of_fractional_part(pm_xcf, pm_ycf, nrange);
+                            pm_xcf.rewind();
+                            pm_ycf.rewind();
+
+                            solve_maximization_on_left(
+                                util::abs(base_points.smallest_minimizer),
+                                util::abs(base_points.smallest_minimizer - nrange.lower_bound()),
+                                sign);
+                            solve_maximization_on_right(
+                                util::abs(base_points.smallest_minimizer),
+                                util::abs(nrange.upper_bound() - base_points.smallest_minimizer),
+                                sign);
+                            solve_minimization_on_left(
+                                util::abs(base_points.largest_maximizer),
+                                util::abs(base_points.largest_maximizer - nrange.lower_bound()),
+                                sign);
+                            solve_minimization_on_right(
+                                util::abs(base_points.largest_maximizer),
+                                util::abs(nrange.upper_bound() - base_points.largest_maximizer),
+                                sign);
+                        };
+
+                    for (auto const& nrange : normalized_nranges) {
+                        // Negative interval.
+                        if (util::is_strictly_negative(nrange.upper_bound())) {
+                            process_single_sign_interval(
+                                {-nrange.upper_bound(), -nrange.lower_bound()},
+                                elementary_problem_sign::negative, xcf_minus_side, ycf_minus_side);
+                        }
+                        // Positive interval.
+                        else if (util::is_strictly_positive(nrange.lower_bound())) {
+                            process_single_sign_interval(nrange, elementary_problem_sign::positive,
+                                                         xcf_plus_side, ycf_plus_side);
+                        }
+                        else if (util::is_zero(nrange.upper_bound())) {
+                            nrange_contains_zero = true;
+                            process_single_sign_interval({1, -nrange.lower_bound()},
+                                                         elementary_problem_sign::negative,
+                                                         xcf_minus_side, ycf_minus_side);
+                        }
+                        else if (util::is_zero(nrange.lower_bound())) {
+                            nrange_contains_zero = true;
+                            process_single_sign_interval({1, nrange.upper_bound()},
+                                                         elementary_problem_sign::positive,
+                                                         xcf_plus_side, ycf_plus_side);
+                        }
+                        else {
+                            // nrange.lower_bound() < 0 < nrange.upper_bound()
+                            nrange_contains_zero = true;
+                            process_single_sign_interval({1, -nrange.lower_bound()},
+                                                         elementary_problem_sign::negative,
+                                                         xcf_minus_side, ycf_minus_side);
+                            process_single_sign_interval({1, nrange.upper_bound()},
+                                                         elementary_problem_sign::positive,
+                                                         xcf_plus_side, ycf_plus_side);
+                        }
+                    }
+                }
+            }
+
+
+            ////////////////////////////////////////////////////////////////////////////////////
+            // Step 2 - Find the intersection of lower bounds for xi and upper bounds for xi,
+            // respectively. The intersection is described in terms of its horizontal slices.
+            // To simplify further processing, we make all the vertical projections of these
+            // slices to be either open or singleton.
+            ////////////////////////////////////////////////////////////////////////////////////
+
+            struct elementary_one_sided_region {
+                variable_shape_interval<
+                    frac_t, interval_type_t::bounded_open, interval_type_t::bounded_closed,
+                    interval_type_t::bounded_below_open, interval_type_t::bounded_above_open,
+                    interval_type_t::entire>
+                    zeta_range;
+
+                bigint::int_var xi_endpoint_numerator;
+                bigint::int_var xi_endpoint_denominator;
+                bool xi_endpoint_included;
+            };
+
+            // Find the extreme points for the lower/upper bounds by finding the convex hull of the
+            // dual problem projected onto the plane xi = +-1.
+            enum class bound_direction_t : bool { lower, upper };
+            auto compute_intersection = [&](bound_direction_t bound_direction) {
+                struct vec2d {
+                    frac_t zeta_coord;
+                    frac_t eta_coord;
+
+                    constexpr frac_t dot(vec2d const& other) const {
+                        return zeta_coord * other.zeta_coord + eta_coord * other.eta_coord;
+                    }
+                    constexpr frac_t normsq() const { return dot(*this); }
+                };
+
+                auto& half_spaces = bound_direction == bound_direction_t::lower ? right_half_spaces
+                                                                                : left_half_spaces;
+                std::vector<elementary_one_sided_region> result;
+
+                util::constexpr_assert(!half_spaces.empty());
+
+                // Start from the one with the smallest/largest zeta-coordinate, depending on the
+                // bound direction. This corresponds to the half-space with the lowest boundary
+                // line.
+                auto first_elmt = bound_direction == bound_direction_t::lower
+                                      ? std::ranges::min_element(
+                                            half_spaces, {}, &elementary_problem_sign::zeta_coeff)
+                                      : std::ranges::max_element(
+                                            half_spaces, {}, &elementary_problem_sign::zeta_coeff);
+
+                // If there is only one half-space, return immediately.
+                if (half_spaces.size() == 1) {
+                    result.push_back(
+                        {interval<frac_t, interval_type_t::entire>{},
+                         util::is_nonnegative(first_elmt->zeta_coeff.numerator)
+                             ? -first_elmt->eta_coeff.numerator
+                             : first_elmt->eta_coeff.numerator,
+                         util::is_nonnegative(first_elmt->zeta_coeff.numerator)
+                             ? -first_elmt->zeta_coeff.denominator
+                             : util::to_signed(first_elmt->zeta_coeff.denominator),
+                         first_elmt->boundary_type == half_space_info::boundary_type_t::inclusive});
+                    return result;
+                }
+
+                // We are at the left/right-end and we want to travel counterclockwise, when viewed
+                // from the positive xi-axis. To do so, we set the initial direction to be along the
+                // negative/positive eta-axis, depending on the direction of the bound.
+                auto prev_direction_vec =
+                    vec2d{{0, 1u}, {bound_direction == bound_direction_t::lower ? -1 : 1, 1u}};
+                auto last_elmt = first_elmt;
+                frac_t prev_turning_point_zeta{0, 1u};
+
+                struct angle_info {
+                    typename std::vector<half_space_info>::const_iterator itr;
+                    vec2d direction_vec;
+                    frac_t cos_square;
+                    bool is_cos_strictly_negative;
+                    bool is_inclusive_at_turning_point;
+                };
+                auto compute_angle_info = [&](auto itr) {
+                    auto direction_vec = vec2d{itr->zeta_coeff - last_elmt.zeta_coeff,
+                                               itr->eta_coeff - last_elmt.eta_coeff};
+                    auto dot_product = prev_direction_vec.dot(direction_vec);
+                    bool is_cos_strictly_negative = util::is_strictly_negative(dot_product);
+                    return angle_info{itr, direction_vec,
+                                      (dot_product * dot_product) / direction_vec.normsq(),
+                                      is_cos_strictly_negative,
+                                      last_elmt->boundary_type ==
+                                              elementary_problem_sign::boundary_type_t::inclusive &&
+                                          itr->boundary_type ==
+                                              elementary_problem_sign::boundary_type_t::inclusive};
+                };
+                auto compare_angle_info = [](angle_info const& left,
+                                             angle_info const& right) -> std::strong_ordering {
+                    if (left.is_cos_strictly_negative) {
+                        if (right.is_cos_strictly_negative) {
+                            return right.cos_square <=> left.cos_square;
+                        }
+                        else {
+                            return std::strong_ordering::less;
+                        }
+                    }
+                    else {
+                        if (right.is_cos_strictly_negative) {
+                            return std::strong_ordering::greater;
+                        }
+                        else {
+                            return left.cos_square <=> right.cos_square;
+                        }
+                    }
+                };
+
+                while (true) {
+                    // Find the point whose direction vector is the closest in angle to the previous
+                    // direction vector.
+                    auto itr = half_spaces.cbegin();
+                    if (itr == last_elmt) {
+                        ++itr;
+                    }
+                    auto current_angle_info = compute_angle_info(itr);
+
+                    for (++itr; itr != half_spaces.cend(); ++itr) {
+                        if (itr == last_elmt) {
+                            continue;
+                        }
+
+                        auto new_angle_info = compute_angle_info(itr);
+                        auto const compare_result =
+                            compare_angle_info(current_angle_info, new_angle_info);
+
+                        // If current < new, found a better one.
+                        if (compare_result < 0) {
+                            current_angle_info = std::move(new_angle_info);
+                        }
+                        // If current == new.
+                        else if (compare_result == 0) {
+                            // We choose the one located further, but take account that the
+                            // inclusivity of the turning point may change.
+                            bool const is_inclusive_at_turning_point =
+                                (current_angle_info.is_inclusive_at_turning_point &&
+                                 new_angle_info.is_inclusive_at_turning_point);
+                            if (current_angle_info.direction_vec.normsq() <
+                                new_angle_info.direction_vec.normsq()) {
+                                current_angle_info = std::move(new_angle_info);
+                            }
+                            current_angle_info.is_inclusive_at_turning_point =
+                                is_inclusive_at_turning_point;
+                        }
+                    }
+                    // Found one.
+
+                    // Find a normal vector to the newly found face.
+                    // For the case of lower bound, every functional should have nonnegative inner
+                    // product with this normal, while for the case of upper bound, they should have
+                    // nonpositive inner product.
+                    auto face_normal_xi =
+                        last_elmt->zeta_coeff * current_angle_info.itr->eta_coeff -
+                        last_elmt->eta_coeff * current_angle_info.itr->zeta_coeff;
+                    auto face_normal_zeta =
+                        last_elmt->eta_coeff - current_angle_info.itr->eta_coeff;
+                    auto face_normal_eta =
+                        current_angle_info.itr->zeta_coeff - last_elmt->zeta_coeff;
+
+                    // Project it down to the plane eta = 1. The resulting point must be a turning
+                    // point.
+                    auto turning_point_zeta =
+                        get_reduced_quotient(face_normal_zeta, face_normal_eta);
+
+                    auto xi_endpoint_numerator =
+                        util::is_nonnegative(last_elmt->zeta_coeff.numerator)
+                            ? -last_elmt->eta_coeff.numerator
+                            : last_elmt->eta_coeff.numerator;
+                    auto xi_endpoint_denominator =
+                        util::is_nonnegative(last_elmt->zeta_coeff.numerator)
+                            ? -last_elmt->zeta_coeff.denominator
+                            : util::to_signed(last_elmt->zeta_coeff.denominator);
+
+                    // The unbounded bottom boundary line.
+                    if (last_elmt == first_elmt) {
+                        util::constexpr_assert((bound_direction == bound_direction_t::lower &&
+                                                util::is_strictly_positive(face_normal_eta)) ||
+                                               (bound_direction == bound_direction_t::upper &&
+                                                util::is_strictly_negative(face_normal_eta)));
+
+                        // The unbounded open region.
+                        result.push_back({interval<frac_t, interval_type_t::bounded_above_open>{
+                                              turning_point_zeta},
+                                          xi_endpoint_numerator, xi_endpoint_denominator,
+                                          last_elmt->boundary_type ==
+                                              half_space_info::boundary_type_t::inclusive});
+
+                        // The horizontal ray right above it.
+                        result.push_back({interval<frac_t, interval_type_t::bounded_closed>{
+                                              turning_point_zeta, turning_point_zeta},
+                                          xi_endpoint_numerator, xi_endpoint_denominator,
+                                          last_elmt->boundary_type ==
+                                                  half_space_info::boundary_type_t::inclusive &&
+                                              current_angle_info.itr->boundary_type ==
+                                                  half_space_info::boundary_type_t::inclusive});
+                    }
+                    // The unbounded top boundary line.
+                    else if (current_angle_info.itr == first_elmt) {
+                        util::constexpr_assert((bound_direction == bound_direction_t::lower &&
+                                                util::is_strictly_negative(face_normal_eta)) ||
+                                               (bound_direction == bound_direction_t::upper &&
+                                                util::is_strictly_positive(face_normal_eta)));
+
+                        // The unbounded open region.
+                        result.push_back({interval<frac_t, interval_type_t::bounded_below_open>{
+                                              prev_turning_point_zeta},
+                                          xi_endpoint_numerator, xi_endpoint_denominator,
+                                          last_elmt->bondary_type ==
+                                              half_space_info::boundary_type_t::inclusive});
+
+                        // End of the while (true) {...} loop.
+                        break;
+                    }
+                    // Bounded middle boundary lines.
+                    else {
+                        util::constexpr_assert((bound_direction == bound_direction_t::lower &&
+                                                util::is_strictly_positive(face_normal_eta)) ||
+                                               (bound_direction == bound_direction_t::upper &&
+                                                util::is_strictly_negative(face_normal_eta)));
+
+                        // The bounded open region.
+                        result.push_back({interval<frac_t, interval_type_t::bounded_open>{
+                                              prev_turning_point_zeta, turning_point_zeta},
+                                          xi_endpoint_numerator, xi_endpoint_denominator,
+                                          last_elmt->boundary_type ==
+                                              half_space_info::boundary_type_t::inclusive});
+
+                        // The horizontal ray right above it.
+                        result.push_back({interval<frac_t, interval_type_t::bounded_closed>{
+                                              turning_point_zeta, turning_point_zeta},
+                                          xi_endpoint_numerator, xi_endpoint_denominator,
+                                          last_elmt->boundary_type ==
+                                                  half_space_info::boundary_type_t::inclusive &&
+                                              current_angle_info.itr->boundary_type ==
+                                                  half_space_info::boundary_type_t::inclusive});
+                    }
+                    // End of the branching on top/middle/bottom regions.
+
+                    prev_direction_vec = current_angle_info.direction_vec;
+                    last_elmt = current_angle_info.itr;
+                    prev_turning_point_zeta = turning_point_zeta;
+                } // while (true)
+
+                return result;
+            };
+
+
+            ////////////////////////////////////////////////////////////////////////////////////
+            // Step 3 - Find the intersection of the region from the lower bounds and the region
+            // from the upper bounds.
+            ////////////////////////////////////////////////////////////////////////////////////
+
+            std::vector<elementary_xi_zeta_region> result;
+            {
+                auto lower_bound_region = compute_intersection(bound_direction_t::lower);
+                auto upper_bound_region = compute_intersection(bound_direction_t::upper);
+
+                // Sweep from below to above.
+                // By the construction, these arrays should be sorted according to the
+                // zeta-coordinate, from below to above.
+                util::constexpr_assert(!lower_bound_region.empty() && !upper_bound_region.empty());
+                auto lower_bound_itr = lower_bound_region.cbegin();
+                auto upper_bound_itr = upper_bound_region.cbegin();
+
+                // Except for the unique exceptional case of having only one n, these two bounds
+                // must meet at exactly two points.
+                if (lower_bound_region.size() == 1) {
+                    // For the said exceptional case, we should have an infinite parallelogram.
+                    util::constexpr_assert(upper_bound_region.size() == 1);
+                    util::constexpr_assert(lower_bound_itr->zeta_range.interval_type() ==
+                                           interval_type_t::entire);
+                    util::constexpr_assert(upper_bound_itr->zeta_range.interval_type() ==
+                                           interval_type_t::entire);
+                    util::constexpr_assert(lower_bound_itr->xi_endpoint_denominator ==
+                                           upper_bound_itr->xi_endpoint_denominator);
+                    util::constexpr_assert(
+                        lower_bound_itr->xi_endpoint_numerator +
+                            (util::is_strictly_positive(lower_bound_itr->xi_endpoint_denominator)
+                                 ? 1
+                                 : -1) ==
+                        upper_bound_itr->xi_endpoint_numerator);
+
+                    result.push_back({interval<frac_t, interval_type_t::entire>{},
+                                      lower_bound_itr->xi_endpoint_numerator,
+                                      lower_bound_itr->xi_endpoint_denominator,
+                                      upper_bound_itr->xi_endpoint_numerator,
+                                      upper_bound_itr->xi_endpoint_denominator,
+                                      lower_bound_itr->xi_endpoint_included,
+                                      upper_bound_itr->xi_endpoint_included});
+                }
+                else {
+                    frac_t previous_zeta_endpoint{0, 0u};
+
+                    auto push_new_region = [&] {
+                        auto xi_left_endpoint_numerator =
+                            std::move(lower_bound_itr->xi_endpoint_numerator);
+                        auto xi_left_endpoint_denominator =
+                            std::move(lower_bound_itr->xi_endpoint_denominator);
+                        auto xi_right_endpoint_numerator =
+                            std::move(upper_bound_itr->xi_endpoint_numerator);
+                        auto xi_right_endpoint_denominator =
+                            std::move(upper_bound_itr->xi_endpoint_denominator);
+                        auto xi_left_endpoint_included = lower_bound_itr->xi_endpoint_included;
+                        auto xi_right_endpoint_included = upper_bound_itr->xi_endpoint_included;
+
+                        // Compare two zeta ranges, and choose the one with the smaller
+                        // right endpoint to construct the region.
+                        auto zeta_range =
+                            [&]() -> variable_shape_interval<frac_t, interval_type_t::bounded_open,
+                                                             interval_type_t::bounded_closed> {
+                            // If any of the lower bound and the upper bound is a horizontal ray.
+                            if (lower_bound_itr->zeta_range.interval_type() ==
+                                interval_type_t::bounded_closed) {
+                                ++lower_bound_itr;
+                                if (upper_bound_itr->zeta_range.interval_type() ==
+                                    interval_type_t::bounded_closed) {
+                                    ++upper_bound_itr;
+                                }
+                                return interval<frac_t, interval_type_t::bounded_closed>{
+                                    previous_zeta_endpoint, previous_zeta_endpoint};
+                            }
+                            else if (upper_bound_itr->zeta_range.interval_type() ==
+                                     interval_type_t::bounded_closed) {
+                                ++upper_bound_itr;
+                                return interval<frac_t, interval_type_t::bounded_closed>{
+                                    previous_zeta_endpoint, previous_zeta_endpoint};
+                            }
+
+                            return lower_bound_itr->zeta_range.with_upper_bound(
+                                [&](auto const& ub1) -> variable_shape_interval<
+                                                         frac_t, interval_type_t::bounded_open,
+                                                         interval_type_t::bounded_closed> {
+                                    return upper_bound_itr->zeta_range.with_upper_bound(
+                                        [&](auto const& ub2) {
+                                            auto cmp_result = ub1 <=> ub2;
+                                            if (cmp_result <= 0) {
+                                                ++lower_bound_itr;
+                                            }
+                                            if (cmp_result >= 0) {
+                                                ++upper_bound_itr;
+                                            }
+                                            auto ret_value =
+                                                interval<frac_t, interval_type_t::bounded_open>{
+                                                    std::move(previous_zeta_endpoint),
+                                                    cmp_result <= 0 ? ub1 : ub2};
+                                            previous_zeta_endpoint = ret_value.upper_bound();
+
+                                            return ret_value;
+                                        },
+                                        [&] {
+                                            // Upper bound has unbounded zeta interval.
+                                            ++lower_bound_itr;
+                                            auto ret_value =
+                                                interval<frac_t, interval_type_t::bounded_open>{
+                                                    std::move(previous_zeta_endpoint), ub1};
+                                            previous_zeta_endpoint = ub1;
+                                            return ret_value;
+                                        });
+                                },
+                                // Lower bound has unbounded zeta interval.
+                                [&]() -> variable_shape_interval<frac_t,
+                                                                 interval_type_t::bounded_open,
+                                                                 interval_type_t::bounded_closed> {
+                                    return upper_bound_itr->zeta_range.with_upper_bound(
+                                        [&](auto const& ub2)
+                                            -> variable_shape_interval<
+                                                frac_t, interval_type_t::bounded_open,
+                                                interval_type_t::bounded_closed> {
+                                            ++upper_bound_itr;
+                                            auto ret_value =
+                                                interval<frac_t, interval_type_t::bounded_open>{
+                                                    std::move(previous_zeta_endpoint), ub2};
+                                            previous_zeta_endpoint = ub2;
+                                            return ret_value;
+                                        },
+                                        [&]() -> variable_shape_interval<
+                                                  frac_t, interval_type_t::bounded_open,
+                                                  interval_type_t::bounded_closed> {
+                                            // Impossible to reach here.
+                                            return interval<frac_t,
+                                                            interval_type_t::bounded_closed>{
+                                                previous_zeta_endpoint, previous_zeta_endpoint};
+                                        });
+                                });
+                        };
+
+                        result.push_back({std::move(zeta_range),
+                                          std::move(xi_left_endpoint_numerator),
+                                          std::move(xi_left_endpoint_denominator),
+                                          std::move(xi_right_endpoint_numerator),
+                                          std::move(xi_right_endpoint_denominator),
+                                          xi_left_endpoint_included, xi_right_endpoint_included});
+                    };
+
+                    bool found_first_intersection = false;
+                    while (true) {
+                        // If two lines are not parallel.
+                        if (lower_bound_itr->xi_endpoint_denominator !=
+                            upper_bound_itr->xi_endpoint_denominator) {
+                            auto intersection_zeta = get_reduced_quotient(
+                                frac{lower_bound_itr->xi_endpoint_numerator *
+                                             upper_bound_itr->xi_endpoint_denominator -
+                                         upper_bound_itr->xi_endpoint_numerator *
+                                             lower_bound_itr->xi_endpoint_denominator,
+                                     cntfrc::unity{}},
+                                frac{upper_bound_itr->xi_endpoint_denominator -
+                                         lower_bound_itr->xi_endpoint_denominator,
+                                     cntfrc::unity{}});
+
+                            // If zeta is in the range, we found an intersection.
+                            if (lower_bound_itr->zeta_range.contains(intersection_zeta) &&
+                                upper_bound_itr->zeta_range.contains(intersection_zeta)) {
+                                // When this is the first intersection, start pushing regions.
+                                if (!found_first_intersection) {
+                                    // push_new_region() will not push the bottom vertex if both of
+                                    // the zeta-intervals are open.
+                                    if (lower_bound_itr->zeta_range.interval_type() !=
+                                            interval_type_t::bounded_closed &&
+                                        lower_bound_itr->zeta_range.interval_type() !=
+                                            interval_type_t::bounded_closed) {
+                                        result.push_back(
+                                            {interval<frac_t, interval_type_t::bounded_closed>{
+                                                 intersection_zeta, intersection_zeta},
+                                             lower_bound_itr->xi_endpoint_numerator,
+                                             lower_bound_itr->xi_endpoint_denominator,
+                                             upper_bound_itr->xi_endpoint_numerator,
+                                             upper_bound_itr->xi_endpoint_denominator,
+                                             lower_bound_itr->xi_endpoint_included,
+                                             upper_bound_itr->xi_endpoint_included});
+                                    }
+
+                                    previous_zeta_endpoint = intersection_zeta;
+                                    push_new_region();
+                                    found_first_intersection = true;
+                                    continue;
+                                }
+                                // When this is the second intersection, we completed the process.
+                                else {
+                                    // When the intersection is found between open intervals, then
+                                    // add both the open triangular region and the vertex.
+                                    // Otherwise, just add the vertex.
+                                    if (lower_bound_itr->zeta_range.interval_type() !=
+                                            interval_type_t::bounded_closed &&
+                                        lower_bound_itr->zeta_range.interval_type() !=
+                                            interval_type_t::bounded_closed) {
+                                        result.push_back(
+                                            {interval<frac_t, interval_type_t::bounded_open>{
+                                                 previous_zeta_endpoint, intersection_zeta},
+                                             lower_bound_itr->xi_endpoint_numerator,
+                                             lower_bound_itr->xi_endpoint_denominator,
+                                             upper_bound_itr->xi_endpoint_numerator,
+                                             upper_bound_itr->xi_endpoint_denominator,
+                                             lower_bound_itr->xi_endpoint_included,
+                                             upper_bound_itr->xi_endpoint_included});
+                                    }
+
+                                    result.push_back(
+                                        {interval<frac_t, interval_type_t::bounded_closed>{
+                                             intersection_zeta, intersection_zeta},
+                                         lower_bound_itr->xi_endpoint_numerator,
+                                         lower_bound_itr->xi_endpoint_denominator,
+                                         upper_bound_itr->xi_endpoint_numerator,
+                                         upper_bound_itr->xi_endpoint_denominator,
+                                         lower_bound_itr->xi_endpoint_included,
+                                         upper_bound_itr->xi_endpoint_included});
+
+                                    // End of the while (true) {...} loop.
+                                    break;
+                                }
+                            }
+                        }
+
+                        // Found no intersection.
+                        // Add a new region if we already have found the first intersection.
+                        if (found_first_intersection) {
+                            push_new_region();
+                        }
+                    } // while (true)
+                }     // End of the branching on lower_bound_region.size().
+            }
+
+
+            ////////////////////////////////////////////////////////////////////////////////////
+            // Step 4 - Horizontally cut the region if the constraint from n = 0 is present.
+            ////////////////////////////////////////////////////////////////////////////////////
+
+            if (nrange_contains_zero) {
+                // zeta should satisfy the inequality floor_y <= zeta < floor_y + 1.
+                auto floor_y_frac = frac_t{floor_y, 1u};
+                auto floor_y_p1_frac = frac_t{floor_y + 1, 1u};
+                std::vector<elementary_xi_zeta_region> trimmed;
+                auto src_itr = result.begin();
+
+                // Find floor_y.
+                for (; src_itr != result.end(); ++src_itr) {
+                    if (src_itr->zeta_range.contains(floor_y_frac)) {
+                        bool also_contains_p1 = src_itr->zeta_range.contains(floor_y_p1_frac);
+
+                        if (src_itr->zeta_range.interval_type() == interval_type_t::bounded_open) {
+                            // Split the interval.
+                            trimmed.push_back({interval<frac_t, interval_type_t::bounded_closed>{
+                                                   floor_y_frac, floor_y_frac},
+                                               src_itr->xi_left_endpoint_numerator,
+                                               src_itr->xi_left_endpoint_denominator,
+                                               src_itr->xi_right_endpoint_numerator,
+                                               src_itr->xi_right_endpoint_denominator,
+                                               src_itr->xi_left_endpoint_included,
+                                               src_itr->xi_right_endpoint_included});
+
+                            src_itr->zeta_range = src_itr->zeta_range.with_upper_bound(
+                                [&](auto const& ub) {
+                                    return interval<frac_t, interval_type_t::bounded_open>{
+                                        floor_y_frac, also_contains_p1 ? floor_y_p1_frac : ub};
+                                },
+                                [&] {
+                                    // Cannot reach here.
+                                    return interval<frac_t, interval_type_t::bounded_open>{
+                                        floor_y_frac, floor_y_p1_frac};
+                                });
+                        }
+                        trimmed.push_back(std::move(*src_itr));
+
+                        if (also_contains_p1) {
+                            trimmed.push_back(
+                                {interval<frac_t, interval_type_t::bounded_closed>{floor_y_p1_frac,
+                                                                                   floor_y_p1_frac},
+                                 trimmed.back().xi_left_endpoint_numerator,
+                                 trimmed.back().xi_left_endpoint_denominator,
+                                 trimmed.back().xi_right_endpoint_numerator,
+                                 trimmed.back().xi_right_endpoint_denominator, false, false});
+
+                            src_itr = result.end();
+                        }
+                        else {
+                            ++src_itr;
+                        }
+                        break;
+                    }
+                } // End of the for loop.
+
+                // Find floor_y + 1.
+                for (; src_itr != result.end(); ++src_itr) {
+                    if (src_itr->zeta_range.contains(floor_y_p1_frac)) {
+                        if (src_itr->zeta_range.interval_type() == interval_type_t::bounded_open) {
+                            // Split the interval.
+                            src_itr->zeta_range = src_itr->zeta_range.with_lower_bound(
+                                [&](auto const& lb) {
+                                    return interval<frac_t, interval_type_t::bounded_open>{
+                                        lb, floor_y_p1_frac};
+                                },
+                                [&] {
+                                    // Cannot reach here.
+                                    return interval<frac_t, interval_type_t::bounded_open>{
+                                        floor_y_frac, floor_y_p1_frac};
+                                });
+
+                            trimmed.push_back(*src_itr);
+                        }
+
+                        trimmed.push_back(
+                            {interval<frac_t, interval_type_t::bounded_closed>{floor_y_p1_frac,
+                                                                               floor_y_p1_frac},
+                             std::move(src_itr->xi_left_endpoint_numerator),
+                             std::move(src_itr->xi_left_endpoint_denominator),
+                             std::move(src_itr->xi_right_endpoint_numerator),
+                             std::move(src_itr->xi_right_endpoint_denominator), false, false});
+
+                        break;
+                    }
+                    trimmed.push_back(std::move(*src_itr));
+                }
+
+                result = std::move(trimmed);
+            } // if (nrange_contains_zero)
+
+            return result;
         }
     }
 }
