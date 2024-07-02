@@ -1021,6 +1021,44 @@ namespace jkj {
                 return visit([&x](auto&& itv) { return itv.contains(x); });
             }
 
+            // Call success with lower_bound() if the current interval type supports lower_bound(),
+            // and call fail otherwise.
+            template <class SuccessFunctor, class FailFunctor>
+            constexpr decltype(auto) with_lower_bound(SuccessFunctor&& success,
+                                                      FailFunctor&& fail) const {
+                return visit([&](auto&& itv) {
+                    using itv_type = std::remove_cvref_t<decltype(itv)>;
+                    if constexpr (requires {
+                                      StaticIntervalTemplate<
+                                          Value, itv_type::interval_type()>::lower_bound();
+                                  }) {
+                        return static_cast<SuccessFunctor&&>(success)(itv.lower_bound());
+                    }
+                    else {
+                        return static_cast<FailFunctor&&>(fail)();
+                    }
+                });
+            }
+
+            // Call success with upper_bound() if the current interval type supports upper_bound(),
+            // and call fail otherwise.
+            template <class SuccessFunctor, class FailFunctor>
+            constexpr decltype(auto) with_upper_bound(SuccessFunctor&& success,
+                                                      FailFunctor&& fail) const {
+                return visit([&](auto&& itv) {
+                    using itv_type = std::remove_cvref_t<decltype(itv)>;
+                    if constexpr (requires {
+                                      StaticIntervalTemplate<
+                                          Value, itv_type::interval_type()>::upper_bound();
+                                  }) {
+                        return static_cast<SuccessFunctor&&>(success)(itv.upper_bound());
+                    }
+                    else {
+                        return static_cast<FailFunctor&&>(fail)();
+                    }
+                });
+            }
+
         public:
             template <Enum it, class Functor>
             constexpr decltype(auto) call_visitor(Functor&& f) const {
