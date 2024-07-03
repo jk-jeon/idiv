@@ -1059,16 +1059,21 @@ namespace jkj {
                 });
             }
 
-        public:
             template <Enum it, class Functor>
             constexpr decltype(auto) call_visitor(Functor&& f) const {
                 using static_interval_type = StaticIntervalTemplate<Value const&, it>;
-                if constexpr (requires { static_interval_type{lower_bound_, upper_bound_}; }) {
+                if constexpr (requires {
+                                  &static_interval_type::lower_bound();
+                                  &static_interval_type::upper_bound();
+                              }) {
                     return static_cast<Functor&&>(f)(
                         static_interval_type{lower_bound_, upper_bound_});
                 }
-                else if constexpr (requires { static_interval_type{lower_bound_}; }) {
+                else if constexpr (requires { &static_interval_type::lower_bound(); }) {
                     return static_cast<Functor&&>(f)(static_interval_type{lower_bound_});
+                }
+                else if constexpr (requires { &static_interval_type::upper_bound(); }) {
+                    return static_cast<Functor&&>(f)(static_interval_type{upper_bound_});
                 }
                 else {
                     return static_cast<Functor&&>(f)(static_interval_type{});
