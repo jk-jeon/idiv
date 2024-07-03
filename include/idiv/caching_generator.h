@@ -30,12 +30,17 @@ namespace jkj {
         class caching_generator {
         public:
             using impl_type = typename std::remove_cvref_t<ContinuedFractionGenerator>::impl_type;
+            using decay_type = caching_generator<
+                typename std::remove_cvref_t<ContinuedFractionGenerator>::decay_type>;
             using partial_fraction_type =
                 typename std::remove_cvref_t<ContinuedFractionGenerator>::partial_fraction_type;
             using convergent_type =
                 typename std::remove_cvref_t<ContinuedFractionGenerator>::convergent_type;
             using interval_type =
                 typename std::remove_cvref_t<ContinuedFractionGenerator>::interval_type;
+
+            template <class OtherGenerator>
+            friend class caching_generator;
 
         private:
             ContinuedFractionGenerator cf_;
@@ -57,6 +62,12 @@ namespace jkj {
                 record_.push_back(record_t{cf_.current_partial_fraction(), convergent_type{1, 0u}});
             }
 
+            struct decay_copy_key {};
+            template <class OtherGenerator>
+            constexpr caching_generator(decay_copy_key,
+                                        caching_generator<OtherGenerator> const& other)
+                : cf_{other.cf_.copy()}, record_(other.record_) {}
+
         public:
             // caching_generator implements:
             // - index_tracker,
@@ -77,6 +88,8 @@ namespace jkj {
                 : cf_{static_cast<ContinuedFractionGenerator&&>(impl)} {
                 initialize_record();
             }
+
+            constexpr decay_type copy() const { return decay_type{*this}; }
 
             constexpr int current_index() const noexcept { return current_index_; }
 
