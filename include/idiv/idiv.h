@@ -1842,15 +1842,6 @@ namespace jkj {
 
                             trimmed.push_back(*src_itr);
                         }
-
-                        trimmed.push_back(
-                            {interval<frac_t, interval_type_t::bounded_closed>{floor_y_p1_frac,
-                                                                               floor_y_p1_frac},
-                             std::move(src_itr->xi_left_endpoint_numerator),
-                             std::move(src_itr->xi_left_endpoint_denominator),
-                             std::move(src_itr->xi_right_endpoint_numerator),
-                             std::move(src_itr->xi_right_endpoint_denominator), false, false});
-
                         break;
                     }
                     trimmed.push_back(std::move(*src_itr));
