@@ -1273,7 +1273,7 @@ namespace jkj {
             // Find the extreme points for the lower/upper bounds by finding the convex hull of the
             // dual problem projected onto the plane xi = +-1.
             enum class bound_direction_t : bool { lower, upper };
-            auto compute_intersection = [&](bound_direction_t bound_direction) {
+            auto compute_one_sided_intersection = [&](bound_direction_t bound_direction) {
                 struct vec2d {
                     frac_t zeta_coord;
                     frac_t eta_coord;
@@ -1510,8 +1510,8 @@ namespace jkj {
 
             std::vector<elementary_xi_zeta_region> result;
             {
-                auto lower_bound_region = compute_intersection(bound_direction_t::lower);
-                auto upper_bound_region = compute_intersection(bound_direction_t::upper);
+                auto lower_bound_region = compute_one_sided_intersection(bound_direction_t::lower);
+                auto upper_bound_region = compute_one_sided_intersection(bound_direction_t::upper);
 
                 // Sweep from below to above.
                 // By the construction, these arrays should be sorted according to the
