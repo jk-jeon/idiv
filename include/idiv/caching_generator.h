@@ -66,7 +66,8 @@ namespace jkj {
             template <class OtherGenerator>
             constexpr caching_generator(decay_copy_key,
                                         caching_generator<OtherGenerator> const& other)
-                : cf_{other.cf_.copy()}, record_(other.record_) {}
+                : cf_{other.cf_.copy()}, current_index_{other.current_index_},
+                  terminated_{other.terminated_}, record_(other.record_) {}
 
         public:
             // caching_generator implements:
