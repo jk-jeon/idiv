@@ -1,7 +1,4 @@
 #include <idiv/idiv.h>
-#include <idiv/rational_continued_fraction.h>
-#include <idiv/best_rational_approx.h>
-#include <idiv/caching_generator.h>
 #include <format>
 #include <iostream>
 
@@ -49,7 +46,7 @@ constexpr inline multiply_add_shift_info convert_to_multiply_add_shift_effective
 
     auto internal_continued_fractions_calculator =
         jkj::cntfrc::make_generator<jkj::cntfrc::partial_fraction_tracker,
-                                    jkj::cntfrc::convergent_tracker>(
+                                    jkj::cntfrc::convergent_tracker, jkj::cntfrc::interval_tracker>(
             jkj::cntfrc::impl::rational<jkj::bigint::int_var, jkj::bigint::uint_var>{x});
 
     multiply_add_shift_info ret_value;
@@ -300,7 +297,7 @@ constexpr inline multiply_add_shift_info convert_to_multiply_add_shift_effective
 int main() {
     using convergent_t =
         jkj::cntfrc::projective_rational<jkj::bigint::int_var, jkj::bigint::uint_var>;
-    convergent_t x{7, 18u};
+    convergent_t x{3, 7u};
     std::cout << "      Number = " << x.numerator << " / " << x.denominator;
 
     auto cf = jkj::cntfrc::make_generator<jkj::cntfrc::index_tracker,
@@ -308,6 +305,8 @@ int main() {
         jkj::cntfrc::impl::rational{x});
     jkj::bigint::uint_var nmax = 0xffff'ffff;
     std::cout << "\n       n_max = " << nmax;
+
+    using positive_rational_t = jkj::frac<jkj::bigint::uint_var, jkj::bigint::uint_var>;
 
     auto info1 = jkj::idiv::find_optimal_multiply_shift(cf, nmax);
 
