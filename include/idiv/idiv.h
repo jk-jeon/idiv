@@ -1135,8 +1135,8 @@ namespace jkj {
 
                         while (!util::is_zero(max_diff)) {
                             half_spaces.push_back(
-                                {frac_t{1, base_point},
-                                 frac_t{1 - ((base_point * approx_x_y_info.multiplier +
+                                {frac_t{-1, base_point},
+                                 frac_t{1 + ((base_point * approx_x_y_info.multiplier +
                                               approx_x_y_info.adder) >>
                                              approx_x_y_info.shift_amount),
                                         base_point},
@@ -1151,8 +1151,8 @@ namespace jkj {
                         }
 
                         half_spaces.push_back(
-                            {frac_t{1, base_point},
-                             frac_t{1 - ((base_point * approx_x_y_info.multiplier +
+                            {frac_t{-1, base_point},
+                             frac_t{1 + ((base_point * approx_x_y_info.multiplier +
                                           approx_x_y_info.adder) >>
                                          approx_x_y_info.shift_amount),
                                     base_point},
@@ -1182,8 +1182,8 @@ namespace jkj {
                             max_diff -= std::move(movement);
 
                             half_spaces.push_back(
-                                {frac_t{1, base_point},
-                                 frac_t{1 - ((base_point * approx_x_y_info.multiplier +
+                                {frac_t{-1, base_point},
+                                 frac_t{1 + ((base_point * approx_x_y_info.multiplier +
                                               approx_x_y_info.adder) >>
                                              approx_x_y_info.shift_amount),
                                         base_point},
@@ -1272,8 +1272,8 @@ namespace jkj {
 
             // Find the extreme points for the lower/upper bounds by finding the convex hull of the
             // dual problem projected onto the plane xi = +-1.
-            enum class bound_direction_t : bool { lower, upper };
-            auto compute_one_sided_intersection = [&](bound_direction_t bound_direction) {
+            enum class bounding_direction_t : bool { lower, upper };
+            auto compute_one_sided_intersection = [&](bounding_direction_t bounding_direction) {
                 struct vec2d {
                     frac_t zeta_coord;
                     frac_t eta_coord;
@@ -1284,20 +1284,27 @@ namespace jkj {
                     constexpr frac_t normsq() const { return dot(*this); }
                 };
 
-                auto& half_spaces = bound_direction == bound_direction_t::lower ? right_half_spaces
-                                                                                : left_half_spaces;
-                std::vector<elementary_one_sided_region> result;
-
+                auto const& half_spaces = bounding_direction == bounding_direction_t::lower
+                                              ? right_half_spaces
+                                              : left_half_spaces;
                 util::constexpr_assert(!half_spaces.empty());
 
-                // Start from the one with the smallest/largest zeta-coordinate, depending on the
-                // bound direction. This corresponds to the half-space with the lowest boundary
-                // line.
-                auto first_elmt = bound_direction == bound_direction_t::lower
-                                      ? std::ranges::min_element(std::as_const(half_spaces), {},
-                                                                 &half_space_info::zeta_coeff)
-                                      : std::ranges::max_element(std::as_const(half_spaces), {},
-                                                                 &half_space_info::zeta_coeff);
+                auto invert_sign_wrt_bounding_direction =
+                    [bounding_direction](bigint::int_var const& n) {
+                        if (bounding_direction == bounding_direction_t::lower) {
+                            return n;
+                        }
+                        else {
+                            return -n;
+                        }
+                    };
+
+                std::vector<elementary_one_sided_region> result;
+
+                // Start from the one with the largest zeta-coordinate, which corresponds to the
+                // half-space with the highst boundary line.
+                auto first_elmt = std::ranges::max_element(std::as_const(half_spaces), {},
+                                                           &half_space_info::zeta_coeff);
 
                 // If there is only one half-space, return immediately.
                 if (half_spaces.size() == 1) {
@@ -1306,19 +1313,18 @@ namespace jkj {
                          util::is_nonnegative(first_elmt->zeta_coeff.numerator)
                              ? -first_elmt->eta_coeff.numerator
                              : first_elmt->eta_coeff.numerator,
-                         util::is_nonnegative(first_elmt->zeta_coeff.numerator)
-                             ? util::to_signed(first_elmt->zeta_coeff.denominator)
-                             : -util::to_signed(first_elmt->zeta_coeff.denominator),
+                         invert_sign_wrt_bounding_direction(
+                             util::is_nonnegative(first_elmt->zeta_coeff.numerator)
+                                 ? util::to_signed(first_elmt->zeta_coeff.denominator)
+                                 : -util::to_signed(first_elmt->zeta_coeff.denominator)),
                          first_elmt->boundary_type == half_space_info::boundary_type_t::inclusive});
                     return result;
                 }
 
-                // We are at the left/right-end and we want to travel counterclockwise, when viewed
-                // from the positive xi-axis. To do so, we set the initial direction to be along the
-                // negative/positive eta-axis, depending on the direction of the bound.
-                auto prev_direction_vec =
-                    vec2d{frac_t{0, 1u},
-                          frac_t{bound_direction == bound_direction_t::lower ? -1 : 1, 1u}};
+                // We are at the right-end and we want to travel clockwise, when viewed from the
+                // positive xi-axis. To do so, we set the initial direction to be along the
+                // negative eta-axis.
+                auto prev_direction_vec = vec2d{frac_t{0, 1u}, frac_t{-1, 1u}};
                 auto last_elmt = first_elmt;
                 frac_t prev_turning_point_zeta{0, 1u};
 
@@ -1362,8 +1368,8 @@ namespace jkj {
                 };
 
                 while (true) {
-                    // Find the point whose direction vector is the closest in angle to the previous
-                    // direction vector.
+                    // Find the point whose direction vector is the closest in angle to the
+                    // previous direction vector.
                     auto itr = half_spaces.cbegin();
                     if (itr == last_elmt) {
                         ++itr;
@@ -1401,19 +1407,16 @@ namespace jkj {
                     // Found one.
 
                     // Find a normal vector to the newly found face.
-                    // For the case of lower bound, every functional should have nonnegative inner
-                    // product with this normal, while for the case of upper bound, they should have
-                    // nonpositive inner product.
-                    auto face_normal_xi =
-                        last_elmt->zeta_coeff * current_angle_info.itr->eta_coeff -
-                        last_elmt->eta_coeff * current_angle_info.itr->zeta_coeff;
+                    // For the case of lower bound, every functional should have nonnegative
+                    // inner product with this normal, while for the case of upper bound, they
+                    // should have nonpositive inner product.
                     auto face_normal_zeta =
-                        last_elmt->eta_coeff - current_angle_info.itr->eta_coeff;
+                        current_angle_info.itr->eta_coeff - last_elmt->eta_coeff;
                     auto face_normal_eta =
-                        current_angle_info.itr->zeta_coeff - last_elmt->zeta_coeff;
+                        last_elmt->zeta_coeff - current_angle_info.itr->zeta_coeff;
 
-                    // Project it down to the plane eta = 1. The resulting point must be a turning
-                    // point.
+                    // Project it down to the plane eta = 1. The resulting point must be a
+                    // turning point.
                     auto turning_point_zeta =
                         get_reduced_quotient(face_normal_zeta, face_normal_eta);
 
@@ -1421,18 +1424,15 @@ namespace jkj {
                         util::is_nonnegative(last_elmt->zeta_coeff.numerator)
                             ? -last_elmt->eta_coeff.numerator
                             : last_elmt->eta_coeff.numerator;
-                    auto xi_endpoint_denominator =
+                    auto xi_endpoint_denominator = invert_sign_wrt_bounding_direction(
                         util::is_nonnegative(last_elmt->zeta_coeff.numerator)
                             ? util::to_signed(last_elmt->zeta_coeff.denominator)
-                            : -util::to_signed(last_elmt->zeta_coeff.denominator);
+                            : -util::to_signed(last_elmt->zeta_coeff.denominator));
 
                     // The unbounded bottom boundary line.
                     if (last_elmt == first_elmt) {
                         util::constexpr_assert(
-                            (bound_direction == bound_direction_t::lower &&
-                             util::is_strictly_positive(face_normal_eta.numerator)) ||
-                            (bound_direction == bound_direction_t::upper &&
-                             util::is_strictly_negative(face_normal_eta.numerator)));
+                            util::is_strictly_positive(face_normal_eta.numerator));
 
                         // The unbounded open region.
                         result.push_back({interval<frac_t, interval_type_t::bounded_above_open>{
@@ -1453,10 +1453,7 @@ namespace jkj {
                     // The unbounded top boundary line.
                     else if (current_angle_info.itr == first_elmt) {
                         util::constexpr_assert(
-                            (bound_direction == bound_direction_t::lower &&
-                             util::is_strictly_negative(face_normal_eta.numerator)) ||
-                            (bound_direction == bound_direction_t::upper &&
-                             util::is_strictly_positive(face_normal_eta.numerator)));
+                            util::is_strictly_negative(face_normal_eta.numerator));
 
                         // The unbounded open region.
                         result.push_back({interval<frac_t, interval_type_t::bounded_below_open>{
@@ -1471,10 +1468,7 @@ namespace jkj {
                     // Bounded middle boundary lines.
                     else {
                         util::constexpr_assert(
-                            (bound_direction == bound_direction_t::lower &&
-                             util::is_strictly_positive(face_normal_eta.numerator)) ||
-                            (bound_direction == bound_direction_t::upper &&
-                             util::is_strictly_negative(face_normal_eta.numerator)));
+                            util::is_strictly_positive(face_normal_eta.numerator));
 
                         // The bounded open region.
                         result.push_back({interval<frac_t, interval_type_t::bounded_open>{
@@ -1510,8 +1504,10 @@ namespace jkj {
 
             std::vector<elementary_xi_zeta_region> result;
             {
-                auto lower_bound_region = compute_one_sided_intersection(bound_direction_t::lower);
-                auto upper_bound_region = compute_one_sided_intersection(bound_direction_t::upper);
+                auto lower_bound_region =
+                    compute_one_sided_intersection(bounding_direction_t::lower);
+                auto upper_bound_region =
+                    compute_one_sided_intersection(bounding_direction_t::upper);
 
                 // Sweep from below to above.
                 // By the construction, these arrays should be sorted according to the
