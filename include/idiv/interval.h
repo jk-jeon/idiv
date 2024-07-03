@@ -871,8 +871,8 @@ namespace jkj {
         class variable_shape_interval_impl<Value, Enum, StaticIntervalTemplate,
                                            allowed_interval_types_arg> {
             Enum interval_type_;
-            Value lower_bound_{};
-            Value upper_bound_{};
+            Value first_data_{};  // Serves as lower_bound() when both are used.
+            Value second_data_{}; // Serves as upper_bound() when both are used.
 
             static constexpr auto allowed_interval_types_ = allowed_interval_types_arg;
 
@@ -911,13 +911,24 @@ namespace jkj {
                 static_assert(is_allowed_interval_type(it),
                               "specified interval type not is allowed");
 
-                if constexpr (requires { itv.lower_bound(); }) {
-                    lower_bound_ =
-                        static_cast<StaticIntervalTemplate<Value, it>&&>(itv).lower_bound();
+                using static_interval_type = StaticIntervalTemplate<T, it>;
+
+                if constexpr (requires {
+                                  std::declval<static_interval_type>().lower_bound();
+                                  std::declval<static_interval_type>().upper_bound();
+                              }) {
+                    first_data_ = static_cast<static_interval_type&&>(itv).lower_bound();
+                    second_data_ = static_cast<static_interval_type&&>(itv).upper_bound();
                 }
-                if constexpr (requires { itv.upper_bound(); }) {
-                    upper_bound_ =
-                        static_cast<StaticIntervalTemplate<Value, it>&&>(itv).upper_bound();
+                else if constexpr (requires {
+                                       std::declval<static_interval_type>().lower_bound();
+                                   }) {
+                    first_data_ = static_cast<static_interval_type&&>(itv).lower_bound();
+                }
+                else if constexpr (requires {
+                                       std::declval<static_interval_type>().upper_bound();
+                                   }) {
+                    first_data_ = static_cast<static_interval_type&&>(itv).upper_bound();
                 }
             }
 
@@ -927,8 +938,8 @@ namespace jkj {
             constexpr variable_shape_interval_impl(
                 variable_shape_interval_impl<T, Enum, StaticIntervalTemplate,
                                              allowed_interval_types_arg_other> const& itv) noexcept
-                : interval_type_{itv.interval_type()}, lower_bound_{itv.lower_bound_},
-                  upper_bound_{itv.upper_bound_} {
+                : interval_type_{itv.interval_type()}, first_data_{itv.first_data_},
+                  second_data_{itv.second_data_} {
                 static_assert(are_allowed_interval_types(allowed_interval_types_arg_other),
                               "one of the possible interval type is not allowed");
             }
@@ -939,8 +950,8 @@ namespace jkj {
             constexpr variable_shape_interval_impl(
                 variable_shape_interval_impl<T, Enum, StaticIntervalTemplate,
                                              allowed_interval_types_arg_other>&& itv) noexcept
-                : interval_type_{itv.interval_type()}, lower_bound_{std::move(itv.lower_bound_)},
-                  upper_bound_{std::move(itv.upper_bound_)} {
+                : interval_type_{itv.interval_type()}, first_data_{std::move(itv.first_data_)},
+                  second_data_{std::move(itv.second_data_)} {
                 static_assert(are_allowed_interval_types(allowed_interval_types_arg_other),
                               "one of the possible interval type is not allowed");
             }
@@ -951,15 +962,27 @@ namespace jkj {
                 static_assert(is_allowed_interval_type(it),
                               "specified interval type is not allowed");
 
+                using static_interval_type = StaticIntervalTemplate<T, it>;
+
                 interval_type_ = it;
-                if constexpr (requires { itv.lower_bound(); }) {
-                    lower_bound_ =
-                        static_cast<StaticIntervalTemplate<Value, it>&&>(itv).lower_bound();
+                if constexpr (requires {
+                                  std::declval<static_interval_type>().lower_bound();
+                                  std::declval<static_interval_type>().upper_bound();
+                              }) {
+                    first_data_ = static_cast<static_interval_type&&>(itv).lower_bound();
+                    second_data_ = static_cast<static_interval_type&&>(itv).upper_bound();
                 }
-                if constexpr (requires { itv.upper_bound(); }) {
-                    upper_bound_ =
-                        static_cast<StaticIntervalTemplate<Value, it>&&>(itv).upper_bound();
+                else if constexpr (requires {
+                                       std::declval<static_interval_type>().lower_bound();
+                                   }) {
+                    first_data_ = static_cast<static_interval_type&&>(itv).lower_bound();
                 }
+                else if constexpr (requires {
+                                       std::declval<static_interval_type>().upper_bound();
+                                   }) {
+                    first_data_ = static_cast<static_interval_type&&>(itv).upper_bound();
+                }
+
                 return *this;
             }
 
@@ -974,8 +997,8 @@ namespace jkj {
                               "one of the possible interval type is not allowed");
 
                 interval_type_ = itv.interval_type();
-                lower_bound_ = itv.lower_bound_;
-                upper_bound_ = itv.upper_bound_;
+                first_data_ = itv.first_data_;
+                second_data_ = itv.second_data_;
                 return *this;
             }
 
@@ -989,8 +1012,8 @@ namespace jkj {
                               "one of the possible interval type is not allowed");
 
                 interval_type_ = itv.interval_type();
-                lower_bound_ = std::move(itv.lower_bound_);
-                upper_bound_ = std::move(itv.upper_bound_);
+                first_data_ = std::move(itv.first_data_);
+                second_data_ = std::move(itv.second_data_);
                 return *this;
             }
 
@@ -1029,8 +1052,9 @@ namespace jkj {
                 return visit([&](auto&& itv) {
                     using itv_type = std::remove_cvref_t<decltype(itv)>;
                     if constexpr (requires {
-                                      StaticIntervalTemplate<
-                                          Value, itv_type::interval_type()>::lower_bound();
+                                      std::declval<StaticIntervalTemplate<
+                                          Value, itv_type::interval_type()>>()
+                                          .lower_bound();
                                   }) {
                         return static_cast<SuccessFunctor&&>(success)(itv.lower_bound());
                     }
@@ -1048,8 +1072,9 @@ namespace jkj {
                 return visit([&](auto&& itv) {
                     using itv_type = std::remove_cvref_t<decltype(itv)>;
                     if constexpr (requires {
-                                      StaticIntervalTemplate<
-                                          Value, itv_type::interval_type()>::upper_bound();
+                                      std::declval<StaticIntervalTemplate<
+                                          Value, itv_type::interval_type()>>()
+                                          .upper_bound();
                                   }) {
                         return static_cast<SuccessFunctor&&>(success)(itv.upper_bound());
                     }
@@ -1062,18 +1087,12 @@ namespace jkj {
             template <Enum it, class Functor>
             constexpr decltype(auto) call_visitor(Functor&& f) const {
                 using static_interval_type = StaticIntervalTemplate<Value const&, it>;
-                if constexpr (requires {
-                                  &static_interval_type::lower_bound();
-                                  &static_interval_type::upper_bound();
-                              }) {
+                if constexpr (requires { static_interval_type{first_data_, second_data_}; }) {
                     return static_cast<Functor&&>(f)(
-                        static_interval_type{lower_bound_, upper_bound_});
+                        static_interval_type{first_data_, second_data_});
                 }
-                else if constexpr (requires { &static_interval_type::lower_bound(); }) {
-                    return static_cast<Functor&&>(f)(static_interval_type{lower_bound_});
-                }
-                else if constexpr (requires { &static_interval_type::upper_bound(); }) {
-                    return static_cast<Functor&&>(f)(static_interval_type{upper_bound_});
+                else if constexpr (requires { static_interval_type{first_data_}; }) {
+                    return static_cast<Functor&&>(f)(static_interval_type{first_data_});
                 }
                 else {
                     return static_cast<Functor&&>(f)(static_interval_type{});
