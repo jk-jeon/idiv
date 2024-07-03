@@ -179,13 +179,13 @@ namespace jkj {
             constexpr partial_fraction_type const& current_partial_fraction() const noexcept
                 requires has_partial_fraction_tracker
             {
-                return record_[current_index_ + 3].partial_fraction;
+                return record_[std::size_t(current_index_ + 3)].partial_fraction;
             }
 
             constexpr convergent_type const& current_convergent() const noexcept
                 requires has_convergent_tracker
             {
-                return record_[current_index_ + 3].convergent;
+                return record_[std::size_t(current_index_ + 3)].convergent;
             }
             constexpr auto const& current_convergent_numerator() const noexcept
                 requires has_convergent_tracker
@@ -201,7 +201,7 @@ namespace jkj {
             constexpr convergent_type const& previous_convergent() const noexcept
                 requires has_convergent_tracker
             {
-                return record_[current_index_ + 2].convergent;
+                return record_[std::size_t(current_index_ + 2)].convergent;
             }
             constexpr auto const& previous_convergent_numerator() const noexcept
                 requires has_convergent_tracker
@@ -217,7 +217,7 @@ namespace jkj {
             constexpr convergent_type const& previous_previous_convergent() const noexcept
                 requires has_convergent_tracker
             {
-                return record_[current_index_ + 1].convergent;
+                return record_[std::size_t(current_index_ + 1)].convergent;
             }
             constexpr auto const& previous_previous_convergent_numerator() const noexcept
                 requires has_convergent_tracker
@@ -233,7 +233,7 @@ namespace jkj {
             constexpr auto const& current_interval() const noexcept
                 requires has_interval_tracker
             {
-                return record_[current_index_ + 3].interval;
+                return record_[std::size_t(current_index_ + 3)].interval;
             }
 
             // Returns true if there are further partial fractions.
