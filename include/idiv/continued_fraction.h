@@ -504,9 +504,10 @@ namespace jkj {
             public:
                 using impl_type = Impl;
                 using decay_type = generator_impl<get_decay_type<Impl>, Mixins...>;
-                using partial_fraction_type = typename Impl::partial_fraction_type;
-                using convergent_type = typename Impl::convergent_type;
-                using interval_type = typename Impl::interval_type;
+                using partial_fraction_type =
+                    typename std::remove_cvref_t<Impl>::partial_fraction_type;
+                using convergent_type = typename std::remove_cvref_t<Impl>::convergent_type;
+                using interval_type = typename std::remove_cvref_t<Impl>::interval_type;
 
             private:
                 Impl impl_;
