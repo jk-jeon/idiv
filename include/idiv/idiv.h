@@ -1761,6 +1761,20 @@ namespace jkj {
                 }     // End of the branching on lower_bound_region.size().
             }
 
+            // Remove top/bottom vertices if they do not belong to the region.
+            util::constexpr_assert(result.front().zeta_range.interval_type() ==
+                                   interval_type_t::bounded_closed);
+            util::constexpr_assert(result.back().zeta_range.interval_type() ==
+                                   interval_type_t::bounded_closed);
+            if (!result.front().xi_left_endpoint_included ||
+                !result.front().xi_right_endpoint_included) {
+                result.erase(result.begin());
+            }
+            if (!result.back().xi_left_endpoint_included ||
+                !result.back().xi_right_endpoint_included) {
+                result.pop_back();
+            }
+
 
             ////////////////////////////////////////////////////////////////////////////////////
             // Step 4 - Horizontally cut the region if the constraint from n = 0 is present.
