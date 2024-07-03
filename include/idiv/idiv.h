@@ -1800,10 +1800,11 @@ namespace jkj {
                 std::vector<elementary_xi_zeta_region> trimmed;
                 auto src_itr = result.begin();
 
-                // Find floor_y.
+                // Find floor(y).
+                bool found_both_at_the_same_time = false;
                 for (; src_itr != result.end(); ++src_itr) {
                     if (src_itr->zeta_range.contains(floor_y_frac)) {
-                        bool also_contains_p1 = src_itr->zeta_range.contains(floor_y_p1_frac);
+                        found_both_at_the_same_time = src_itr->zeta_range.contains(floor_y_p1_frac);
 
                         if (src_itr->zeta_range.interval_type() == interval_type_t::bounded_open) {
                             // Split the interval.
@@ -1819,7 +1820,8 @@ namespace jkj {
                             src_itr->zeta_range = src_itr->zeta_range.with_upper_bound(
                                 [&](auto const& ub) {
                                     return interval<frac_t, interval_type_t::bounded_open>{
-                                        floor_y_frac, also_contains_p1 ? floor_y_p1_frac : ub};
+                                        floor_y_frac,
+                                        found_both_at_the_same_time ? floor_y_p1_frac : ub};
                                 },
                                 [&] {
                                     // Cannot reach here.
@@ -1828,39 +1830,45 @@ namespace jkj {
                                 });
                         }
                         trimmed.push_back(std::move(*src_itr));
-
-                        if (also_contains_p1) {
-                            src_itr = result.end();
-                        }
-                        else {
-                            ++src_itr;
-                        }
                         break;
                     }
                 } // End of the for loop.
 
-                // Find floor_y + 1.
-                for (; src_itr != result.end(); ++src_itr) {
-                    if (src_itr->zeta_range.contains(floor_y_p1_frac)) {
-                        if (src_itr->zeta_range.interval_type() == interval_type_t::bounded_open) {
-                            // Split the interval.
-                            src_itr->zeta_range = src_itr->zeta_range.with_lower_bound(
-                                [&](auto const& lb) {
-                                    return interval<frac_t, interval_type_t::bounded_open>{
-                                        lb, floor_y_p1_frac};
-                                },
-                                [&] {
-                                    // Cannot reach here.
-                                    return interval<frac_t, interval_type_t::bounded_open>{
-                                        floor_y_frac, floor_y_p1_frac};
-                                });
-
-                            trimmed.push_back(*src_itr);
-                        }
-                        break;
+                // If both are found in the same region, then we are done.
+                if (!found_both_at_the_same_time) {
+                    // If floor(y) wasn't found, go back to the beginning.
+                    if (src_itr == result.end()) {
+                        src_itr = result.begin();
                     }
-                    trimmed.push_back(std::move(*src_itr));
-                }
+                    // If floor(y) was found, move to the next region.
+                    else {
+                        ++src_itr;
+                    }
+
+                    // Find floor(y) + 1.
+                    for (; src_itr != result.end(); ++src_itr) {
+                        if (src_itr->zeta_range.contains(floor_y_p1_frac)) {
+                            if (src_itr->zeta_range.interval_type() ==
+                                interval_type_t::bounded_open) {
+                                // Split the interval.
+                                src_itr->zeta_range = src_itr->zeta_range.with_lower_bound(
+                                    [&](auto const& lb) {
+                                        return interval<frac_t, interval_type_t::bounded_open>{
+                                            lb, floor_y_p1_frac};
+                                    },
+                                    [&] {
+                                        // Cannot reach here.
+                                        return interval<frac_t, interval_type_t::bounded_open>{
+                                            floor_y_frac, floor_y_p1_frac};
+                                    });
+
+                                trimmed.push_back(*src_itr);
+                            }
+                            break;
+                        }
+                        trimmed.push_back(std::move(*src_itr));
+                    }
+                } // if (!found_both_at_the_same_time)
 
                 result = std::move(trimmed);
             } // if (nrange_contains_zero)
