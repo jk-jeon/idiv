@@ -511,16 +511,6 @@ namespace jkj {
                             approx_info.multiplier * xi_cf.current_convergent_denominator() -
                             (xi_cf.current_convergent_numerator() << approx_info.shift_amount);
 
-                        auto semiconvergent = xi_cf.current_index() >= 2
-                                                  ? xi_cf.previous_previous_convergent()
-                                                  : xi_cf.current_convergent();
-                        auto scaled_lefthand_side =
-                            xi_cf.current_index() >= 2
-                                ? approx_info.multiplier * semiconvergent.denominator -
-                                      (semiconvergent.numerator << approx_info.shift_amount)
-                                : scaled_lefthand_side_for_convergent;
-
-                        std::size_t semiconvergent_coeff = 0;
                         while (!found_maximizer) {
                             // If the current convergent does not satisfy the condition, then move
                             // on to the next convergent.
@@ -531,22 +521,25 @@ namespace jkj {
 
                             // Otherwise, find the first even semiconvergent still satisfying the
                             // condition.
-                            if (xi_cf.current_index() >= 2) {
-                                do {
-                                    ++semiconvergent_coeff;
-                                    semiconvergent.numerator +=
-                                        xi_cf.previous_convergent_numerator();
-                                    semiconvergent.denominator +=
-                                        xi_cf.previous_convergent_denominator();
+                            auto scaled_step_size =
+                                (xi_cf.previous_convergent_numerator()
+                                 << approx_info.shift_amount) -
+                                approx_info.multiplier * xi_cf.previous_convergent_denominator();
+                            auto semiconvergent = xi_cf.current_convergent();
+                            auto semiconvergent_coeff_decrement =
+                                util::abs(util::div_ceil(scaled_threshold_for_maximizer -
+                                                             scaled_lefthand_side_for_convergent,
+                                                         scaled_step_size) -
+                                          1);
 
-                                    scaled_lefthand_side -= (xi_cf.previous_convergent_numerator()
-                                                             << approx_info.shift_amount);
-                                    scaled_lefthand_side += approx_info.multiplier *
-                                                            xi_cf.previous_convergent_denominator();
-                                } while (semiconvergent_coeff <
-                                             xi_cf.current_partial_fraction().denominator &&
-                                         scaled_lefthand_side >= scaled_threshold_for_maximizer);
-                            }
+                            semiconvergent.numerator -= semiconvergent_coeff_decrement *
+                                                        xi_cf.previous_convergent_numerator();
+                            semiconvergent.denominator -= semiconvergent_coeff_decrement *
+                                                          xi_cf.previous_convergent_denominator();
+
+                            auto scaled_lefthand_side =
+                                scaled_lefthand_side_for_convergent +
+                                semiconvergent_coeff_decrement * scaled_step_size;
 
                             // Update the current estimate of the maximizer with the denominator of
                             // the found semiconvergent.
@@ -588,12 +581,6 @@ namespace jkj {
                             (xi_cf.current_convergent_numerator() << approx_info.shift_amount) -
                             approx_info.multiplier * xi_cf.current_convergent_denominator();
 
-                        auto semiconvergent = xi_cf.previous_previous_convergent();
-                        auto scaled_lefthand_side =
-                            (semiconvergent.numerator << approx_info.shift_amount) -
-                            approx_info.multiplier * semiconvergent.denominator;
-
-                        std::size_t semiconvergent_coeff = 0;
                         while (!found_minimizer) {
                             // If the current convergent does not satisfy the condition, then move
                             // on to the next convergent.
@@ -604,31 +591,34 @@ namespace jkj {
 
                             // Otherwise, find the first even semiconvergent still satisfying the
                             // condition.
-                            do {
-                                ++semiconvergent_coeff;
-                                semiconvergent.numerator += xi_cf.previous_convergent_numerator();
-                                semiconvergent.denominator +=
-                                    xi_cf.previous_convergent_denominator();
+                            auto scaled_step_size =
+                                approx_info.multiplier * xi_cf.previous_convergent_denominator() -
+                                (xi_cf.previous_convergent_numerator() << approx_info.shift_amount);
+                            auto semiconvergent = xi_cf.current_convergent();
+                            auto semiconvergent_coeff_decrement =
+                                util::abs(util::div_floor(scaled_threshold_for_minimizer -
+                                                              scaled_lefthand_side_for_convergent,
+                                                          scaled_step_size));
 
-                                scaled_lefthand_side += (xi_cf.previous_convergent_numerator()
-                                                         << approx_info.shift_amount);
-                                scaled_lefthand_side -= approx_info.multiplier *
-                                                        xi_cf.previous_convergent_denominator();
-                            } while (semiconvergent_coeff <
-                                         xi_cf.current_partial_fraction().denominator &&
-                                     scaled_lefthand_side > scaled_threshold_for_minimizer);
+                            semiconvergent.numerator -= semiconvergent_coeff_decrement *
+                                                        xi_cf.previous_convergent_numerator();
+                            semiconvergent.denominator -= semiconvergent_coeff_decrement *
+                                                          xi_cf.previous_convergent_denominator();
 
                             // Update the current estimate of the maximizer with the denominator of
                             // the found semiconvergent.
                             if (util::is_zero(scaled_lefthand_side_for_convergent) &&
-                                semiconvergent_coeff ==
-                                    xi_cf.current_partial_fraction().denominator) {
+                                util::is_zero(semiconvergent_coeff_decrement)) {
                                 // If the current convergent is the exact value and there is no
                                 // semiconvergent satisfying the condition, then the set is empty.
                                 // There is nothing else to do in that case.
                                 found_minimizer = true;
                             }
                             else {
+                                auto scaled_lefthand_side =
+                                    scaled_lefthand_side_for_convergent +
+                                    semiconvergent_coeff_decrement * scaled_step_size;
+
                                 auto new_estimate = result.smallest_minimizer +
                                                     util::div_floor(scaled_threshold_for_minimizer,
                                                                     scaled_lefthand_side) *
@@ -1774,7 +1764,7 @@ namespace jkj {
                                 // Lower bound has unbounded zeta interval.
                                 [&] {
                                     return upper_bound_itr->zeta_range.with_upper_bound(
-                                        [&](auto const& ub2) { ++upper_bound_itr; },
+                                        [&](auto const&) { ++upper_bound_itr; },
                                         [&] {
                                             // Impossible to reach here.
                                         });
