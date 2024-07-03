@@ -1807,14 +1807,6 @@ namespace jkj {
                         trimmed.push_back(std::move(*src_itr));
 
                         if (also_contains_p1) {
-                            trimmed.push_back(
-                                {interval<frac_t, interval_type_t::bounded_closed>{floor_y_p1_frac,
-                                                                                   floor_y_p1_frac},
-                                 trimmed.back().xi_left_endpoint_numerator,
-                                 trimmed.back().xi_left_endpoint_denominator,
-                                 trimmed.back().xi_right_endpoint_numerator,
-                                 trimmed.back().xi_right_endpoint_denominator, false, false});
-
                             src_itr = result.end();
                         }
                         else {
