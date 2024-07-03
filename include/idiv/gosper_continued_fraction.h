@@ -577,7 +577,7 @@ namespace jkj {
                             det_sign = -1;
                             rank = 2;
                         }
-                        if (result > 0) {
+                        else if (result > 0) {
                             det_sign = 1;
                             rank = 2;
                         }
