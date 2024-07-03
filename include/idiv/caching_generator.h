@@ -24,8 +24,8 @@
 
 namespace jkj {
     namespace cntfrc {
-        // Memorizes all previous partial fractions and convergents in a container, and reuse them
-        // when rewinded.
+        // Memorizes all previous partial fractions, convergents, and intervals in a container, and
+        // reuse them when rewinded.
         template <class ContinuedFractionGenerator>
         class caching_generator {
         public:
@@ -43,23 +43,91 @@ namespace jkj {
             friend class caching_generator;
 
         private:
+            template <class T>
+            struct dummy {
+                template <class... U>
+                constexpr dummy(U&&...) noexcept {}
+            };
+
+            struct record_partial_fraction {
+                partial_fraction_type partial_fraction;
+            };
+            static constexpr bool has_partial_fraction_tracker =
+                std::remove_cvref_t<ContinuedFractionGenerator>::template is_implementing_mixins<
+                    partial_fraction_tracker>();
+            using partial_fraction_record_fragment =
+                std::conditional_t<has_partial_fraction_tracker, record_partial_fraction,
+                                   dummy<record_partial_fraction>>;
+            constexpr partial_fraction_record_fragment snapshot_partial_fraction() const {
+                if constexpr (has_partial_fraction_tracker) {
+                    return {cf_.current_partial_fraction()};
+                }
+                else {
+                    return {};
+                }
+            }
+
+            struct record_convergent {
+                convergent_type convergent;
+            };
+            static constexpr bool has_convergent_tracker = std::remove_cvref_t<
+                ContinuedFractionGenerator>::template is_implementing_mixins<convergent_tracker>();
+            using convergent_record_fragment =
+                std::conditional_t<has_convergent_tracker, record_convergent,
+                                   dummy<record_convergent>>;
+            constexpr convergent_record_fragment snapshot_convergent() const {
+                if constexpr (has_convergent_tracker) {
+                    return {cf_.current_convergent()};
+                }
+                else {
+                    return {};
+                }
+            }
+
+            struct record_interval {
+                interval_type interval;
+            };
+            static constexpr bool has_interval_tracker = std::remove_cvref_t<
+                ContinuedFractionGenerator>::template is_implementing_mixins<interval_tracker>();
+            using interval_record_fragment =
+                std::conditional_t<has_interval_tracker, record_interval, dummy<record_interval>>;
+            constexpr interval_record_fragment snapshot_interval() const {
+                if constexpr (has_interval_tracker) {
+                    return {cf_.current_interval()};
+                }
+                else {
+                    return {};
+                }
+            }
+
             ContinuedFractionGenerator cf_;
             int current_index_ = -1;
             bool terminated_ = false;
 
-            struct record_t {
-                partial_fraction_type partial_fraction;
-                convergent_type convergent;
-            };
+            struct record_t : partial_fraction_record_fragment,
+                              convergent_record_fragment,
+                              interval_record_fragment {};
             std::vector<record_t> record_;
+
+            constexpr record_t snapshot() const {
+                return {
+                    {snapshot_partial_fraction()}, {snapshot_convergent()}, {snapshot_interval()}};
+            }
+
 
             constexpr void initialize_record() {
                 // previous_previous_convergent_ = {1, 0u};
                 // previous_convergent_ = {0, 1u};
                 // current_convergent_ = {1, 0u};
-                record_.push_back(record_t{partial_fraction_type{}, convergent_type{1, 0u}});
-                record_.push_back(record_t{partial_fraction_type{}, convergent_type{0, 1u}});
-                record_.push_back(record_t{cf_.current_partial_fraction(), convergent_type{1, 0u}});
+                record_.push_back(record_t{{snapshot_partial_fraction()},
+                                           {convergent_type{1, 0u}},
+                                           {snapshot_interval()}});
+                record_.push_back(record_t{{snapshot_partial_fraction()},
+                                           {convergent_type{0, 1u}},
+                                           {snapshot_interval()}});
+                record_.push_back(record_t{{snapshot_partial_fraction()},
+                                           {convergent_type{1, 0u}},
+                                           {snapshot_interval()}});
             }
 
             struct decay_copy_key {};
@@ -72,16 +140,26 @@ namespace jkj {
         public:
             // caching_generator implements:
             // - index_tracker,
-            // - partial_fraction_tracker,
-            // - convergent_tracker, and
-            // - previous_previous_convergent_tracker.
+            // - partial_fraction_tracker if cf_ implements partial_fraction_tracker,
+            // - convergent_tracker and previous_previous_convergent_tracker if cf_ implements
+            //   convergent_tracker, and
+            // - interval_tracker if cf_ implements interval_tracker.
             template <template <class, class> class... QueriedMixins>
             static constexpr bool is_implementing_mixins() noexcept {
-                using list =
-                    tmp::typelist<detail::mixin_type_wrapper<index_tracker>,
-                                  detail::mixin_type_wrapper<partial_fraction_tracker>,
-                                  detail::mixin_type_wrapper<convergent_tracker>,
-                                  detail::mixin_type_wrapper<previous_previous_convergent_tracker>>;
+                using list = tmp::join<
+                    tmp::typelist<detail::mixin_type_wrapper<index_tracker>>,
+                    std::conditional_t<
+                        has_partial_fraction_tracker,
+                        tmp::typelist<detail::mixin_type_wrapper<partial_fraction_tracker>>,
+                        tmp::typelist<>>,
+                    std::conditional_t<has_convergent_tracker,
+                                       tmp::typelist<detail::mixin_type_wrapper<convergent_tracker>,
+                                                     detail::mixin_type_wrapper<
+                                                         previous_previous_convergent_tracker>>,
+                                       tmp::typelist<>>,
+                    std::conditional_t<has_interval_tracker,
+                                       tmp::typelist<detail::mixin_type_wrapper<interval_tracker>>,
+                                       tmp::typelist<>>>;
                 return (... && tmp::is_in<detail::mixin_type_wrapper<QueriedMixins>>(list{}));
             }
 
@@ -90,42 +168,72 @@ namespace jkj {
                 initialize_record();
             }
 
+            // Make an identical deep copy whose internal generator is a deep copy of the one used
+            // by this. The returned copy has independent state from this, but has the same record.
+            // In particular, calling rewind() on both the copy and this will make them to produce
+            // the same output.
             constexpr decay_type copy() const { return decay_type{*this}; }
 
             constexpr int current_index() const noexcept { return current_index_; }
 
-            constexpr partial_fraction_type const& current_partial_fraction() const noexcept {
+            constexpr partial_fraction_type const& current_partial_fraction() const noexcept
+                requires has_partial_fraction_tracker
+            {
                 return record_[current_index_ + 3].partial_fraction;
             }
 
-            constexpr convergent_type const& current_convergent() const noexcept {
+            constexpr convergent_type const& current_convergent() const noexcept
+                requires has_convergent_tracker
+            {
                 return record_[current_index_ + 3].convergent;
             }
-            constexpr auto const& current_convergent_numerator() const noexcept {
+            constexpr auto const& current_convergent_numerator() const noexcept
+                requires has_convergent_tracker
+            {
                 return current_convergent().numerator;
             }
-            constexpr auto const& current_convergent_denominator() const noexcept {
+            constexpr auto const& current_convergent_denominator() const noexcept
+                requires has_convergent_tracker
+            {
                 return current_convergent().denominator;
             }
 
-            constexpr convergent_type const& previous_convergent() const noexcept {
+            constexpr convergent_type const& previous_convergent() const noexcept
+                requires has_convergent_tracker
+            {
                 return record_[current_index_ + 2].convergent;
             }
-            constexpr auto const& previous_convergent_numerator() const noexcept {
+            constexpr auto const& previous_convergent_numerator() const noexcept
+                requires has_convergent_tracker
+            {
                 return previous_convergent().numerator;
             }
-            constexpr auto const& previous_convergent_denominator() const noexcept {
+            constexpr auto const& previous_convergent_denominator() const noexcept
+                requires has_convergent_tracker
+            {
                 return previous_convergent().denominator;
             }
 
-            constexpr convergent_type const& previous_previous_convergent() const noexcept {
+            constexpr convergent_type const& previous_previous_convergent() const noexcept
+                requires has_convergent_tracker
+            {
                 return record_[current_index_ + 1].convergent;
             }
-            constexpr auto const& previous_previous_convergent_numerator() const noexcept {
+            constexpr auto const& previous_previous_convergent_numerator() const noexcept
+                requires has_convergent_tracker
+            {
                 return previous_previous_convergent().numerator;
             }
-            constexpr auto const& previous_previous_convergent_denominator() const noexcept {
+            constexpr auto const& previous_previous_convergent_denominator() const noexcept
+                requires has_convergent_tracker
+            {
                 return previous_previous_convergent().denominator;
+            }
+
+            constexpr auto const& current_interval() const noexcept
+                requires has_interval_tracker
+            {
+                return record_[current_index_ + 3].interval;
             }
 
             // Returns true if there are further partial fractions.
@@ -135,8 +243,7 @@ namespace jkj {
                     if (!terminated_) {
                         record_.reserve(record_.size() + 1);
                         terminated_ = !cf_.update();
-                        record_.push_back(
-                            record_t{cf_.current_partial_fraction(), cf_.current_convergent()});
+                        record_.push_back(snapshot());
                         ++current_index_;
                     }
                     return !terminated_;
