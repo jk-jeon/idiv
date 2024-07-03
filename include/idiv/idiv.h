@@ -1733,6 +1733,34 @@ namespace jkj {
                         if (found_first_intersection) {
                             push_new_region();
                         }
+                        else {
+                            // Choose the one with smaller upper bound and move to the next region.
+                            lower_bound_itr->zeta_range.with_upper_bound(
+                                [&](auto const& ub1) {
+                                    return upper_bound_itr->zeta_range.with_upper_bound(
+                                        [&](auto const& ub2) {
+                                            auto cmp_result = ub1 <=> ub2;
+                                            if (cmp_result <= 0) {
+                                                ++lower_bound_itr;
+                                            }
+                                            if (cmp_result >= 0) {
+                                                ++upper_bound_itr;
+                                            }
+                                        },
+                                        [&] {
+                                            // Upper bound has unbounded zeta interval.
+                                            ++lower_bound_itr;
+                                        });
+                                },
+                                // Lower bound has unbounded zeta interval.
+                                [&] {
+                                    return upper_bound_itr->zeta_range.with_upper_bound(
+                                        [&](auto const& ub2) { ++upper_bound_itr; },
+                                        [&] {
+                                            // Impossible to reach here.
+                                        });
+                                });
+                        }
                     } // while (true)
                 }     // End of the branching on lower_bound_region.size().
             }
