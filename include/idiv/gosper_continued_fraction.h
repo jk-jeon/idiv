@@ -1032,11 +1032,11 @@ namespace jkj {
                                     return false;
                                 }
                                 if (edge_direction > 0) {
-                                    return corner == first_end || corner == second_end ||
+                                    return corner == second_end ||
                                            cyclic_order(first_end, corner, second_end);
                                 }
                                 else {
-                                    return corner == first_end || corner == second_end ||
+                                    return corner == first_end ||
                                            cyclic_order(second_end, corner, first_end);
                                 }
                             };
