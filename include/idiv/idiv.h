@@ -219,11 +219,20 @@ namespace jkj {
         constexpr multiply_add_shift_info find_simultaneous_multiply_add_shift(
             ContinuedFractionGeneratorX&& xcf, ContinuedFractionGeneratorY&& ycf,
             interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
+            static_assert(
+                std::remove_cvref_t<ContinuedFractionGeneratorX>::template is_implementing_mixins<
+                    cntfrc::previous_previous_convergent_tracker, cntfrc::interval_tracker>(),
+                "the first continued fraction generator must implement "
+                "previous_previous_convergent_tracker and "
+                "interval_tracker");
+            static_assert(
+                std::remove_cvref_t<ContinuedFractionGeneratorY>::template is_implementing_mixins<
+                    cntfrc::interval_tracker>(),
+                "the second continued fraction generator must implement interval_tracker");
+
             // TODO: deal with possible rational dependence between x and y.
 
-            auto xcf_copy = cntfrc::make_generator<cntfrc::index_tracker,
-                                                   cntfrc::previous_previous_convergent_tracker>(
-                xcf.copy_internal_implementation());
+            auto xcf_copy = xcf.copy();
 
             auto const& nmin = nrange.lower_bound();
             auto const nlength = util::abs(nrange.upper_bound() - nrange.lower_bound());
@@ -231,12 +240,12 @@ namespace jkj {
             // Step 1. Subtract out the integer part of y.
             auto floor_y = [&] {
                 auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
-                    cntfrc::make_binary_gosper_from_impl(xcf.copy_internal_implementation(),
-                                                         ycf.copy_internal_implementation(),
-                                                         {// numerator
-                                                          0, nmin, 1, 0,
-                                                          // denominator
-                                                          0, 0, 0, 1}));
+                    cntfrc::impl::binary_gosper{xcf.copy(),
+                                                ycf.copy(),
+                                                {// numerator
+                                                 0, nmin, 1, 0,
+                                                 // denominator
+                                                 0, 0, 0, 1}});
                 cf.update();
                 return cf.current_partial_fraction().denominator;
             }();
@@ -256,12 +265,13 @@ namespace jkj {
             // Step 3. Determine if any of L, R is empty.
             bool is_L_empty = [&] {
                 auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
-                    cntfrc::make_binary_gosper_from_impl(
-                        xcf.copy_internal_implementation(), ycf.copy_internal_implementation(),
+                    cntfrc::impl::binary_gosper{
+                        xcf.copy(),
+                        ycf.copy(),
                         {// numerator
                          0, util::to_signed(xi_range.lower_bound().denominator) + nmin, 1, 0,
                          // denominator
-                         0, 0, 0, 1}));
+                         0, 0, 0, 1}});
                 cf.update();
 
                 auto floor = cf.current_partial_fraction().denominator;
@@ -269,12 +279,13 @@ namespace jkj {
             }();
             bool is_R_empty = [&] {
                 auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
-                    cntfrc::make_binary_gosper_from_impl(
-                        xcf.copy_internal_implementation(), ycf.copy_internal_implementation(),
+                    cntfrc::impl::binary_gosper{
+                        xcf.copy(),
+                        ycf.copy(),
                         {// numerator
                          0, util::to_signed(xi_range.upper_bound().denominator) + nmin, 1, 0,
                          // denominator
-                         0, 0, 0, 1}));
+                         0, 0, 0, 1}});
                 cf.update();
 
                 auto floor = cf.current_partial_fraction().denominator;
@@ -300,13 +311,14 @@ namespace jkj {
                 // Find floor(q_* y).
                 auto floor_qstar_y = [&] {
                     auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
-                        cntfrc::make_binary_gosper_from_impl(
-                            xcf.copy_internal_implementation(), ycf.copy_internal_implementation(),
+                        cntfrc::impl::binary_gosper{
+                            xcf.copy(),
+                            ycf.copy(),
                             {// numerator
                              0, nmin * xi_range.lower_bound().denominator,
                              util::to_signed(xi_range.lower_bound().denominator), 0,
                              // denominator
-                             0, 0, 0, 1}));
+                             0, 0, 0, 1}});
                     cf.update();
                     return cf.current_partial_fraction().denominator -
                            xi_range.lower_bound().denominator * floor_y;
@@ -334,9 +346,9 @@ namespace jkj {
                     while (true) {
                         auto ceiling = [&] {
                             auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
-                                cntfrc::make_binary_gosper_from_impl(
-                                    xcf.copy_internal_implementation(),
-                                    ycf.copy_internal_implementation(),
+                                cntfrc::impl::binary_gosper{
+                                    xcf.copy(),
+                                    ycf.copy(),
                                     {// numerator
                                      0, nmin * xi_range.lower_bound().denominator,
                                      util::to_signed(xi_range.lower_bound().denominator),
@@ -344,7 +356,7 @@ namespace jkj {
                                          xi_range.lower_bound().denominator * floor_y,
                                      // denominator
                                      0, util::to_signed(xi_range.lower_bound().denominator), 0,
-                                     -xi_range.lower_bound().numerator}));
+                                     -xi_range.lower_bound().numerator}});
                             cf.update();
                             return -cf.current_partial_fraction().denominator;
                         }();
@@ -432,6 +444,17 @@ namespace jkj {
         find_extrema_of_fractional_part(
             ContinuedFractionGeneratorX&& xcf, ContinuedFractionGeneratorY&& ycf,
             interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
+            static_assert(
+                std::remove_cvref_t<ContinuedFractionGeneratorX>::template is_implementing_mixins<
+                    cntfrc::previous_previous_convergent_tracker, cntfrc::interval_tracker>(),
+                "the first continued fraction generator must implement "
+                "previous_previous_convergent_tracker and "
+                "interval_tracker");
+            static_assert(
+                std::remove_cvref_t<ContinuedFractionGeneratorY>::template is_implementing_mixins<
+                    cntfrc::interval_tracker>(),
+                "the second continued fraction generator must implement interval_tracker");
+
             extrema_of_fractional_part_output<bigint::int_var> result{nrange.lower_bound(),
                                                                       nrange.lower_bound()};
 
@@ -641,6 +664,23 @@ namespace jkj {
             ContinuedFractionGeneratorX&& xcf, ContinuedFractionGeneratorY&& ycf,
             ContinuedFractionGeneratorZeta&& zetacf,
             interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
+            static_assert(
+                std::remove_cvref_t<ContinuedFractionGeneratorX>::template is_implementing_mixins<
+                    cntfrc::previous_previous_convergent_tracker, cntfrc::interval_tracker>(),
+                "the first continued fraction generator must implement "
+                "previous_previous_convergent_tracker and "
+                "interval_tracker");
+            static_assert(
+                std::remove_cvref_t<ContinuedFractionGeneratorY>::template is_implementing_mixins<
+                    cntfrc::interval_tracker>(),
+                "the second continued fraction generator must implement interval_tracker");
+            static_assert(
+                std::remove_cvref_t<ContinuedFractionGeneratorZeta>::
+                    template is_implementing_mixins<cntfrc::index_tracker,
+                                                    cntfrc::previous_previous_convergent_tracker>(),
+                "the third continued fraction generator must implement index_tracker and "
+                "previous_previous_convergent_tracker");
+
             util::constexpr_assert(nrange.lower_bound() > 0);
 
             // Find good enough approximations of x and y.
@@ -656,10 +696,7 @@ namespace jkj {
             // Because of potential aliasing of zetacf with xcf/ycf, we make a copy here.
             // "+ 1u" is just to make the case nmin == nmax work correctly.
             auto approx_zeta_info = find_best_rational_approx(
-                cntfrc::make_generator<cntfrc::index_tracker,
-                                       cntfrc::previous_previous_convergent_tracker>(
-                    zetacf.copy_internal_implementation()),
-                util::abs(nrange.upper_bound() - nrange.lower_bound()) + 1u);
+                zetacf, util::abs(nrange.upper_bound() - nrange.lower_bound()) + 1u);
 
             // Find the smallest minimizer of the fractional part.
             auto const n00 = find_extrema_of_fractional_part(xcf, ycf, nrange).smallest_minimizer;
@@ -744,6 +781,23 @@ namespace jkj {
             ContinuedFractionGeneratorX&& xcf, ContinuedFractionGeneratorY&& ycf,
             ContinuedFractionGeneratorZeta&& zetacf,
             interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
+            static_assert(
+                std::remove_cvref_t<ContinuedFractionGeneratorX>::template is_implementing_mixins<
+                    cntfrc::previous_previous_convergent_tracker, cntfrc::interval_tracker>(),
+                "the first continued fraction generator must implement "
+                "previous_previous_convergent_tracker and "
+                "interval_tracker");
+            static_assert(
+                std::remove_cvref_t<ContinuedFractionGeneratorY>::template is_implementing_mixins<
+                    cntfrc::interval_tracker>(),
+                "the second continued fraction generator must implement interval_tracker");
+            static_assert(
+                std::remove_cvref_t<ContinuedFractionGeneratorZeta>::
+                    template is_implementing_mixins<cntfrc::index_tracker,
+                                                    cntfrc::previous_previous_convergent_tracker>(),
+                "the third continued fraction generator must implement index_tracker and "
+                "previous_previous_convergent_tracker");
+
             util::constexpr_assert(nrange.lower_bound() > 0);
 
             // Find good enough approximations of x and y.
@@ -759,10 +813,7 @@ namespace jkj {
             // Because of potential aliasing of zetacf with xcf/ycf, we make a copy here.
             // "+ 1u" is just to make the case nmin == nmax work correctly.
             auto approx_zeta_info = find_best_rational_approx(
-                cntfrc::make_generator<cntfrc::index_tracker,
-                                       cntfrc::previous_previous_convergent_tracker>(
-                    zetacf.copy_internal_implementation()),
-                util::abs(nrange.upper_bound() - nrange.lower_bound()) + 1u);
+                zetacf, util::abs(nrange.upper_bound() - nrange.lower_bound()) + 1u);
 
             // Find the largest maximizer of the fractional part.
             auto const n00 = find_extrema_of_fractional_part(xcf, ycf, nrange).largest_maximizer;
@@ -870,7 +921,19 @@ namespace jkj {
         constexpr std::vector<elementary_xi_zeta_region>
         find_xi_zeta_region(ContinuedFractionGeneratorX&& xcf, ContinuedFractionGeneratorY&& ycf,
                             RangeOfIntegerIntervals&& range_of_nranges) {
+            static_assert(
+                std::remove_cvref_t<ContinuedFractionGeneratorX>::template is_implementing_mixins<
+                    cntfrc::previous_previous_convergent_tracker, cntfrc::interval_tracker>(),
+                "the first continued fraction generator must implement "
+                "previous_previous_convergent_tracker and "
+                "interval_tracker");
+            static_assert(
+                std::remove_cvref_t<ContinuedFractionGeneratorY>::template is_implementing_mixins<
+                    cntfrc::interval_tracker>(),
+                "the second continued fraction generator must implement interval_tracker");
+
             using frac_t = frac<bigint::int_var, bigint::uint_var>;
+            using nrange_t = interval<bigint::int_var, interval_type_t::bounded_closed>;
 
             // Sanity check.
             util::constexpr_assert(!std::ranges::empty(range_of_nranges));
@@ -909,8 +972,8 @@ namespace jkj {
 
             {
                 // First, rewrite the domain into a disjoint union of intervals.
-                std::vector<interval<bigint::int_var, interval_type_t::bounded_closed>>
-                    normalized_nranges(std::forward<RangeOfIntegerIntervals>(range_of_nranges));
+                std::vector<nrange_t> normalized_nranges(
+                    std::forward<RangeOfIntegerIntervals>(range_of_nranges));
                 std::ranges::sort(normalized_nranges, [](auto&& lhs, auto&& rhs) {
                     return lhs.lower_bound() < rhs.lower_bound();
                 });
@@ -937,44 +1000,44 @@ namespace jkj {
                 // Compute good enough approximations of (x,y) and (-x,y) for future computations.
                 auto const approx_plus_x_y_info = find_simultaneous_multiply_add_shift(
                     xcf.copy(), ycf.copy(),
-                    {util::is_strictly_negative(normalized_nranges.front().lower_bound())
-                         ? 0
-                         : normalized_nranges.front().lower_bound(),
-                     util::is_strictly_negative(normalized_nranges.back().upper_bound())
-                         ? 0
-                         : normalized_nranges.back().upper_bound()});
+                    nrange_t{util::is_strictly_negative(normalized_nranges.front().lower_bound())
+                                 ? 0
+                                 : normalized_nranges.front().lower_bound(),
+                             util::is_strictly_negative(normalized_nranges.back().upper_bound())
+                                 ? 0
+                                 : normalized_nranges.back().upper_bound()});
 
                 auto const approx_minus_x_y_info = find_simultaneous_multiply_add_shift(
-                    cntfrc::make_generator(cntfrc::make_unary_gosper_from_impl(xcf, {-1, 0, 0, 1})),
+                    cntfrc::make_generator<cntfrc::previous_previous_convergent_tracker,
+                                           cntfrc::interval_tracker>(
+                        cntfrc::impl::unary_gosper{xcf, {-1, 0, 0, 1}}),
                     ycf,
-                    {util::is_strictly_positive(normalized_nranges.back().upper_bound())
-                         ? 0
-                         : -normalized_nranges.back().upper_bound(),
-                     util::is_strictly_positive(normalized_nranges.front().lower_bound())
-                         ? 0
-                         : -normalized_nranges.front().lower_bound()});
+                    nrange_t{util::is_strictly_positive(normalized_nranges.back().upper_bound())
+                                 ? 0
+                                 : -normalized_nranges.back().upper_bound(),
+                             util::is_strictly_positive(normalized_nranges.front().lower_bound())
+                                 ? 0
+                                 : -normalized_nranges.front().lower_bound()});
 
                 auto xcf_plus_side = cntfrc::make_caching_generator(
-                    cntfrc::make_generator<cntfrc::partial_fraction_tracker,
-                                           cntfrc::convergent_tracker>(cntfrc::impl::rational{
+                    cntfrc::make_generator<cntfrc::previous_previous_convergent_tracker,
+                                           cntfrc::interval_tracker>(cntfrc::impl::rational{
                         approx_plus_x_y_info.multiplier,
                         bigint::uint_var::power_of_2(approx_plus_x_y_info.shift_amount)}));
 
                 auto ycf_plus_side = cntfrc::make_caching_generator(
-                    cntfrc::make_generator<cntfrc::partial_fraction_tracker,
-                                           cntfrc::convergent_tracker>(cntfrc::impl::rational{
+                    cntfrc::make_generator<cntfrc::interval_tracker>(cntfrc::impl::rational{
                         approx_plus_x_y_info.adder,
                         bigint::uint_var::power_of_2(approx_plus_x_y_info.shift_amount)}));
 
                 auto xcf_minus_side = cntfrc::make_caching_generator(
-                    cntfrc::make_generator<cntfrc::partial_fraction_tracker,
-                                           cntfrc::convergent_tracker>(cntfrc::impl::rational{
+                    cntfrc::make_generator<cntfrc::previous_previous_convergent_tracker,
+                                           cntfrc::interval_tracker>(cntfrc::impl::rational{
                         approx_minus_x_y_info.multiplier,
                         bigint::uint_var::power_of_2(approx_minus_x_y_info.shift_amount)}));
 
                 auto ycf_minus_side = cntfrc::make_caching_generator(
-                    cntfrc::make_generator<cntfrc::partial_fraction_tracker,
-                                           cntfrc::convergent_tracker>(cntfrc::impl::rational{
+                    cntfrc::make_generator<cntfrc::interval_tracker>(cntfrc::impl::rational{
                         approx_minus_x_y_info.adder,
                         bigint::uint_var::power_of_2(approx_minus_x_y_info.shift_amount)}));
 
@@ -1000,12 +1063,13 @@ namespace jkj {
                                                 : left_half_spaces;
 
                         while (!util::is_zero(max_diff)) {
-                            half_spaces.push_back({{1, base_point},
-                                                   {-((base_point * approx_x_y_info.multiplier +
-                                                       approx_x_y_info.adder) >>
-                                                      approx_x_y_info.shift_amount),
-                                                    base_point},
-                                                   half_space_info::boundary_type_t::inclusive});
+                            half_spaces.push_back(
+                                {frac_t{1, base_point},
+                                 frac_t{-((base_point * approx_x_y_info.multiplier +
+                                           approx_x_y_info.adder) >>
+                                          approx_x_y_info.shift_amount),
+                                        base_point},
+                                 half_space_info::boundary_type_t::inclusive});
 
                             auto movement = find_extrema_of_fractional_part(approx_xcf, max_diff)
                                                 .largest_maximizer;
@@ -1015,12 +1079,12 @@ namespace jkj {
                             max_diff -= std::move(movement);
                         }
 
-                        half_spaces.push_back(
-                            {{1, base_point},
-                             {-((base_point * approx_x_y_info.multiplier + approx_x_y_info.adder) >>
-                                approx_x_y_info.shift_amount),
-                              base_point},
-                             half_space_info::boundary_type_t::inclusive});
+                        half_spaces.push_back({frac_t{1, base_point},
+                                               frac_t{-((base_point * approx_x_y_info.multiplier +
+                                                         approx_x_y_info.adder) >>
+                                                        approx_x_y_info.shift_amount),
+                                                      base_point},
+                                               half_space_info::boundary_type_t::inclusive});
                     };
                     // For the maximization on the right, the half-space at the base point is not
                     // included.
@@ -1045,12 +1109,13 @@ namespace jkj {
                             base_point += movement;
                             max_diff -= std::move(movement);
 
-                            half_spaces.push_back({{1, base_point},
-                                                   {-((base_point * approx_x_y_info.multiplier +
-                                                       approx_x_y_info.adder) >>
-                                                      approx_x_y_info.shift_amount),
-                                                    base_point},
-                                                   half_space_info::boundary_type_t::inclusive});
+                            half_spaces.push_back(
+                                {frac_t{1, base_point},
+                                 frac_t{-((base_point * approx_x_y_info.multiplier +
+                                           approx_x_y_info.adder) >>
+                                          approx_x_y_info.shift_amount),
+                                        base_point},
+                                 half_space_info::boundary_type_t::inclusive});
                         }
                     };
                     // For the minimization on the left, the half-space at the base point is
@@ -1069,12 +1134,13 @@ namespace jkj {
                                                 : right_half_spaces;
 
                         while (!util::is_zero(max_diff)) {
-                            half_spaces.push_back({{1, base_point},
-                                                   {1 - ((base_point * approx_x_y_info.multiplier +
-                                                          approx_x_y_info.adder) >>
-                                                         approx_x_y_info.shift_amount),
-                                                    base_point},
-                                                   half_space_info::boundary_type_t::exclusive});
+                            half_spaces.push_back(
+                                {frac_t{1, base_point},
+                                 frac_t{1 - ((base_point * approx_x_y_info.multiplier +
+                                              approx_x_y_info.adder) >>
+                                             approx_x_y_info.shift_amount),
+                                        base_point},
+                                 half_space_info::boundary_type_t::exclusive});
 
                             auto movement = find_extrema_of_fractional_part(approx_xcf, max_diff)
                                                 .smallest_minimizer;
@@ -1084,12 +1150,13 @@ namespace jkj {
                             max_diff -= std::move(movement);
                         }
 
-                        half_spaces.push_back({{1, base_point},
-                                               {1 - ((base_point * approx_x_y_info.multiplier +
-                                                      approx_x_y_info.adder) >>
-                                                     approx_x_y_info.shift_amount),
-                                                base_point},
-                                               half_space_info::boundary_type_t::exclusive});
+                        half_spaces.push_back(
+                            {frac_t{1, base_point},
+                             frac_t{1 - ((base_point * approx_x_y_info.multiplier +
+                                          approx_x_y_info.adder) >>
+                                         approx_x_y_info.shift_amount),
+                                    base_point},
+                             half_space_info::boundary_type_t::exclusive});
                     };
                     // For the minimization on the right, the half-space at the base point is not
                     // included.
@@ -1114,47 +1181,42 @@ namespace jkj {
                             base_point += movement;
                             max_diff -= std::move(movement);
 
-                            half_spaces.push_back({{1, base_point},
-                                                   {1 - ((base_point * approx_x_y_info.multiplier +
-                                                          approx_x_y_info.adder) >>
-                                                         approx_x_y_info.shift_amount),
-                                                    base_point},
-                                                   half_space_info::boundary_type_t::exclusive});
+                            half_spaces.push_back(
+                                {frac_t{1, base_point},
+                                 frac_t{1 - ((base_point * approx_x_y_info.multiplier +
+                                              approx_x_y_info.adder) >>
+                                             approx_x_y_info.shift_amount),
+                                        base_point},
+                                 half_space_info::boundary_type_t::exclusive});
                         }
                     };
 
-                    auto process_single_sign_interval =
-                        [&](interval<bigint::int_var, interval_type_t::bounded_closed> const&
-                                nrange,
-                            elementary_problem_sign sign, auto&& pm_xcf, auto&& pm_ycf) {
-                            auto base_points =
-                                find_extrema_of_fractional_part(pm_xcf, pm_ycf, nrange);
-                            pm_xcf.rewind();
-                            pm_ycf.rewind();
+                    auto process_single_sign_interval = [&](nrange_t const& nrange,
+                                                            elementary_problem_sign sign,
+                                                            auto&& pm_xcf, auto&& pm_ycf) {
+                        auto base_points = find_extrema_of_fractional_part(pm_xcf, pm_ycf, nrange);
+                        pm_xcf.rewind();
+                        pm_ycf.rewind();
 
-                            solve_maximization_on_left(
-                                util::abs(base_points.smallest_minimizer),
-                                util::abs(base_points.smallest_minimizer - nrange.lower_bound()),
-                                sign);
-                            solve_maximization_on_right(
-                                util::abs(base_points.smallest_minimizer),
-                                util::abs(nrange.upper_bound() - base_points.smallest_minimizer),
-                                sign);
-                            solve_minimization_on_left(
-                                util::abs(base_points.largest_maximizer),
-                                util::abs(base_points.largest_maximizer - nrange.lower_bound()),
-                                sign);
-                            solve_minimization_on_right(
-                                util::abs(base_points.largest_maximizer),
-                                util::abs(nrange.upper_bound() - base_points.largest_maximizer),
-                                sign);
-                        };
+                        solve_maximization_on_left(
+                            util::abs(base_points.smallest_minimizer),
+                            util::abs(base_points.smallest_minimizer - nrange.lower_bound()), sign);
+                        solve_maximization_on_right(
+                            util::abs(base_points.smallest_minimizer),
+                            util::abs(nrange.upper_bound() - base_points.smallest_minimizer), sign);
+                        solve_minimization_on_left(
+                            util::abs(base_points.largest_maximizer),
+                            util::abs(base_points.largest_maximizer - nrange.lower_bound()), sign);
+                        solve_minimization_on_right(
+                            util::abs(base_points.largest_maximizer),
+                            util::abs(nrange.upper_bound() - base_points.largest_maximizer), sign);
+                    };
 
                     for (auto const& nrange : normalized_nranges) {
                         // Negative interval.
                         if (util::is_strictly_negative(nrange.upper_bound())) {
                             process_single_sign_interval(
-                                {-nrange.upper_bound(), -nrange.lower_bound()},
+                                nrange_t{-nrange.upper_bound(), -nrange.lower_bound()},
                                 elementary_problem_sign::negative, xcf_minus_side, ycf_minus_side);
                         }
                         // Positive interval.
@@ -1164,23 +1226,23 @@ namespace jkj {
                         }
                         else if (util::is_zero(nrange.upper_bound())) {
                             nrange_contains_zero = true;
-                            process_single_sign_interval({1, -nrange.lower_bound()},
+                            process_single_sign_interval(nrange_t{1, -nrange.lower_bound()},
                                                          elementary_problem_sign::negative,
                                                          xcf_minus_side, ycf_minus_side);
                         }
                         else if (util::is_zero(nrange.lower_bound())) {
                             nrange_contains_zero = true;
-                            process_single_sign_interval({1, nrange.upper_bound()},
+                            process_single_sign_interval(nrange_t{1, nrange.upper_bound()},
                                                          elementary_problem_sign::positive,
                                                          xcf_plus_side, ycf_plus_side);
                         }
                         else {
                             // nrange.lower_bound() < 0 < nrange.upper_bound()
                             nrange_contains_zero = true;
-                            process_single_sign_interval({1, -nrange.lower_bound()},
+                            process_single_sign_interval(nrange_t{1, -nrange.lower_bound()},
                                                          elementary_problem_sign::negative,
                                                          xcf_minus_side, ycf_minus_side);
-                            process_single_sign_interval({1, nrange.upper_bound()},
+                            process_single_sign_interval(nrange_t{1, nrange.upper_bound()},
                                                          elementary_problem_sign::positive,
                                                          xcf_plus_side, ycf_plus_side);
                         }
@@ -1232,10 +1294,10 @@ namespace jkj {
                 // bound direction. This corresponds to the half-space with the lowest boundary
                 // line.
                 auto first_elmt = bound_direction == bound_direction_t::lower
-                                      ? std::ranges::min_element(
-                                            half_spaces, {}, &elementary_problem_sign::zeta_coeff)
-                                      : std::ranges::max_element(
-                                            half_spaces, {}, &elementary_problem_sign::zeta_coeff);
+                                      ? std::ranges::min_element(std::as_const(half_spaces), {},
+                                                                 &half_space_info::zeta_coeff)
+                                      : std::ranges::max_element(std::as_const(half_spaces), {},
+                                                                 &half_space_info::zeta_coeff);
 
                 // If there is only one half-space, return immediately.
                 if (half_spaces.size() == 1) {
@@ -1245,7 +1307,7 @@ namespace jkj {
                              ? -first_elmt->eta_coeff.numerator
                              : first_elmt->eta_coeff.numerator,
                          util::is_nonnegative(first_elmt->zeta_coeff.numerator)
-                             ? -first_elmt->zeta_coeff.denominator
+                             ? -util::to_signed(first_elmt->zeta_coeff.denominator)
                              : util::to_signed(first_elmt->zeta_coeff.denominator),
                          first_elmt->boundary_type == half_space_info::boundary_type_t::inclusive});
                     return result;
@@ -1255,7 +1317,8 @@ namespace jkj {
                 // from the positive xi-axis. To do so, we set the initial direction to be along the
                 // negative/positive eta-axis, depending on the direction of the bound.
                 auto prev_direction_vec =
-                    vec2d{{0, 1u}, {bound_direction == bound_direction_t::lower ? -1 : 1, 1u}};
+                    vec2d{frac_t{0, 1u},
+                          frac_t{bound_direction == bound_direction_t::lower ? -1 : 1, 1u}};
                 auto last_elmt = first_elmt;
                 frac_t prev_turning_point_zeta{0, 1u};
 
@@ -1267,17 +1330,16 @@ namespace jkj {
                     bool is_inclusive_at_turning_point;
                 };
                 auto compute_angle_info = [&](auto itr) {
-                    auto direction_vec = vec2d{itr->zeta_coeff - last_elmt.zeta_coeff,
-                                               itr->eta_coeff - last_elmt.eta_coeff};
+                    auto direction_vec = vec2d{itr->zeta_coeff - last_elmt->zeta_coeff,
+                                               itr->eta_coeff - last_elmt->eta_coeff};
                     auto dot_product = prev_direction_vec.dot(direction_vec);
-                    bool is_cos_strictly_negative = util::is_strictly_negative(dot_product);
-                    return angle_info{itr, direction_vec,
-                                      (dot_product * dot_product) / direction_vec.normsq(),
-                                      is_cos_strictly_negative,
-                                      last_elmt->boundary_type ==
-                                              elementary_problem_sign::boundary_type_t::inclusive &&
-                                          itr->boundary_type ==
-                                              elementary_problem_sign::boundary_type_t::inclusive};
+                    bool is_cos_strictly_negative =
+                        util::is_strictly_negative(dot_product.numerator);
+                    return angle_info{
+                        itr, direction_vec, (dot_product * dot_product) / direction_vec.normsq(),
+                        is_cos_strictly_negative,
+                        last_elmt->boundary_type == half_space_info::boundary_type_t::inclusive &&
+                            itr->boundary_type == half_space_info::boundary_type_t::inclusive};
                 };
                 auto compare_angle_info = [](angle_info const& left,
                                              angle_info const& right) -> std::strong_ordering {
@@ -1361,15 +1423,16 @@ namespace jkj {
                             : last_elmt->eta_coeff.numerator;
                     auto xi_endpoint_denominator =
                         util::is_nonnegative(last_elmt->zeta_coeff.numerator)
-                            ? -last_elmt->zeta_coeff.denominator
+                            ? -util::to_signed(last_elmt->zeta_coeff.denominator)
                             : util::to_signed(last_elmt->zeta_coeff.denominator);
 
                     // The unbounded bottom boundary line.
                     if (last_elmt == first_elmt) {
-                        util::constexpr_assert((bound_direction == bound_direction_t::lower &&
-                                                util::is_strictly_positive(face_normal_eta)) ||
-                                               (bound_direction == bound_direction_t::upper &&
-                                                util::is_strictly_negative(face_normal_eta)));
+                        util::constexpr_assert(
+                            (bound_direction == bound_direction_t::lower &&
+                             util::is_strictly_positive(face_normal_eta.numerator)) ||
+                            (bound_direction == bound_direction_t::upper &&
+                             util::is_strictly_negative(face_normal_eta.numerator)));
 
                         // The unbounded open region.
                         result.push_back({interval<frac_t, interval_type_t::bounded_above_open>{
@@ -1389,16 +1452,17 @@ namespace jkj {
                     }
                     // The unbounded top boundary line.
                     else if (current_angle_info.itr == first_elmt) {
-                        util::constexpr_assert((bound_direction == bound_direction_t::lower &&
-                                                util::is_strictly_negative(face_normal_eta)) ||
-                                               (bound_direction == bound_direction_t::upper &&
-                                                util::is_strictly_positive(face_normal_eta)));
+                        util::constexpr_assert(
+                            (bound_direction == bound_direction_t::lower &&
+                             util::is_strictly_negative(face_normal_eta.numerator)) ||
+                            (bound_direction == bound_direction_t::upper &&
+                             util::is_strictly_positive(face_normal_eta.numerator)));
 
                         // The unbounded open region.
                         result.push_back({interval<frac_t, interval_type_t::bounded_below_open>{
                                               prev_turning_point_zeta},
                                           xi_endpoint_numerator, xi_endpoint_denominator,
-                                          last_elmt->bondary_type ==
+                                          last_elmt->boundary_type ==
                                               half_space_info::boundary_type_t::inclusive});
 
                         // End of the while (true) {...} loop.
@@ -1406,10 +1470,11 @@ namespace jkj {
                     }
                     // Bounded middle boundary lines.
                     else {
-                        util::constexpr_assert((bound_direction == bound_direction_t::lower &&
-                                                util::is_strictly_positive(face_normal_eta)) ||
-                                               (bound_direction == bound_direction_t::upper &&
-                                                util::is_strictly_negative(face_normal_eta)));
+                        util::constexpr_assert(
+                            (bound_direction == bound_direction_t::lower &&
+                             util::is_strictly_positive(face_normal_eta.numerator)) ||
+                            (bound_direction == bound_direction_t::upper &&
+                             util::is_strictly_negative(face_normal_eta.numerator)));
 
                         // The bounded open region.
                         result.push_back({interval<frac_t, interval_type_t::bounded_open>{
@@ -1575,7 +1640,7 @@ namespace jkj {
                                                 previous_zeta_endpoint, previous_zeta_endpoint};
                                         });
                                 });
-                        };
+                        }();
 
                         result.push_back({std::move(zeta_range),
                                           std::move(xi_left_endpoint_numerator),
