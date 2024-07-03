@@ -1307,8 +1307,8 @@ namespace jkj {
                              ? -first_elmt->eta_coeff.numerator
                              : first_elmt->eta_coeff.numerator,
                          util::is_nonnegative(first_elmt->zeta_coeff.numerator)
-                             ? -util::to_signed(first_elmt->zeta_coeff.denominator)
-                             : util::to_signed(first_elmt->zeta_coeff.denominator),
+                             ? util::to_signed(first_elmt->zeta_coeff.denominator)
+                             : -util::to_signed(first_elmt->zeta_coeff.denominator),
                          first_elmt->boundary_type == half_space_info::boundary_type_t::inclusive});
                     return result;
                 }
@@ -1423,8 +1423,8 @@ namespace jkj {
                             : last_elmt->eta_coeff.numerator;
                     auto xi_endpoint_denominator =
                         util::is_nonnegative(last_elmt->zeta_coeff.numerator)
-                            ? -util::to_signed(last_elmt->zeta_coeff.denominator)
-                            : util::to_signed(last_elmt->zeta_coeff.denominator);
+                            ? util::to_signed(last_elmt->zeta_coeff.denominator)
+                            : -util::to_signed(last_elmt->zeta_coeff.denominator);
 
                     // The unbounded bottom boundary line.
                     if (last_elmt == first_elmt) {
