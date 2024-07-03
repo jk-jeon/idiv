@@ -1213,8 +1213,13 @@ namespace jkj {
                     };
 
                     for (auto const& nrange : normalized_nranges) {
+                        // Zero.
+                        if (util::is_zero(nrange.lower_bound()) &&
+                            util::is_zero(nrange.upper_bound())) {
+                            nrange_contains_zero = true;
+                        }
                         // Negative interval.
-                        if (util::is_strictly_negative(nrange.upper_bound())) {
+                        else if (util::is_strictly_negative(nrange.upper_bound())) {
                             process_single_sign_interval(
                                 nrange_t{-nrange.upper_bound(), -nrange.lower_bound()},
                                 elementary_problem_sign::negative, xcf_minus_side, ycf_minus_side);
@@ -1248,6 +1253,24 @@ namespace jkj {
                         }
                     }
                 }
+            }
+
+            // If n = 0 is the only constraint, then return early.
+            if (right_half_spaces.empty()) {
+                util::constexpr_assert(nrange_contains_zero && left_half_spaces.empty());
+                // zeta should satisfy the inequality floor_y <= zeta < floor_y + 1.
+                auto floor_y_frac = frac_t{floor_y, 1u};
+                auto floor_y_p1_frac = frac_t{floor_y + 1, 1u};
+                return {
+                    elementary_xi_zeta_region{interval<frac_t, interval_type_t::bounded_closed>{
+                                                  floor_y_frac, floor_y_frac},
+                                              floor_y_frac.numerator, 0u, floor_y_p1_frac.numerator,
+                                              0u, true, false},
+                    elementary_xi_zeta_region{interval<frac_t, interval_type_t::bounded_open>{
+                                                  floor_y_frac, floor_y_p1_frac},
+                                              floor_y_frac.numerator, 0u, floor_y_p1_frac.numerator,
+                                              0u, true, false},
+                };
             }
 
 
