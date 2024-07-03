@@ -956,9 +956,10 @@ namespace jkj {
                               "one of the possible interval type is not allowed");
             }
 
-            template <Enum it>
+            template <class T, Enum it>
+                requires std::is_constructible_v<Value, T>
             constexpr variable_shape_interval_impl&
-            operator=(StaticIntervalTemplate<Value, it> itv) noexcept {
+            operator=(StaticIntervalTemplate<T, it> itv) noexcept {
                 static_assert(is_allowed_interval_type(it),
                               "specified interval type is not allowed");
 
