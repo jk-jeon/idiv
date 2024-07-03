@@ -89,7 +89,7 @@ namespace jkj {
                 using partial_fraction_type = projective_rational<Unity, int_type>;
                 using convergent_type = typename ContinuedFractionGenerator::convergent_type;
                 using interval_type = variable_shape_cyclic_interval<
-                    projective_rational<int_type, int_type>, cyclic_interval_type_t::single_point,
+                    convergent_type, cyclic_interval_type_t::single_point,
                     cyclic_interval_type_t::left_open_right_closed,
                     cyclic_interval_type_t::left_closed_right_open, cyclic_interval_type_t::entire>;
                 using internal_continued_fraction_generator_type = ContinuedFractionGenerator;
