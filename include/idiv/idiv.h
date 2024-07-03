@@ -995,7 +995,7 @@ namespace jkj {
                         }
                     }
                 }
-                normalized_nranges.erase(++current_pos);
+                normalized_nranges.erase(++current_pos, normalized_nranges.end());
 
                 // Compute good enough approximations of (x,y) and (-x,y) for future computations.
                 auto const approx_plus_x_y_info = find_simultaneous_multiply_add_shift(
