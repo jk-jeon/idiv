@@ -215,7 +215,7 @@ namespace jkj {
                 using interval_type = typename impl_type::interval_type;
 
                 static constexpr partial_fraction_type initial_partial_fraction() {
-                    return {Unity{unity{}}, Int{0}};
+                    return partial_fraction_type{Unity{unity{}}, Int{0}};
                 }
                 static constexpr interval_type initial_interval() {
                     return cyclic_interval<convergent_type, cyclic_interval_type_t::entire>{};
@@ -406,7 +406,7 @@ namespace jkj {
 
             public:
                 static constexpr partial_fraction_type initial_partial_fraction() {
-                    return {Unity{unity{}}, Int{0}};
+                    return partial_fraction_type{Unity{unity{}}, Int{0}};
                 }
                 static constexpr interval_type initial_interval() {
                     return cyclic_interval<convergent_type, cyclic_interval_type_t::entire>{};
