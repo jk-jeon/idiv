@@ -125,7 +125,8 @@ namespace jkj {
                 template <class Callback>
                 constexpr void with_next_partial_fraction(Callback& callback) {
                     // Do double indirection.
-                    impl_ptr_->with_next_partial_fraction(callback_wrapper<Callback>{callback});
+                    callback_wrapper<Callback> wrapped_callback{callback};
+                    impl_ptr_->with_next_partial_fraction(wrapped_callback);
                 }
             };
         }
