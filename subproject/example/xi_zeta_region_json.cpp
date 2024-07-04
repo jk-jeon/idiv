@@ -78,6 +78,27 @@
 //     { "min" : 300, "max" : 100000 }
 //   ]
 // }
+//
+// 
+// [Corresponding output]
+//
+// When zeta = 80765 / 36899:
+//   (-317 - zeta) / 19182 <= xi <= (297 - zeta) / -17717
+// 
+// When zeta in (80765 / 36899, 366865 / 167608):
+//   (-1545 - zeta) / 92980 <= xi <= (1525 - zeta) / -91515
+// 
+// When zeta = 366865 / 167608:
+//   (-1545 - zeta) / 92980 <= xi < (1525 - zeta) / -91515
+// 
+// When zeta in (366865 / 167608, 360025 / 164483):
+//   (-1545 - zeta) / 92980 <= xi < (-1264 - zeta) / 76093
+// 
+// When zeta = 360025 / 164483:
+//   (-1545 - zeta) / 92980 < xi < (-1264 - zeta) / 76093
+// 
+// When zeta in (360025 / 164483, 80766 / 36899):
+//   (1192 - zeta) / -71503 < xi < (-1264 - zeta) / 76093
 
 using partial_fraction_type =
     jkj::cntfrc::projective_rational<jkj::cntfrc::unity, jkj::bigint::int_var>;
