@@ -19,7 +19,6 @@
 #define JKJ_HEADER_RATIONAL_CONTINUED_FRACTION
 
 #include "continued_fraction.h"
-#include <cstdlib>
 
 namespace jkj {
     namespace cntfrc {
