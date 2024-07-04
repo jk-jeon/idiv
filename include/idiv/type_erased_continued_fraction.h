@@ -34,6 +34,7 @@ namespace jkj {
                 using interval_type = IntervalType;
 
             private:
+                // We do not need a virtual destructor for this.
                 struct callback_wrapper_base {
                     constexpr virtual void
                     operator()(partial_fraction_type const& next_partial_fraction) const = 0;
@@ -57,7 +58,8 @@ namespace jkj {
                     constexpr virtual interval_type initial_interval() const = 0;
                     constexpr virtual void
                     with_next_partial_fraction(callback_wrapper_base& callback) = 0;
-                    constexpr virtual std::unique_ptr<base> clone() const = 0;
+                    virtual std::unique_ptr<base> clone() const = 0;
+                    virtual ~base() = default;
                 };
 
                 template <class Impl>
@@ -77,8 +79,8 @@ namespace jkj {
                     with_next_partial_fraction(callback_wrapper_base& callback) override {
                         impl_.with_next_partial_fraction(callback);
                     }
-                    constexpr std::unique_ptr<base> clone() const override {
-                        return std::make_unique<impl_wrapper>(Impl{impl_});
+                    std::unique_ptr<base> clone() const override {
+                        return std::make_unique<impl_wrapper>(*this);
                     }
                 };
 
@@ -87,7 +89,7 @@ namespace jkj {
             public:
                 template <class Impl>
                     requires(!std::is_same_v<Impl, type_erased>)
-                constexpr type_erased(Impl impl)
+                type_erased(Impl impl)
                     : impl_ptr_{std::make_unique<impl_wrapper<Impl>>(std::move(impl))} {
                     static_assert(
                         std::is_same_v<typename Impl::partial_fraction_type, partial_fraction_type>,
@@ -106,12 +108,14 @@ namespace jkj {
                 constexpr type_erased(type_erased&& other)
                     : impl_ptr_{std::move(other.impl_ptr_)} {}
 
-                constexpr type_erased& operator=(type_erased const& other) {
+                type_erased& operator=(type_erased const& other) {
                     impl_ptr_ = other.impl_ptr_->clone();
+                    return *this;
                 }
 
                 constexpr type_erased&& operator=(type_erased&& other) {
                     std::swap(impl_ptr_, other.impl_ptr_);
+                    return *this;
                 }
 
                 constexpr partial_fraction_type initial_partial_fraction() const {
