@@ -2531,8 +2531,12 @@ namespace jkj {
         }
         namespace detail {
             template <sign_t sign, std::size_t N, static_block_holder<N> arr>
-            constexpr int_const_impl<N == 0 ? sign_t::positive : ::jkj::bigint::invert_sign(sign),
-                                     arr>
+            constexpr int_const_impl<::jkj::bigint::invert_sign(sign), arr>
+            invert_sign(int_const_impl<sign, arr>) noexcept {
+                return {};
+            }
+            template <sign_t sign, static_block_holder<0> arr>
+            constexpr int_const_impl<sign_t::positive, arr>
             invert_sign(int_const_impl<sign, arr>) noexcept {
                 return {};
             }
