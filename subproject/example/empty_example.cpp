@@ -1,4 +1,5 @@
 #include <idiv/idiv.h>
+#include <idiv/log_continued_fraction.h>
 #include <format>
 #include <iostream>
 
@@ -305,8 +306,6 @@ int main() {
         jkj::cntfrc::impl::rational{x});
     jkj::bigint::uint_var nmax = 0xffff'ffff;
     std::cout << "\n       n_max = " << nmax;
-
-    using positive_rational_t = jkj::frac<jkj::bigint::uint_var, jkj::bigint::uint_var>;
 
     auto info1 = jkj::idiv::find_optimal_multiply_shift(cf, nmax);
 
