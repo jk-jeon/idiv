@@ -113,7 +113,7 @@ namespace jkj {
                     return *this;
                 }
 
-                constexpr type_erased&& operator=(type_erased&& other) {
+                constexpr type_erased& operator=(type_erased&& other) {
                     std::swap(impl_ptr_, other.impl_ptr_);
                     return *this;
                 }
