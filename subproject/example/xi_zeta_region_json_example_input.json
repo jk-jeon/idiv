@@ -1,0 +1,62 @@
+{
+    "x": {
+        "type": "rational",
+        "params": {
+            "numerator": -614,
+            "denominator": 36899
+        }
+    },
+    "y": {
+        "type": "unary_gosper",
+        "params": {
+            "x": {
+                "type": "binary_gosper",
+                "params": {
+                    "x": {
+                        "type": "general_log",
+                        "params": {
+                            "base": {
+                                "numerator": 10,
+                                "denominator": 3
+                            },
+                            "number": {
+                                "numerator": 5,
+                                "denominator": 2
+                            }
+                        }
+                    },
+                    "y": {
+                        "type": "natural_log",
+                        "params": {
+                            "number": {
+                                "numerator": 18,
+                                "denominator": 7
+                            }
+                        }
+                    },
+                    "coefficients": [
+                        3, 6, 17, -6,
+                        -5, 13, 9, 1
+                    ]
+                }
+            },
+            "coefficients": [
+                -7, 14, 0, 3
+            ]
+        }
+    },
+    "ranges": [
+        {
+            "min": -100,
+            "max": 100
+        },
+        {
+            "min": -100000,
+            "max": -700
+        },
+        {
+            "min": 300,
+            "max": 100000
+        }
+    ]
+}
