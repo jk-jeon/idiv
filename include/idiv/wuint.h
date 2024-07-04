@@ -126,7 +126,7 @@ namespace jkj {
                     return result;
 #elif defined(_MSC_VER) && defined(_M_X64)
                     auto borrowout = _subborrow_u64(static_cast<unsigned char>(borrow), a, b, &a);
-                    carry = static_cast<unsigned int>(borrowout);
+                    borrow = static_cast<unsigned int>(borrowout);
                     return a;
 #endif
                 }
@@ -203,9 +203,9 @@ namespace jkj {
             auto result = builtin_uint128_t(x & uint64_mask) * builtin_uint128_t(y & uint64_mask);
             return {std::uint_least64_t(result >> 64), std::uint_least64_t(result) & uint64_mask};
 #elif defined(_MSC_VER) && defined(_M_X64)
-            uint128 result;
-            result.low_ = _umul128(x, y, &result.high_);
-            return result;
+            std::uint_least64_t high;
+            auto low = _umul128(x, y, &high);
+            return {high, low};
 #else
             return generic_impl();
 #endif
