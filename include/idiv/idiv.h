@@ -440,8 +440,8 @@ namespace jkj {
         // Given real numbers x, y and a range [nmin:nmax] of integers, find the smallest minimizer
         // and the largest maximizer of (nx+y) - floor(nx+y).
         template <class ContinuedFractionGeneratorX, class ContinuedFractionGeneratorY>
-        constexpr extrema_of_fractional_part_output<bigint::int_var>
-        find_extrema_of_fractional_part(
+        constexpr extremizers_of_fractional_part<bigint::int_var>
+        find_extremizers_of_fractional_part(
             ContinuedFractionGeneratorX&& xcf, ContinuedFractionGeneratorY&& ycf,
             interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
             static_assert(
@@ -455,8 +455,8 @@ namespace jkj {
                     cntfrc::interval_tracker>(),
                 "the second continued fraction generator must implement interval_tracker");
 
-            extrema_of_fractional_part_output<bigint::int_var> result{nrange.lower_bound(),
-                                                                      nrange.lower_bound()};
+            extremizers_of_fractional_part<bigint::int_var> result{nrange.lower_bound(),
+                                                                   nrange.lower_bound()};
 
             if (nrange.lower_bound() == nrange.upper_bound()) {
                 return result;
@@ -689,7 +689,8 @@ namespace jkj {
                 zetacf, util::abs(nrange.upper_bound() - nrange.lower_bound()) + 1u);
 
             // Find the smallest minimizer of the fractional part.
-            auto const n00 = find_extrema_of_fractional_part(xcf, ycf, nrange).smallest_minimizer;
+            auto const n00 =
+                find_extremizers_of_fractional_part(xcf, ycf, nrange).smallest_minimizer;
 
             // Solve the maximization problem on the left.
             auto left_maximizer = n00;
@@ -700,7 +701,7 @@ namespace jkj {
                     xcf_copy.rewind();
                     auto const nmax = util::abs(left_maximizer - nrange.lower_bound());
                     auto smallest_minimizer =
-                        find_extrema_of_fractional_part(xcf_copy, nmax).largest_maximizer;
+                        find_extremizers_of_fractional_part(xcf_copy, nmax).largest_maximizer;
                     return util::div_floor(nmax, smallest_minimizer) * smallest_minimizer;
                 }();
 
@@ -727,7 +728,7 @@ namespace jkj {
                     xcf_copy.rewind();
                     auto const nmax = util::abs(nrange.upper_bound() - right_maximizer);
                     auto smallest_maximizer =
-                        find_extrema_of_fractional_part(xcf_copy, nmax).smallest_minimizer;
+                        find_extremizers_of_fractional_part(xcf_copy, nmax).smallest_minimizer;
                     return util::div_floor(nmax, smallest_maximizer) * smallest_maximizer;
                 }();
 
@@ -806,7 +807,8 @@ namespace jkj {
                 zetacf, util::abs(nrange.upper_bound() - nrange.lower_bound()) + 1u);
 
             // Find the largest maximizer of the fractional part.
-            auto const n00 = find_extrema_of_fractional_part(xcf, ycf, nrange).largest_maximizer;
+            auto const n00 =
+                find_extremizers_of_fractional_part(xcf, ycf, nrange).largest_maximizer;
 
             // Solve the minimization problem on the left.
             auto left_minimizer = n00;
@@ -817,7 +819,7 @@ namespace jkj {
                     xcf_copy.rewind();
                     auto const nmax = util::abs(left_minimizer - nrange.lower_bound());
                     auto smallest_maximizer =
-                        find_extrema_of_fractional_part(xcf_copy, nmax).smallest_minimizer;
+                        find_extremizers_of_fractional_part(xcf_copy, nmax).smallest_minimizer;
                     return util::div_floor(nmax, smallest_maximizer) * smallest_maximizer;
                 }();
 
@@ -843,7 +845,7 @@ namespace jkj {
                     xcf_copy.rewind();
                     auto const nmax = util::abs(nrange.upper_bound() - right_minimizer);
                     auto smallest_minimizer =
-                        find_extrema_of_fractional_part(xcf_copy, nmax).largest_maximizer;
+                        find_extremizers_of_fractional_part(xcf_copy, nmax).largest_maximizer;
                     return util::div_floor(nmax, smallest_minimizer) * smallest_minimizer;
                 }();
 
@@ -1061,8 +1063,9 @@ namespace jkj {
                                         base_point},
                                  half_space_info::boundary_type_t::inclusive});
 
-                            auto movement = find_extrema_of_fractional_part(approx_xcf, max_diff)
-                                                .largest_maximizer;
+                            auto movement =
+                                find_extremizers_of_fractional_part(approx_xcf, max_diff)
+                                    .largest_maximizer;
                             approx_xcf.rewind();
                             movement *= util::div_floor(max_diff, movement);
                             base_point -= movement;
@@ -1092,8 +1095,9 @@ namespace jkj {
                                                 : left_half_spaces;
 
                         while (!util::is_zero(max_diff)) {
-                            auto movement = find_extrema_of_fractional_part(approx_xcf, max_diff)
-                                                .smallest_minimizer;
+                            auto movement =
+                                find_extremizers_of_fractional_part(approx_xcf, max_diff)
+                                    .smallest_minimizer;
                             approx_xcf.rewind();
                             movement *= util::div_floor(max_diff, movement);
                             base_point += movement;
@@ -1132,8 +1136,9 @@ namespace jkj {
                                         base_point},
                                  half_space_info::boundary_type_t::exclusive});
 
-                            auto movement = find_extrema_of_fractional_part(approx_xcf, max_diff)
-                                                .smallest_minimizer;
+                            auto movement =
+                                find_extremizers_of_fractional_part(approx_xcf, max_diff)
+                                    .smallest_minimizer;
                             approx_xcf.rewind();
                             movement *= util::div_floor(max_diff, movement);
                             base_point -= movement;
@@ -1164,8 +1169,9 @@ namespace jkj {
                                                 : right_half_spaces;
 
                         while (!util::is_zero(max_diff)) {
-                            auto movement = find_extrema_of_fractional_part(approx_xcf, max_diff)
-                                                .largest_maximizer;
+                            auto movement =
+                                find_extremizers_of_fractional_part(approx_xcf, max_diff)
+                                    .largest_maximizer;
                             approx_xcf.rewind();
                             movement *= util::div_floor(max_diff, movement);
                             base_point += movement;
@@ -1184,7 +1190,8 @@ namespace jkj {
                     auto process_single_sign_interval = [&](nrange_t const& nrange,
                                                             elementary_problem_sign sign,
                                                             auto&& pm_xcf, auto&& pm_ycf) {
-                        auto base_points = find_extrema_of_fractional_part(pm_xcf, pm_ycf, nrange);
+                        auto base_points =
+                            find_extremizers_of_fractional_part(pm_xcf, pm_ycf, nrange);
                         pm_xcf.rewind();
                         pm_ycf.rewind();
 

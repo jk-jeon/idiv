@@ -92,14 +92,14 @@ void best_rational_approx_test() {
             perform_test(6614777, 12961230u, 1500);
         };
 
-        should("find_extrema_of_fractional_part") = [] {
+        should("find_extremizers_of_fractional_part") = [] {
             auto perform_test = [](bigint::int_var const& numerator,
                                    bigint::uint_var const& denominator, std::size_t nmax) {
                 auto cf = cntfrc::make_generator<cntfrc::index_tracker,
                                                  cntfrc::previous_previous_convergent_tracker>(
                     cntfrc::impl::rational{numerator, denominator});
 
-                auto result = idiv::find_extrema_of_fractional_part(cf, nmax);
+                auto result = idiv::find_extremizers_of_fractional_part(cf, nmax);
                 expect(result.smallest_minimizer >= 1 && result.smallest_minimizer <= nmax);
                 expect(result.largest_maximizer >= 1 && result.largest_maximizer <= nmax);
 

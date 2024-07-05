@@ -125,7 +125,7 @@ void idiv_test() {
                          nrange_t{0, 273});
         };
 
-        should("find_extrema_of_fractional_part (two unknowns)") = [] {
+        should("find_extremizers_of_fractional_part (two unknowns)") = [] {
             auto perform_test = [](projective_rational_t const& x, projective_rational_t const& y,
                                    nrange_t const& nrange) {
                 auto xcf =
@@ -134,7 +134,7 @@ void idiv_test() {
                 auto ycf =
                     cntfrc::make_generator<cntfrc::interval_tracker>(cntfrc::impl::rational{y});
 
-                auto result = idiv::find_extrema_of_fractional_part(xcf, ycf, nrange);
+                auto result = idiv::find_extremizers_of_fractional_part(xcf, ycf, nrange);
                 expect(result.smallest_minimizer >= nrange.lower_bound() &&
                        result.smallest_minimizer <= nrange.upper_bound());
                 expect(result.largest_maximizer >= nrange.lower_bound() &&

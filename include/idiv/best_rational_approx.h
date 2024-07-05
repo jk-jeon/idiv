@@ -171,7 +171,7 @@ namespace jkj {
         }
 
         template <class Int>
-        struct extrema_of_fractional_part_output {
+        struct extremizers_of_fractional_part {
             Int smallest_minimizer;
             Int largest_maximizer;
         };
@@ -185,8 +185,8 @@ namespace jkj {
         // After the function returns, the generator is terminated if x is rational and its
         // denominator is at most nmax.
         template <class ContinuedFractionGenerator, class UInt>
-        constexpr auto find_extrema_of_fractional_part(ContinuedFractionGenerator&& cf,
-                                                       UInt const& nmax) {
+        constexpr auto find_extremizers_of_fractional_part(ContinuedFractionGenerator&& cf,
+                                                           UInt const& nmax) {
             static_assert(
                 std::remove_cvref_t<ContinuedFractionGenerator>::template is_implementing_mixins<
                     cntfrc::index_tracker, cntfrc::previous_previous_convergent_tracker>(),
@@ -196,7 +196,7 @@ namespace jkj {
             using convergent_type =
                 typename std::remove_cvref_t<ContinuedFractionGenerator>::convergent_type;
             using return_type =
-                extrema_of_fractional_part_output<decltype(convergent_type::denominator)>;
+                extremizers_of_fractional_part<decltype(convergent_type::denominator)>;
 
             auto floor_quotient_range =
                 find_floor_quotient_range(std::forward<ContinuedFractionGenerator>(cf), nmax);
