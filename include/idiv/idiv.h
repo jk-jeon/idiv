@@ -473,21 +473,24 @@ namespace jkj {
                                            bigint::uint_var::power_of_2(approx_info.shift_amount)});
 
             // RHS times 2^k.
-            auto compute_scaled_threshold_for_maximizer = [&](auto const& n) {
-                auto temp = n * approx_info.multiplier + approx_info.adder;
+            auto compute_scaled_threshold_for_maximizer = [&] {
+                auto temp = result.largest_maximizer * approx_info.multiplier + approx_info.adder;
                 temp =
                     (((temp >> approx_info.shift_amount) + 1) << approx_info.shift_amount) - temp;
                 return util::abs(std::move(temp));
             };
-            auto scaled_threshold_for_maximizer =
-                compute_scaled_threshold_for_maximizer(nrange.lower_bound());
-            auto compute_scaled_threshold_for_minimizer = [&](auto const& n) {
-                auto temp = n * approx_info.multiplier + approx_info.adder;
+            auto scaled_threshold_for_maximizer = compute_scaled_threshold_for_maximizer();
+            auto compute_scaled_threshold_for_minimizer = [&] {
+                auto temp = result.smallest_minimizer * approx_info.multiplier + approx_info.adder;
                 temp = temp - ((temp >> approx_info.shift_amount) << approx_info.shift_amount);
                 return util::abs(std::move(temp));
             };
-            auto scaled_threshold_for_minimizer =
-                compute_scaled_threshold_for_minimizer(nrange.lower_bound());
+            auto scaled_threshold_for_minimizer = compute_scaled_threshold_for_minimizer();
+
+            // qx - p or p - qx.
+            auto previous_scaled_lhs_for_convergent =
+                util::abs((xi_cf.current_convergent_numerator() << approx_info.shift_amount) -
+                          approx_info.multiplier * xi_cf.current_convergent_denominator());
 
             bool found_minimizer = false;
             bool found_maximizer = false;
@@ -495,152 +498,108 @@ namespace jkj {
                 // Maximizer.
                 // Find a new even convergent.
                 xi_cf.update();
+                auto scaled_lhs_for_convergent =
+                    util::abs(approx_info.multiplier * xi_cf.current_convergent_denominator() -
+                              (xi_cf.current_convergent_numerator() << approx_info.shift_amount));
+
                 if (!found_maximizer) {
-                    if (xi_cf.terminated()) {
-                        // If we already have reached to the exact value, just add the multiple of
-                        // its denominator as many times as allowed.
-                        result.largest_maximizer +=
-                            (((nrange.upper_bound() - result.largest_maximizer) >>
-                              approx_info.shift_amount)
-                             << approx_info.shift_amount);
+                    auto increment = xi_cf.current_convergent_denominator();
+
+                    if (!xi_cf.terminated()) {
+                        while (scaled_lhs_for_convergent < scaled_threshold_for_maximizer) {
+                            auto scaled_lhs = scaled_lhs_for_convergent;
+                            {
+                                auto s = util::div_ceil(scaled_threshold_for_maximizer -
+                                                            scaled_lhs_for_convergent,
+                                                        previous_scaled_lhs_for_convergent) -
+                                         1u;
+
+                                scaled_lhs += s * previous_scaled_lhs_for_convergent;
+                                increment -= std::move(s) * xi_cf.previous_convergent_denominator();
+                            }
+
+                            if (!util::is_zero(scaled_lhs)) {
+                                auto new_estimate =
+                                    result.largest_maximizer +
+                                    (util::div_ceil(scaled_threshold_for_maximizer, scaled_lhs) -
+                                     1u) *
+                                        increment;
+                                if (new_estimate <= nrange.upper_bound()) {
+                                    result.largest_maximizer = std::move(new_estimate);
+                                    scaled_threshold_for_maximizer =
+                                        compute_scaled_threshold_for_maximizer();
+                                    increment = xi_cf.current_convergent_denominator();
+                                    continue;
+                                }
+                            }
+
+                            found_maximizer = true;
+                            break;
+                        } // while (scaled_lhs_for_convergent < scaled_threshold_for_maximizer)
+                    }     // if (!xi_cf.terminated())
+                    else {
                         found_maximizer = true;
                     }
-                    else {
-                        // Otherwise, see if the current convergent satisfies the condition.
-                        auto scaled_lefthand_side_for_convergent =
-                            approx_info.multiplier * xi_cf.current_convergent_denominator() -
-                            (xi_cf.current_convergent_numerator() << approx_info.shift_amount);
 
-                        while (!found_maximizer) {
-                            // If the current convergent does not satisfy the condition, then move
-                            // on to the next convergent.
-                            if (scaled_lefthand_side_for_convergent >=
-                                scaled_threshold_for_maximizer) {
-                                break;
-                            }
-
-                            // Otherwise, find the first even semiconvergent still satisfying the
-                            // condition.
-                            auto scaled_step_size =
-                                (xi_cf.previous_convergent_numerator()
-                                 << approx_info.shift_amount) -
-                                approx_info.multiplier * xi_cf.previous_convergent_denominator();
-                            auto semiconvergent = xi_cf.current_convergent();
-                            auto semiconvergent_coeff_decrement =
-                                util::abs(util::div_ceil(scaled_threshold_for_maximizer -
-                                                             scaled_lefthand_side_for_convergent,
-                                                         scaled_step_size) -
-                                          1);
-
-                            semiconvergent.numerator -= semiconvergent_coeff_decrement *
-                                                        xi_cf.previous_convergent_numerator();
-                            semiconvergent.denominator -= semiconvergent_coeff_decrement *
-                                                          xi_cf.previous_convergent_denominator();
-
-                            auto scaled_lefthand_side =
-                                scaled_lefthand_side_for_convergent +
-                                semiconvergent_coeff_decrement * scaled_step_size;
-
-                            // Update the current estimate of the maximizer with the denominator of
-                            // the found semiconvergent.
-                            auto new_estimate = result.largest_maximizer +
-                                                (util::div_ceil(scaled_threshold_for_maximizer,
-                                                                scaled_lefthand_side) -
-                                                 1) *
-                                                    semiconvergent.denominator;
-
-                            if (new_estimate >= nrange.upper_bound()) {
-                                new_estimate =
-                                    result.largest_maximizer +
-                                    util::div_floor(nrange.upper_bound() - result.largest_maximizer,
-                                                    semiconvergent.denominator) *
-                                        semiconvergent.denominator;
-                                found_maximizer = true;
-                            }
-                            result.largest_maximizer = std::move(new_estimate);
-                            scaled_threshold_for_maximizer =
-                                compute_scaled_threshold_for_maximizer(result.largest_maximizer);
-                        }
+                    if (found_maximizer) {
+                        result.largest_maximizer +=
+                            util::div_floor(nrange.upper_bound() - result.largest_maximizer,
+                                            increment) *
+                            increment;
                     }
-                }
+                } // if (!found_maximizer)
+                previous_scaled_lhs_for_convergent = scaled_lhs_for_convergent;
 
                 // Minimizer.
                 // Find a new odd convergent.
                 xi_cf.update();
+                scaled_lhs_for_convergent =
+                    util::abs((xi_cf.current_convergent_numerator() << approx_info.shift_amount) -
+                              approx_info.multiplier * xi_cf.current_convergent_denominator());
+
                 if (!found_minimizer) {
-                    if (xi_cf.terminated()) {
-                        // If we already have reached to the exact value, there is nothing else to
-                        // do.
+                    if (!xi_cf.terminated()) {
+                        while (scaled_lhs_for_convergent <= scaled_threshold_for_minimizer) {
+                            auto scaled_lhs = scaled_lhs_for_convergent;
+                            auto increment = xi_cf.current_convergent_denominator();
+                            {
+                                auto s = util::div_floor(scaled_threshold_for_minimizer -
+                                                             scaled_lhs_for_convergent,
+                                                         previous_scaled_lhs_for_convergent);
+
+                                scaled_lhs += s * previous_scaled_lhs_for_convergent;
+                                increment -= std::move(s) * xi_cf.previous_convergent_denominator();
+                            }
+
+                            if (!util::is_zero(scaled_lhs)) {
+                                auto new_estimate =
+                                    result.smallest_minimizer +
+                                    util::div_floor(scaled_threshold_for_minimizer, scaled_lhs) *
+                                        increment;
+                                if (new_estimate <= nrange.upper_bound()) {
+                                    result.smallest_minimizer = std::move(new_estimate);
+                                    scaled_threshold_for_minimizer =
+                                        compute_scaled_threshold_for_minimizer();
+                                    continue;
+                                }
+
+                                result.smallest_minimizer +=
+                                    util::div_floor(nrange.upper_bound() -
+                                                        result.smallest_minimizer,
+                                                    increment) *
+                                    increment;
+                            }
+
+                            found_minimizer = true;
+                            break;
+                        } // while (scaled_lhs_for_convergent <= scaled_threshold_for_minimizer)
+                    }     // if (!xi_cf.terminated())
+                    else {
                         found_minimizer = true;
                     }
-                    else {
-                        // Otherwise, see if the current convergent satisfies the condition.
-                        // If quantity below is zero, then the current convergent is the exact
-                        // value.
-                        auto scaled_lefthand_side_for_convergent =
-                            (xi_cf.current_convergent_numerator() << approx_info.shift_amount) -
-                            approx_info.multiplier * xi_cf.current_convergent_denominator();
-
-                        while (!found_minimizer) {
-                            // If the current convergent does not satisfy the condition, then move
-                            // on to the next convergent.
-                            if (scaled_lefthand_side_for_convergent >
-                                scaled_threshold_for_minimizer) {
-                                break;
-                            }
-
-                            // Otherwise, find the first even semiconvergent still satisfying the
-                            // condition.
-                            auto scaled_step_size =
-                                approx_info.multiplier * xi_cf.previous_convergent_denominator() -
-                                (xi_cf.previous_convergent_numerator() << approx_info.shift_amount);
-                            auto semiconvergent = xi_cf.current_convergent();
-                            auto semiconvergent_coeff_decrement =
-                                util::abs(util::div_floor(scaled_threshold_for_minimizer -
-                                                              scaled_lefthand_side_for_convergent,
-                                                          scaled_step_size));
-
-                            semiconvergent.numerator -= semiconvergent_coeff_decrement *
-                                                        xi_cf.previous_convergent_numerator();
-                            semiconvergent.denominator -= semiconvergent_coeff_decrement *
-                                                          xi_cf.previous_convergent_denominator();
-
-                            // Update the current estimate of the maximizer with the denominator of
-                            // the found semiconvergent.
-                            if (util::is_zero(scaled_lefthand_side_for_convergent) &&
-                                util::is_zero(semiconvergent_coeff_decrement)) {
-                                // If the current convergent is the exact value and there is no
-                                // semiconvergent satisfying the condition, then the set is empty.
-                                // There is nothing else to do in that case.
-                                found_minimizer = true;
-                            }
-                            else {
-                                auto scaled_lefthand_side =
-                                    scaled_lefthand_side_for_convergent +
-                                    semiconvergent_coeff_decrement * scaled_step_size;
-
-                                auto new_estimate = result.smallest_minimizer +
-                                                    util::div_floor(scaled_threshold_for_minimizer,
-                                                                    scaled_lefthand_side) *
-                                                        semiconvergent.denominator;
-
-                                if (new_estimate >= nrange.upper_bound()) {
-                                    new_estimate = result.smallest_minimizer +
-                                                   util::div_floor(nrange.upper_bound() -
-                                                                       result.smallest_minimizer,
-                                                                   semiconvergent.denominator) *
-                                                       semiconvergent.denominator;
-                                    found_minimizer = true;
-                                }
-                                result.smallest_minimizer = std::move(new_estimate);
-                                scaled_threshold_for_minimizer =
-                                    compute_scaled_threshold_for_minimizer(
-                                        result.smallest_minimizer);
-                            }
-                        }
-                    }
-                }
-            }
+                } // if (!found_minimizer)
+                previous_scaled_lhs_for_convergent = scaled_lhs_for_convergent;
+            } // while (!found_minimizer || !found_maximizer)
 
             return result;
         }
