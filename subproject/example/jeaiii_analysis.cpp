@@ -57,9 +57,11 @@ jeaiii_analysis_floor(
                         nrange.upper_bound() + 1u)
                         .above;
 
-    auto minus_xcf = cntfrc::make_generator(
+    auto minus_xcf = cntfrc::make_generator<cntfrc::previous_previous_convergent_tracker,
+                                            cntfrc::interval_tracker>(
         cntfrc::impl::unary_gosper{static_cast<ContinuedFractionGenerator&&>(xcf), {-1, 0, 0, 1}});
-    auto zero_cf = cntfrc::make_generator(
+    auto zero_cf = cntfrc::make_generator<cntfrc::previous_previous_convergent_tracker,
+                                          cntfrc::interval_tracker>(
         cntfrc::impl::rational<jkj::bigint::int_var, jkj::bigint::uint_var>{0, 1u});
 
     auto maximizer = jkj::idiv::find_maximizer_of_floor_subtract_quotient_positive_range(
@@ -126,13 +128,15 @@ jeaiii_analysis_floor_plus_one(
                         nrange.upper_bound() + 1u)
                         .above;
 
-    auto minus_xcf = cntfrc::make_generator(
+    auto minus_xcf = cntfrc::make_generator<cntfrc::previous_previous_convergent_tracker,
+                                            cntfrc::interval_tracker>(
         cntfrc::impl::unary_gosper{static_cast<ContinuedFractionGenerator&&>(xcf), {-1, 0, 0, 1}});
-    auto zero_cf = cntfrc::make_generator(
+    auto zero_cf = cntfrc::make_generator<cntfrc::interval_tracker>(
         cntfrc::impl::rational<jkj::bigint::int_var, jkj::bigint::uint_var>{0, 1u});
 
-    auto minus_one_cf = cntfrc::make_generator(
-        cntfrc::impl::rational<jkj::bigint::int_var, jkj::bigint::uint_var>{-1, 1u});
+    auto minus_one_cf =
+        cntfrc::make_generator<cntfrc::index_tracker, cntfrc::previous_previous_convergent_tracker>(
+            cntfrc::impl::rational<jkj::bigint::int_var, jkj::bigint::uint_var>{-1, 1u});
 
     auto maximizer = jkj::idiv::find_maximizer_of_floor_subtract_quotient_positive_range(
         minus_xcf.copy(), minus_xcf.copy(), minus_one_cf.copy(), nrange);
