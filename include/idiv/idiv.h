@@ -204,19 +204,27 @@ namespace jkj {
                 find_floor_quotient_range(std::forward<ContinuedFractionGenerator>(cf), nmax));
         }
 
-        struct multiply_add_shift_info {
-            bigint::int_var multiplier;
-            bigint::int_var adder;
-            std::size_t shift_amount;
+        // Represents the set either of the form
+        // {(xi, zeta) | xi_min <= xi < xi_max, a - b*xi <= zeta < c - d*xi}
+        // or of the form
+        // {(xi, zeta) | a - b*xi <= zeta < c - d*xi}.
+        struct xi_zeta_trapezoid {
+            variable_shape_interval<frac<bigint::int_var, bigint::uint_var>,
+                                    interval_type_t::bounded_left_closed_right_open,
+                                    interval_type_t::entire>
+                xi_range;
+            bigint::int_var zeta_left_endpoint_constant_coeff;
+            bigint::int_var zeta_left_endpoint_negative_linear_coeff;
+            bigint::int_var zeta_right_endpoint_constant_coeff;
+            bigint::int_var zeta_right_endpoint_negative_linear_coeff;
         };
 
-        // Given real numbers x, y and a range [nmin:nmax] of integers, find a triple (k,m,s) of
-        // integers such that
-        // (1) k >= 0,
-        // (2) floor(nx + y) = floor((nm + s)/2^k) holds for all n in [nmin:nmax], and
-        // (3) floor(nx) = floor(nm/2^k) holds for all n in [0:nmax-nmin].
+        // Given real numbers x, y and a range [nmin:nmax] of integers, find the trapezoidal region
+        // of (xi, zeta) such that
+        // (1) floor(nx + y) = floor(nxi + zeta) holds for all n in [nmin:nmax], and
+        // (2) floor(nx) = floor(nxi) holds for all n in [0:nmax-nmin].
         template <class ContinuedFractionGeneratorX, class ContinuedFractionGeneratorY>
-        constexpr multiply_add_shift_info find_simultaneous_multiply_add_shift(
+        constexpr xi_zeta_trapezoid find_xi_zeta_region_simultaneous_floor(
             ContinuedFractionGeneratorX&& xcf, ContinuedFractionGeneratorY&& ycf,
             interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
             static_assert(
@@ -232,13 +240,14 @@ namespace jkj {
 
             // TODO: deal with possible rational dependence between x and y.
 
+            using frac_t = frac<bigint::int_var, bigint::uint_var>;
             auto xcf_copy = xcf.copy();
 
             auto const& nmin = nrange.lower_bound();
             auto const nlength = util::abs(nrange.upper_bound() - nrange.lower_bound());
 
-            // Step 1. Subtract out the integer part of y.
-            auto floor_y = [&] {
+            // floor(nmin * x + y).
+            auto floor_nmin_x_plus_y = [&] {
                 auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
                     cntfrc::impl::binary_gosper{xcf.copy(),
                                                 ycf.copy(),
@@ -250,175 +259,403 @@ namespace jkj {
                 return cf.current_partial_fraction().denominator;
             }();
 
-            // Step 2. Find the range of xi satisfying floor(nx) = floor(nxi) for all n.
+            // Early return for the case nmin == nmax.
             if (util::is_zero(nlength)) {
-                // When nmin = nmax, we can take xi to be a whatever number.
-                // For sanity, we choose xi = floor(x).
-                xcf_copy.update();
-                auto xi = xcf_copy.current_convergent().numerator;
-                auto zeta = floor_y - nrange.lower_bound() * xi;
-                return {std::move(xi), std::move(zeta), 0};
+                return xi_zeta_trapezoid{interval<frac_t, interval_type_t::entire>{},
+                                         floor_nmin_x_plus_y, nmin, floor_nmin_x_plus_y + 1u, nmin};
             }
-            auto xi_range = find_floor_quotient_range(xcf_copy, nlength);
-            auto xi_info = find_optimal_multiply_shift(xi_range);
 
-            // Step 3. Determine if any of L, R is empty.
-            bool is_L_empty = [&] {
-                auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
-                    cntfrc::impl::binary_gosper{
-                        xcf.copy(),
-                        ycf.copy(),
-                        {// numerator
-                         0, util::to_signed(xi_range.lower_bound().denominator) + nmin, 1, 0,
-                         // denominator
-                         0, 0, 0, 1}});
-                cf.update();
+            // Find the range of xi, p_*/q_*, p^*/q^*, and the modular inverse q of -p_* with
+            // respect to q_*. Recall that q = 1 if q_* = 1, and it is the denominator of the last
+            // odd semiconvergent before p_*/q_*.
+            struct x_info_t {
+                using convergent_type =
+                    typename std::remove_cvref_t<ContinuedFractionGeneratorX>::convergent_type;
+                frac_t best_below;
+                frac_t best_above;
+                frac_t xi_upper_bound;
+                bigint::uint_var mod_inv;
+            } x_info = [&] {
+                auto xi_range = find_floor_quotient_range(xcf_copy, nlength);
 
-                auto floor = cf.current_partial_fraction().denominator;
-                return floor > xi_range.lower_bound().numerator + floor_y;
-            }();
-            bool is_R_empty = [&] {
-                auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
-                    cntfrc::impl::binary_gosper{
-                        xcf.copy(),
-                        ycf.copy(),
-                        {// numerator
-                         0, util::to_signed(xi_range.upper_bound().denominator) + nmin, 1, 0,
-                         // denominator
-                         0, 0, 0, 1}});
-                cf.update();
-
-                auto floor = cf.current_partial_fraction().denominator;
-                return floor < xi_range.upper_bound().numerator + floor_y;
-            }();
-
-            bigint::int_var adder = 0;
-            if (is_L_empty || is_R_empty) {
-                if (is_R_empty) {
-                    adder = 0;
+                if (xi_range.lower_bound().denominator == 1u) {
+                    return x_info_t{xi_range.lower_bound(), xi_range.lower_bound(),
+                                    xi_range.upper_bound(), 1u};
                 }
-                else {
-                    util::constexpr_assert(is_L_empty);
-                    adder = ((((xi_info.multiplier * xi_range.lower_bound().denominator) >>
-                               xi_info.shift_amount) +
-                              1)
-                             << xi_info.shift_amount) -
-                            xi_info.multiplier * xi_range.lower_bound().denominator;
-                }
-            }
-            else {
-                // Step 4. Find mu and nu.
-                // Find floor(q_* y).
-                auto floor_qstar_y = [&] {
-                    auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
-                        cntfrc::impl::binary_gosper{
-                            xcf.copy(),
-                            ycf.copy(),
-                            {// numerator
-                             0, nmin * xi_range.lower_bound().denominator,
-                             util::to_signed(xi_range.lower_bound().denominator), 0,
-                             // denominator
-                             0, 0, 0, 1}});
-                    cf.update();
-                    return cf.current_partial_fraction().denominator -
-                           xi_range.lower_bound().denominator * floor_y;
-                }();
-                bigint::uint_var mu = 0u;
-                bigint::uint_var nu = 0u;
+
+                // If q_* = q^*.
                 if (xcf_copy.terminated()) {
-                    // When x is effectively rational.
-                    // Use the relation vp == -1 (mod q).
-                    mu = util::abs(((floor_qstar_y + 1u) * xi_range.upper_bound().denominator) %
-                                   xi_range.lower_bound().denominator);
-                    mu += ((nlength - mu) / xi_range.lower_bound().denominator) *
-                          xi_range.lower_bound().denominator;
+                    // If x is its even convergent, then the last proper odd semiconvergent is the
+                    // previous convergent. If x is its odd convergent, then the denominator of the
+                    // last proper odd semiconvergent is the current denominator minust the last
+                    // convergent's denominator.
+                    return x_info_t{xi_range.lower_bound(), xi_range.lower_bound(),
+                                    xi_range.upper_bound(),
+                                    xcf_copy.current_index() % 2 == 0
+                                        ? xcf_copy.previous_convergent_denominator()
+                                        : xcf_copy.current_convergent_denominator() -
+                                              xcf_copy.previous_convergent_denominator()};
+                }
 
-                    nu = util::abs((floor_qstar_y * xi_range.upper_bound().denominator) %
-                                   xi_range.lower_bound().denominator);
+                // If the last semiconvergent is an even semiconvergent, then the last odd
+                // semiconvergent with the denominator < q_* is the previous convergent. If the last
+                // semiconvergent is an odd semiconvergent, then the last odd semiconvergent with
+                // the denominator < q_* is the previous previous convergent.
+                return x_info_t{xi_range.lower_bound(), xi_range.upper_bound(),
+                                xi_range.upper_bound(),
+                                xcf_copy.current_index() % 2 == 0
+                                    ? xcf_copy.previous_convergent_denominator()
+                                    : xcf_copy.previous_previous_convergent_denominator()};
+            }();
+
+            // See if L is empty.
+            {
+                auto const lhs = [&] {
+                    auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
+                        cntfrc::impl::binary_gosper{xcf.copy(),
+                                                    ycf.copy(),
+                                                    {// numerator
+                                                     0, x_info.best_below.denominator + nmin, 1, 0,
+                                                     // denominator
+                                                     0, 0, 0, 1}});
+                    cf.update();
+                    return cf.current_partial_fraction().denominator;
+                }();
+                auto rhs = x_info.best_below.numerator + floor_nmin_x_plus_y;
+
+                if (lhs > rhs) {
+                    // L is empty.
+                    auto mu =
+                        xcf_copy.terminated() ? x_info.mod_inv : x_info.best_above.denominator;
+
+                    return xi_zeta_trapezoid{
+                        interval<frac_t, interval_type_t::bounded_left_closed_right_open>{
+                            x_info.best_below, x_info.xi_upper_bound},
+                        rhs + 1u, x_info.best_below.denominator + nmin,
+                        util::div_floor(mu * x_info.best_below.numerator,
+                                        x_info.best_below.denominator) +
+                            floor_nmin_x_plus_y + 2u,
+                        mu + nmin};
+                }
+            }
+
+            auto const floor_qstar_yprime = [&] {
+                auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
+                    cntfrc::impl::binary_gosper{xcf.copy(),
+                                                ycf.copy(),
+                                                {// numerator
+                                                 0, x_info.best_below.denominator * nmin,
+                                                 util::to_signed(x_info.best_below.denominator), 0,
+                                                 // denominator
+                                                 0, 0, 0, 1}});
+                cf.update();
+                return cf.current_partial_fraction().denominator -
+                       x_info.best_below.denominator * floor_nmin_x_plus_y;
+            }();
+
+            // See if R is empty.
+            {
+                if (xcf_copy.terminated()) {
+                    if (util::is_zero(floor_qstar_yprime)) {
+                        // R is empty.
+                        return xi_zeta_trapezoid{
+                            interval<frac_t, interval_type_t::bounded_left_closed_right_open>{
+                                x_info.best_below, x_info.xi_upper_bound},
+                            x_info.best_below.numerator + floor_nmin_x_plus_y,
+                            x_info.best_below.denominator + nmin,
+                            util::div_floor(x_info.mod_inv * x_info.best_below.numerator,
+                                            x_info.best_below.denominator) +
+                                floor_nmin_x_plus_y + 1u,
+                            x_info.mod_inv + nmin};
+                    }
                 }
                 else {
-                    // When x is effectively irrational.
-                    // Use the relation p_* q^* == -1 (mod q_*).
-                    bool computed_mu = false;
-                    nu = util::abs((floor_qstar_y * xi_range.upper_bound().denominator) %
-                                   xi_range.lower_bound().denominator);
-                    unsigned int l = 0u;
-                    while (true) {
-                        auto ceiling = [&] {
-                            auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
-                                cntfrc::impl::binary_gosper{
-                                    xcf.copy(),
-                                    ycf.copy(),
-                                    {// numerator
-                                     0, nmin * xi_range.lower_bound().denominator,
-                                     util::to_signed(xi_range.lower_bound().denominator),
-                                     -floor_qstar_y - l -
-                                         xi_range.lower_bound().denominator * floor_y,
-                                     // denominator
-                                     0, util::to_signed(xi_range.lower_bound().denominator), 0,
-                                     -xi_range.lower_bound().numerator}});
-                            cf.update();
-                            return -cf.current_partial_fraction().denominator;
-                        }();
+                    auto const lhs = [&] {
+                        auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
+                            cntfrc::impl::binary_gosper{xcf.copy(),
+                                                        ycf.copy(),
+                                                        {// numerator
+                                                         0, x_info.best_above.denominator + nmin, 1,
+                                                         0,
+                                                         // denominator
+                                                         0, 0, 0, 1}});
+                        cf.update();
+                        return cf.current_partial_fraction().denominator;
+                    }();
+                    auto rhs = x_info.best_above.numerator + floor_nmin_x_plus_y;
 
-                        if (ceiling > nlength) {
+                    if (lhs < rhs) {
+                        // R is empty.
+                        return xi_zeta_trapezoid{
+                            interval<frac_t, interval_type_t::bounded_left_closed_right_open>{
+                                x_info.best_below, x_info.xi_upper_bound},
+                            x_info.best_below.numerator + floor_nmin_x_plus_y,
+                            x_info.best_below.denominator + nmin,
+                            util::div_floor(x_info.best_above.denominator *
+                                                x_info.best_below.numerator,
+                                            x_info.best_below.denominator) +
+                                floor_nmin_x_plus_y + 1u,
+                            x_info.best_above.denominator + nmin};
+                    }
+                }
+            }
+
+            // Both L & R are not empty but x is rational with denominator <= nlength.
+            if (xcf_copy.terminated()) {
+                auto mu =
+                    ((floor_qstar_yprime + 1u) * x_info.mod_inv) % x_info.best_below.denominator;
+                auto nu = (floor_qstar_yprime * x_info.mod_inv) % x_info.best_below.denominator;
+
+                return xi_zeta_trapezoid{
+                    interval<frac_t, interval_type_t::bounded_left_closed_right_open>{
+                        x_info.best_below, x_info.xi_upper_bound},
+                    util::div_floor(nu * x_info.best_below.numerator,
+                                    x_info.best_below.denominator) +
+                        floor_nmin_x_plus_y + 1u,
+                    nu + nmin,
+                    util::div_floor(mu * x_info.best_below.numerator,
+                                    x_info.best_below.denominator) +
+                        floor_nmin_x_plus_y + 1u,
+                    mu + nmin};
+            }
+
+            // Both L & R are not empty but x is not rational with denominator <= nlength.
+            // Compute common constants.
+            auto const& qstar = x_info.best_below.denominator;
+            auto const& pstar = x_info.best_below.numerator;
+            auto const& q = x_info.mod_inv;
+
+            using gosper_coefficients = cntfrc::bilinear_fractional_transform<
+                bigint::int_var, bigint::int_var, bigint::int_var, bigint::int_var, bigint::int_var,
+                bigint::int_var, bigint::int_var, bigint::int_var>;
+
+            auto k_common = [&](auto const& r) {
+                auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
+                    cntfrc::impl::binary_gosper{
+                        xcf.copy(), ycf.copy(),
+                        gosper_coefficients{
+                            // numerator
+                            0, qstar * (nmin - q * r), util::to_signed(qstar),
+                            (q * pstar + 1) * r - qstar * (floor_nmin_x_plus_y + 1u),
+                            // denominator
+                            0, util::to_signed(qstar * qstar), 0, qstar * -pstar}});
+                cf.update();
+                return -cf.current_partial_fraction().denominator;
+            };
+
+            auto r_common = [&](auto const& k) {
+                auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
+                    cntfrc::impl::binary_gosper{
+                        xcf.copy(), ycf.copy(),
+                        gosper_coefficients{// numerator
+                                            0, qstar * (qstar * k + nmin), util::to_signed(qstar),
+                                            qstar * -(pstar * k + floor_nmin_x_plus_y + 1u),
+                                            // denominator
+                                            0, util::to_negative(q * qstar), 0, q * pstar + 1u}});
+                cf.update();
+                return -cf.current_partial_fraction().denominator;
+            };
+
+            auto const ceil_rT = qstar - floor_qstar_yprime;
+            auto const ceil_rB = [&] {
+                auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
+                    cntfrc::impl::binary_gosper{xcf.copy(), ycf.copy(),
+                                                gosper_coefficients{// numerator
+                                                                    0, qstar * nrange.upper_bound(),
+                                                                    util::to_signed(qstar), 0,
+                                                                    // denominator
+                                                                    0, 0, 0, 1}});
+                cf.update();
+                return qstar * (floor_nmin_x_plus_y + 1u) + pstar * nlength -
+                       cf.current_partial_fraction().denominator;
+            }();
+
+            struct k_r_pair {
+                bigint::int_var k;
+                bigint::int_var r;
+            };
+
+            // Compute mu.
+            auto k_r_pair_for_mu = [&]() -> k_r_pair {
+                auto const floor_kPR = util::div_floor(nlength + q * (ceil_rB - 1u), qstar);
+                auto const ceil_kTR = k_common(ceil_rT - 1u);
+                auto const floor_kTL = util::div_floor(q * (ceil_rT - 1u), qstar);
+                auto const ceil_rTR = r_common(ceil_kTR);
+                auto const ceil_rTL = util::div_ceil(qstar * floor_kTL, q);
+                auto const ceil_kTRR = k_common(ceil_rTR - 1u);
+                auto const ceil_kTLR = k_common(ceil_rTL - 1u);
+
+                if (ceil_rT - 1u < ceil_rB) {
+                    return {floor_kPR, ceil_rB - 1u};
+                }
+                else if (ceil_kTR - 1u > floor_kTL) {
+                    return {ceil_kTR - 1u, ceil_rT - 1u};
+                }
+
+                if (ceil_rTR - 1u >= ceil_rB) {
+                    if (ceil_rTL >= ceil_rTR) {
+                        return {ceil_kTLR - 1u, ceil_rTL - 1u};
+                    }
+                    else {
+                        return {ceil_kTRR - 1u, ceil_rTR - 1u};
+                    }
+                }
+                else {
+                    if (ceil_rTL - 1u >= ceil_rB) {
+                        return {ceil_kTLR - 1u, ceil_rTL - 1u};
+                    }
+                    else {
+                        return {floor_kPR, ceil_rB - 1u};
+                    }
+                }
+            }();
+            util::constexpr_assert(k_r_pair_for_mu.r >= 0 && k_r_pair_for_mu.r < qstar);
+            auto mu = qstar * std::move(k_r_pair_for_mu.k) - q * std::move(k_r_pair_for_mu.r);
+            util::constexpr_assert(mu >= 1 && mu <= nlength);
+
+            // Compute nu.
+            auto k_r_pair_for_nu = [&]() -> k_r_pair {
+                auto const rBprime = util::is_nonnegative(ceil_rB) ? ceil_rB : bigint::int_var{0};
+
+                auto const floor_kPL = util::div_floor(q * ceil_rT, qstar);
+                auto const ceil_kBL = k_common(rBprime);
+                auto const floor_kBR = util::div_floor(nlength + q * rBprime, qstar);
+                auto const ceil_rBL = r_common(floor_kBR);
+                auto const ceil_rBR = util::div_ceil(nlength + qstar * ceil_kBL, q);
+                auto const ceil_kBLL = k_common(ceil_rBL);
+                auto const ceil_kBRL = k_common(ceil_rBR);
+
+                if (rBprime >= ceil_rT) {
+                    return {floor_kPL + 1u, ceil_rT};
+                }
+                else if (ceil_kBL <= floor_kBR) {
+                    return {ceil_kBL, rBprime};
+                }
+
+                if (ceil_rBL < ceil_rT) {
+                    if (ceil_rBR <= ceil_rBL) {
+                        return {ceil_kBRL, ceil_rBR};
+                    }
+                    else {
+                        return {ceil_kBLL, ceil_rBL};
+                    }
+                }
+                else {
+                    if (ceil_rBR < ceil_rT) {
+                        return {ceil_kBRL, ceil_rBR};
+                    }
+                    else {
+                        return {floor_kPL + 1u, ceil_rT};
+                    }
+                }
+            }();
+            util::constexpr_assert(k_r_pair_for_nu.r >= 0 && k_r_pair_for_nu.r < qstar);
+            auto nu = qstar * std::move(k_r_pair_for_nu.k) - q * std::move(k_r_pair_for_nu.r);
+            util::constexpr_assert(nu >= 1 && nu <= nlength);
+
+            return xi_zeta_trapezoid{
+                interval<frac_t, interval_type_t::bounded_left_closed_right_open>{
+                    x_info.best_below, x_info.xi_upper_bound},
+                util::div_floor(nu * pstar, qstar) + floor_nmin_x_plus_y + 1u, nu + nmin,
+                util::div_floor(mu * pstar, qstar) + floor_nmin_x_plus_y + 1u, mu + nmin};
+        }
+
+        struct multiply_add_shift_info {
+            bigint::int_var multiplier;
+            bigint::int_var adder;
+            std::size_t shift_amount;
+        };
+
+        // Given real numbers x, y and a range [nmin:nmax] of integers, loop over all triples
+        // (k,m,s) of integers such that
+        // (1) k >= 0,
+        // (2) floor(nx + y) = floor((nm + s)/2^k) holds for all n in [nmin:nmax],
+        // (3) floor(nx) = floor(nm/2^k) holds for all n in [0:nmax-nmin], and
+        // (4) k is the smallest among all integers satisfying the above three.
+        // The parameter callback is called with each such triple.
+        // callback should be able to take a parameter of type multiply_add_shift_info and return
+        // bool. If it returns true, the loop continues, and if it returns false, the function
+        // returns immediately.
+        template <class ContinuedFractionGeneratorX, class ContinuedFractionGeneratorY,
+                  class Callback>
+        constexpr void for_each_simultaneous_multiply_add_shift(
+            ContinuedFractionGeneratorX&& xcf, ContinuedFractionGeneratorY&& ycf,
+            interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange,
+            Callback&& callback) {
+            static_assert(
+                std::remove_cvref_t<ContinuedFractionGeneratorX>::template is_implementing_mixins<
+                    cntfrc::previous_previous_convergent_tracker, cntfrc::interval_tracker>(),
+                "the first continued fraction generator must implement "
+                "previous_previous_convergent_tracker and "
+                "interval_tracker");
+            static_assert(
+                std::remove_cvref_t<ContinuedFractionGeneratorY>::template is_implementing_mixins<
+                    cntfrc::interval_tracker>(),
+                "the second continued fraction generator must implement interval_tracker");
+
+            auto const trapezoid = find_xi_zeta_region_simultaneous_floor(xcf, ycf, nrange);
+
+            using nrange_t = interval<bigint::int_var, interval_type_t::bounded_closed>;
+            struct horizontal_record_t {
+                bigint::int_var multiplier;
+                nrange_t adders;
+            };
+
+            trapezoid.xi_range.visit([&callback, &trapezoid](auto const& itv) {
+                using itv_type = std::remove_cvref_t<decltype(itv)>;
+
+                if constexpr (itv_type::interval_type() == interval_type_t::entire) {
+                    // xi can be any real number, and for each xi, there uniquely exists an integer
+                    // zeta such that floor(nmin x + y) = floor(nmin xi + zeta) holds.
+                    // Thus, we simply take k = 0, and loop over all integers xi, sorted with the
+                    // absolute value.
+                    bigint::uint_var abs_xi = 0u;
+                    auto zeta_for_positive_xi = trapezoid.zeta_left_endpoint_constant_coeff;
+                    auto zeta_for_negative_xi = trapezoid.zeta_left_endpoint_constant_coeff;
+
+                    bool should_continue = callback(
+                        multiply_add_shift_info{util::to_signed(abs_xi), zeta_for_positive_xi, 0});
+                    while (should_continue) {
+                        ++abs_xi;
+                        zeta_for_positive_xi -= trapezoid.zeta_left_endpoint_negative_linear_coeff;
+                        zeta_for_negative_xi += trapezoid.zeta_left_endpoint_negative_linear_coeff;
+
+                        should_continue = callback(multiply_add_shift_info{
+                            util::to_signed(abs_xi), zeta_for_positive_xi, 0});
+                        if (!should_continue) {
                             break;
                         }
-
-                        auto b =
-                            util::abs(((floor_qstar_y + l) * xi_range.upper_bound().denominator) %
-                                      xi_range.lower_bound().denominator);
-
-                        if (!computed_mu && l != 0u) {
-                            if (b < ceiling) {
-                                mu = b;
-                                mu +=
-                                    util::abs(util::div_floor(ceiling - b - 1,
-                                                              xi_range.lower_bound().denominator) *
-                                              xi_range.lower_bound().denominator);
-                                computed_mu = true;
-                            }
-                        }
-
-                        if (b >= ceiling) {
-                            nu = b;
-                        }
-                        else {
-                            b += util::div_ceil(util::abs(ceiling - b),
-                                                xi_range.lower_bound().denominator) *
-                                 xi_range.lower_bound().denominator;
-                            if (b <= nlength) {
-                                nu = b;
-                            }
-                        }
-
-                        ++l;
-                    }
-
-                    if (!computed_mu) {
-                        mu = util::abs(((floor_qstar_y + l) * xi_range.upper_bound().denominator) %
-                                       xi_range.lower_bound().denominator);
-                        mu += ((nlength - mu) / xi_range.lower_bound().denominator) *
-                              xi_range.lower_bound().denominator;
+                        should_continue = callback(multiply_add_shift_info{
+                            util::to_negative(abs_xi), zeta_for_negative_xi, 0});
                     }
                 }
+                else {
+                    static_assert(itv_type::interval_type() ==
+                                  interval_type_t::bounded_left_closed_right_open);
 
-                // If xi is precisely p_*/q_* and mu < nu, we may need to be careful.
-                if (xi_info.multiplier == xi_range.lower_bound().numerator &&
-                    bigint::uint_var::power_of_2(xi_info.shift_amount) ==
-                        xi_range.lower_bound().denominator &&
-                    mu < nu && (nu - mu).factor_out_power_of_2() >= xi_info.shift_amount) {
-                    // Find xi with the next smallest k.
+                    // k = ceil(log2(1/Delta)) since itv is not open.
+                    auto k = [&] {
+                        auto const delta = itv.upper_bound() - itv.lower_bound();
+                        util::constexpr_assert(util::is_strictly_positive(delta.numerator));
+
+                        return trunc_ceil_log2_div(delta.denominator, util::abs(delta.numerator));
+                    }();
+
+                    auto multiplier = util::div_ceil(itv.lower_bound().numerator << k,
+                                                     itv.lower_bound().denominator);
+                    auto right_end = util::div_ceil(itv.upper_bound().numerator << k,
+                                                    itv.upper_bound().denominator);
                     while (true) {
-                        ++xi_info.shift_amount;
-                        xi_info.multiplier = util::div_ceil(
-                            (xi_range.lower_bound().numerator << xi_info.shift_amount),
-                            xi_range.lower_bound().denominator);
-                        if (util::is_even(xi_info.multiplier)) {
-                            ++xi_info.multiplier;
+                        auto new_left_end = util::div_ceil(itv.lower_bound().numerator << (k - 1),
+                                                           itv.lower_bound().denominator);
+                        auto new_right_end = util::div_ceil(itv.upper_bound().numerator << (k - 1),
+                                                            itv.upper_bound().denominator);
 
-                            if (xi_info.multiplier * xi_range.upper_bound().denominator <
-                                (xi_range.upper_bound().numerator << xi_info.shift_amount)) {
+                        if (new_left_end < new_right_end) {
+                            --k;
+                            multiplier = std::move(new_left_end);
+                            right_end = std::move(new_right_end);
+                            if (k == 0) {
                                 break;
                             }
                         }
@@ -426,15 +663,72 @@ namespace jkj {
                             break;
                         }
                     }
-                }
-                adder = ((((nu * xi_info.multiplier) >> xi_info.shift_amount) + 1)
-                         << xi_info.shift_amount) -
-                        nu * xi_info.multiplier;
-            }
 
-            adder += (floor_y <<= xi_info.shift_amount);
-            adder -= nmin * xi_info.multiplier;
-            return {std::move(xi_info.multiplier), std::move(adder), xi_info.shift_amount};
+                    bool should_continue = true;
+                    bool succeeded = false;
+                    while (should_continue) {
+                        for (; multiplier < right_end; ++multiplier) {
+                            auto smin =
+                                (trapezoid.zeta_left_endpoint_constant_coeff << k) -
+                                multiplier * trapezoid.zeta_left_endpoint_negative_linear_coeff;
+                            auto smax =
+                                (trapezoid.zeta_right_endpoint_constant_coeff << k) -
+                                multiplier * trapezoid.zeta_right_endpoint_negative_linear_coeff;
+
+                            if (smin < smax) {
+                                succeeded = true;
+                                for (auto s = smin; s < smax; ++s) {
+                                    should_continue =
+                                        callback(multiply_add_shift_info{multiplier, s, k});
+                                    if (!should_continue) {
+                                        break;
+                                    }
+                                }
+                            }
+                            if (!should_continue) {
+                                break;
+                            }
+                        }
+
+                        if (!succeeded) {
+                            ++k;
+                            multiplier = util::div_ceil(itv.lower_bound().numerator << k,
+                                                        itv.lower_bound().denominator);
+                            right_end = util::div_ceil(itv.upper_bound().numerator << k,
+                                                       itv.upper_bound().denominator);
+                        }
+                    }
+                }
+            });
+        }
+
+        // Given real numbers x, y and a range [nmin:nmax] of integers, find a triple (k,m,s) of
+        // integers such that
+        // (1) k >= 0,
+        // (2) floor(nx + y) = floor((nm + s)/2^k) holds for all n in [nmin:nmax],
+        // (3) floor(nx) = floor(nm/2^k) holds for all n in [0:nmax-nmin], and
+        // (4) k is the smallest among all integers satisfying the above three.
+        template <class ContinuedFractionGeneratorX, class ContinuedFractionGeneratorY>
+        constexpr multiply_add_shift_info find_simultaneous_multiply_add_shift(
+            ContinuedFractionGeneratorX&& xcf, ContinuedFractionGeneratorY&& ycf,
+            interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
+            static_assert(
+                std::remove_cvref_t<ContinuedFractionGeneratorX>::template is_implementing_mixins<
+                    cntfrc::previous_previous_convergent_tracker, cntfrc::interval_tracker>(),
+                "the first continued fraction generator must implement "
+                "previous_previous_convergent_tracker and "
+                "interval_tracker");
+            static_assert(
+                std::remove_cvref_t<ContinuedFractionGeneratorY>::template is_implementing_mixins<
+                    cntfrc::interval_tracker>(),
+                "the second continued fraction generator must implement interval_tracker");
+
+            multiply_add_shift_info result;
+            for_each_simultaneous_multiply_add_shift(xcf, ycf, nrange, [&](auto&& info) {
+                result = std::move(info);
+                return false;
+            });
+            return result;
         }
 
         // Given real numbers x, y and a range [nmin:nmax] of integers, find the smallest minimizer
