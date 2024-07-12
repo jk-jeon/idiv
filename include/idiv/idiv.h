@@ -593,13 +593,9 @@ namespace jkj {
                     cntfrc::interval_tracker>(),
                 "the second continued fraction generator must implement interval_tracker");
 
-            auto const trapezoid = find_xi_zeta_region_simultaneous_floor(xcf, ycf, nrange);
-
+            using frac_t = frac<bigint::int_var, bigint::uint_var>;
             using nrange_t = interval<bigint::int_var, interval_type_t::bounded_closed>;
-            struct horizontal_record_t {
-                bigint::int_var multiplier;
-                nrange_t adders;
-            };
+            auto const trapezoid = find_xi_zeta_region_simultaneous_floor(xcf, ycf, nrange);
 
             trapezoid.xi_range.visit([&callback, &trapezoid](auto const& itv) {
                 using itv_type = std::remove_cvref_t<decltype(itv)>;
@@ -640,33 +636,38 @@ namespace jkj {
 
                         return trunc_ceil_log2_div(delta.denominator, util::abs(delta.numerator));
                     }();
-
                     auto multiplier = util::div_ceil(itv.lower_bound().numerator << k,
                                                      itv.lower_bound().denominator);
-                    auto right_end = util::div_ceil(itv.upper_bound().numerator << k,
-                                                    itv.upper_bound().denominator);
-                    while (true) {
-                        auto new_left_end = util::div_ceil(itv.lower_bound().numerator << (k - 1),
-                                                           itv.lower_bound().denominator);
-                        auto new_right_end = util::div_ceil(itv.upper_bound().numerator << (k - 1),
-                                                            itv.upper_bound().denominator);
 
-                        if (new_left_end < new_right_end) {
-                            --k;
-                            multiplier = std::move(new_left_end);
-                            right_end = std::move(new_right_end);
-                            if (k == 0) {
-                                break;
+                    if (k > 0) {
+                        auto factor_out_power_of_2_limited = [&] {
+                            auto pow2_factors = factor_out_power_of_2(multiplier);
+                            if (pow2_factors > k) {
+                                multiplier <<= (pow2_factors - k);
+                                k = 0;
                             }
+                            else {
+                                k -= pow2_factors;
+                            }
+                        };
+
+                        if (util::is_even(multiplier)) {
+                            factor_out_power_of_2_limited();
                         }
                         else {
-                            break;
+                            auto next_lattice_point = multiplier + 1u;
+                            if (next_lattice_point * itv.upper_bound().denominator <
+                                (itv.upper_bound().numerator << k)) {
+                                multiplier = std::move(next_lattice_point);
+                                factor_out_power_of_2_limited();
+                            }
                         }
                     }
 
-                    bool should_continue = true;
+                    auto right_end = util::div_ceil(itv.upper_bound().numerator << k,
+                                                    itv.upper_bound().denominator);
                     bool succeeded = false;
-                    while (should_continue) {
+                    while (true) {
                         for (; multiplier < right_end; ++multiplier) {
                             auto smin =
                                 (trapezoid.zeta_left_endpoint_constant_coeff << k) -
@@ -677,6 +678,7 @@ namespace jkj {
 
                             if (smin < smax) {
                                 succeeded = true;
+                                bool should_continue = true;
                                 for (auto s = smin; s < smax; ++s) {
                                     should_continue =
                                         callback(multiply_add_shift_info{multiplier, s, k});
@@ -684,20 +686,42 @@ namespace jkj {
                                         break;
                                     }
                                 }
-                            }
-                            if (!should_continue) {
-                                break;
+                                if (!should_continue) {
+                                    break;
+                                }
                             }
                         }
 
-                        if (!succeeded) {
-                            ++k;
+                        if (succeeded) {
+                            break;
+                        }
+                        else {
+                            --multiplier;
+                            auto left_gap = frac_t{multiplier * itv.lower_bound().denominator -
+                                                       (itv.lower_bound().numerator << k),
+                                                   itv.lower_bound().denominator};
+                            auto right_gap = frac_t{(itv.upper_bound().numerator << k) -
+                                                        multiplier * itv.upper_bound().denominator,
+                                                    itv.upper_bound().denominator};
+                            util::constexpr_assert(util::is_nonnegative(left_gap.numerator) &&
+                                                   util::is_strictly_positive(right_gap.numerator));
+
+                            if (left_gap >= right_gap) {
+                                k += trunc_ceil_log2_div(left_gap.denominator,
+                                                         util::abs(left_gap.numerator));
+                            }
+                            else {
+                                k += trunc_floor_log2_div(right_gap.denominator,
+                                                          util::abs(right_gap.numerator)) +
+                                     1u;
+                            }
+
                             multiplier = util::div_ceil(itv.lower_bound().numerator << k,
                                                         itv.lower_bound().denominator);
                             right_end = util::div_ceil(itv.upper_bound().numerator << k,
                                                        itv.upper_bound().denominator);
                         }
-                    }
+                    } // while (true)
                 }
             });
         }
