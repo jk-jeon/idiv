@@ -255,10 +255,10 @@ int main() {
                               << itv.upper_bound().numerator << " / "
                               << itv.upper_bound().denominator << "].\n";
 
-                    auto multiply_shift_result = jkj::idiv::find_optimal_multiply_shift(itv);
+                    auto multiply_shift_result = jkj::idiv::find_optimal_binary_lattice_point(itv);
                     std::cout
                         << "The smallest admissible magic number and the associated shift amount: ("
-                        << multiply_shift_result.multiplier << ", "
+                        << multiply_shift_result.numerator << ", "
                         << multiply_shift_result.shift_amount << ").\n\n\n";
                 }
             });
@@ -289,10 +289,10 @@ int main() {
                               << itv.upper_bound().numerator << " / "
                               << itv.upper_bound().denominator << "].\n";
 
-                    auto multiply_shift_result = jkj::idiv::find_optimal_multiply_shift(itv);
+                    auto multiply_shift_result = jkj::idiv::find_optimal_binary_lattice_point(itv);
                     std::cout
                         << "The smallest admissible magic number and the associated shift amount: ("
-                        << multiply_shift_result.multiplier << ", "
+                        << multiply_shift_result.numerator << ", "
                         << multiply_shift_result.shift_amount << ").\n\n\n";
                 }
             });

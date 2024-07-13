@@ -266,7 +266,7 @@ namespace jkj {
 }
 
 int main() {
-    auto const params = [] {
+    auto params = [] {
         std::ifstream input_file{"xi_zeta_region_json_example_input.json"};
         std::stringstream strstream;
         strstream << input_file.rdbuf();
