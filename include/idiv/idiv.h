@@ -34,9 +34,8 @@ namespace jkj {
             interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
             static_assert(
                 std::remove_cvref_t<ContinuedFractionGeneratorX>::template is_implementing_mixins<
-                    cntfrc::previous_previous_convergent_tracker, cntfrc::interval_tracker>(),
-                "the first continued fraction generator must implement "
-                "previous_previous_convergent_tracker and "
+                    cntfrc::convergent_tracker, cntfrc::interval_tracker>(),
+                "the first continued fraction generator must implement convergent_tracker and "
                 "interval_tracker");
             static_assert(
                 std::remove_cvref_t<ContinuedFractionGeneratorY>::template is_implementing_mixins<
@@ -52,12 +51,17 @@ namespace jkj {
             util::constexpr_assert(util::is_strictly_positive(nrange.lower_bound()));
 
             // Find good enough approximations of x and y.
-            auto approx_x_y_info =
-                find_simultaneous_multiply_add_shift(xcf.copy(), ycf.copy(), nrange);
+            auto approx_x_y_info = find_simultaneous_multiply_add_shift(
+                std::forward<ContinuedFractionGeneratorX>(xcf),
+                std::forward<ContinuedFractionGeneratorY>(ycf), nrange);
             auto xcf_copy = cntfrc::make_caching_generator(
-                cntfrc::make_generator<cntfrc::partial_fraction_tracker,
-                                       cntfrc::convergent_tracker>(cntfrc::impl::rational{
-                    approx_x_y_info.multiplier,
+                cntfrc::make_generator<cntfrc::convergent_tracker, cntfrc::interval_tracker>(
+                    cntfrc::impl::rational{
+                        approx_x_y_info.multiplier,
+                        bigint::uint_var::power_of_2(approx_x_y_info.shift_amount)}));
+            auto ycf_copy = cntfrc::make_caching_generator(
+                cntfrc::make_generator<cntfrc::interval_tracker>(cntfrc::impl::rational{
+                    approx_x_y_info.adder,
                     bigint::uint_var::power_of_2(approx_x_y_info.shift_amount)}));
 
             // Find a good enough approximation of zeta.
@@ -68,7 +72,8 @@ namespace jkj {
 
             // Find the smallest minimizer of the fractional part.
             auto const n00 =
-                find_extremizers_of_fractional_part(xcf, ycf, nrange).smallest_minimizer;
+                find_extremizers_of_fractional_part(xcf_copy, ycf_copy, nrange).smallest_minimizer;
+            xcf_copy.rewind();
 
             // Solve the maximization problem on the left.
             auto left_maximizer = n00;
@@ -76,10 +81,10 @@ namespace jkj {
                 // n1 is the largest minimizer of (floor(nx) + 1) / n, which is the largest multiple
                 // of the largest maximizer of nx - floor(nx), where n is in [1:n0 - nmin].
                 auto const n1 = [&] {
-                    xcf_copy.rewind();
                     auto const nmax = util::abs(left_maximizer - nrange.lower_bound());
                     auto smallest_minimizer =
                         find_extremizers_of_fractional_part(xcf_copy, nmax).largest_maximizer;
+                    xcf_copy.rewind();
                     return util::div_floor(nmax, smallest_minimizer) * smallest_minimizer;
                 }();
 
@@ -103,10 +108,10 @@ namespace jkj {
                 // n1 is the largest maximizer of floor(nx)/ n, which is the largest multiple of the
                 // smallest minimizer of nx - floor(nx), where n is in [1:nmax - n0].
                 auto const n1 = [&] {
-                    xcf_copy.rewind();
                     auto const nmax = util::abs(nrange.upper_bound() - right_maximizer);
                     auto smallest_maximizer =
                         find_extremizers_of_fractional_part(xcf_copy, nmax).smallest_minimizer;
+                    xcf_copy.rewind();
                     return util::div_floor(nmax, smallest_maximizer) * smallest_maximizer;
                 }();
 
@@ -152,9 +157,8 @@ namespace jkj {
             interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
             static_assert(
                 std::remove_cvref_t<ContinuedFractionGeneratorX>::template is_implementing_mixins<
-                    cntfrc::previous_previous_convergent_tracker, cntfrc::interval_tracker>(),
-                "the first continued fraction generator must implement "
-                "previous_previous_convergent_tracker and "
+                    cntfrc::convergent_tracker, cntfrc::interval_tracker>(),
+                "the first continued fraction generator must implement convergent_tracker and "
                 "interval_tracker");
             static_assert(
                 std::remove_cvref_t<ContinuedFractionGeneratorY>::template is_implementing_mixins<
@@ -170,12 +174,18 @@ namespace jkj {
             util::constexpr_assert(nrange.lower_bound() > 0);
 
             // Find good enough approximations of x and y.
-            auto approx_x_y_info =
-                find_simultaneous_multiply_add_shift(xcf.copy(), ycf.copy(), nrange);
+            // Find good enough approximations of x and y.
+            auto approx_x_y_info = find_simultaneous_multiply_add_shift(
+                std::forward<ContinuedFractionGeneratorX>(xcf),
+                std::forward<ContinuedFractionGeneratorY>(ycf), nrange);
             auto xcf_copy = cntfrc::make_caching_generator(
-                cntfrc::make_generator<cntfrc::partial_fraction_tracker,
-                                       cntfrc::convergent_tracker>(cntfrc::impl::rational{
-                    approx_x_y_info.multiplier,
+                cntfrc::make_generator<cntfrc::convergent_tracker, cntfrc::interval_tracker>(
+                    cntfrc::impl::rational{
+                        approx_x_y_info.multiplier,
+                        bigint::uint_var::power_of_2(approx_x_y_info.shift_amount)}));
+            auto ycf_copy = cntfrc::make_caching_generator(
+                cntfrc::make_generator<cntfrc::interval_tracker>(cntfrc::impl::rational{
+                    approx_x_y_info.adder,
                     bigint::uint_var::power_of_2(approx_x_y_info.shift_amount)}));
 
             // Find a good enough approximation of zeta.
@@ -186,7 +196,8 @@ namespace jkj {
 
             // Find the largest maximizer of the fractional part.
             auto const n00 =
-                find_extremizers_of_fractional_part(xcf, ycf, nrange).largest_maximizer;
+                find_extremizers_of_fractional_part(xcf_copy, ycf_copy, nrange).largest_maximizer;
+            xcf_copy.rewind();
 
             // Solve the minimization problem on the left.
             auto left_minimizer = n00;
@@ -194,10 +205,10 @@ namespace jkj {
                 // n1 is the largest maximizer of floor(nx)/ n, which is the largest multiple of the
                 // smallest minimizer of nx - floor(nx), where n is in [1:n0 - nmin].
                 auto const n1 = [&] {
-                    xcf_copy.rewind();
                     auto const nmax = util::abs(left_minimizer - nrange.lower_bound());
                     auto smallest_maximizer =
                         find_extremizers_of_fractional_part(xcf_copy, nmax).smallest_minimizer;
+                    xcf_copy.rewind();
                     return util::div_floor(nmax, smallest_maximizer) * smallest_maximizer;
                 }();
 
@@ -220,10 +231,10 @@ namespace jkj {
                 // n1 is the largest minimizer of (floor(nx) + 1) / n, which is the largest multiple
                 // of the largest maximizer of nx - floor(nx), where n is in [1:nmax - n0].
                 auto const n1 = [&] {
-                    xcf_copy.rewind();
                     auto const nmax = util::abs(nrange.upper_bound() - right_minimizer);
                     auto smallest_minimizer =
                         find_extremizers_of_fractional_part(xcf_copy, nmax).largest_maximizer;
+                    xcf_copy.rewind();
                     return util::div_floor(nmax, smallest_minimizer) * smallest_minimizer;
                 }();
 

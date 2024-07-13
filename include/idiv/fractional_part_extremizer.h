@@ -32,9 +32,8 @@ namespace jkj {
             interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
             static_assert(
                 std::remove_cvref_t<ContinuedFractionGeneratorX>::template is_implementing_mixins<
-                    cntfrc::previous_previous_convergent_tracker, cntfrc::interval_tracker>(),
-                "the first continued fraction generator must implement "
-                "previous_previous_convergent_tracker and "
+                    cntfrc::convergent_tracker, cntfrc::interval_tracker>(),
+                "the first continued fraction generator must implement convergent_tracker and "
                 "interval_tracker");
             static_assert(
                 std::remove_cvref_t<ContinuedFractionGeneratorY>::template is_implementing_mixins<

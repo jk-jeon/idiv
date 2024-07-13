@@ -19,6 +19,7 @@
 #define JKJ_HEADER_SIMULTANEOUS_FLOOR
 
 #include "best_rational_approx.h"
+#include "caching_generator.h"
 #include "gosper_continued_fraction.h"
 #include "bigint.h"
 
@@ -49,9 +50,8 @@ namespace jkj {
             interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
             static_assert(
                 std::remove_cvref_t<ContinuedFractionGeneratorX>::template is_implementing_mixins<
-                    cntfrc::previous_previous_convergent_tracker, cntfrc::interval_tracker>(),
-                "the first continued fraction generator must implement "
-                "previous_previous_convergent_tracker and "
+                    cntfrc::convergent_tracker, cntfrc::interval_tracker>(),
+                "the first continued fraction generator must implement convergent_tracker and "
                 "interval_tracker");
             static_assert(
                 std::remove_cvref_t<ContinuedFractionGeneratorY>::template is_implementing_mixins<
@@ -61,7 +61,13 @@ namespace jkj {
             // TODO: deal with possible rational dependence between x and y.
 
             using frac_t = frac<bigint::int_var, bigint::uint_var>;
-            auto xcf_copy = xcf.copy();
+            auto caching_xcf = cntfrc::caching_generator<ContinuedFractionGeneratorX>{
+                std::forward<ContinuedFractionGeneratorX>(xcf)};
+            auto caching_ycf = cntfrc::caching_generator<ContinuedFractionGeneratorY>{
+                std::forward<ContinuedFractionGeneratorY>(ycf)};
+
+            using caching_xcf_ref = decltype(caching_xcf)&;
+            using caching_ycf_ref = decltype(caching_ycf)&;
 
             auto const& nmin = nrange.lower_bound();
             auto const nlength = util::abs(nrange.upper_bound() - nrange.lower_bound());
@@ -69,13 +75,15 @@ namespace jkj {
             // floor(nmin * x + y).
             auto floor_nmin_x_plus_y = [&] {
                 auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
-                    cntfrc::impl::binary_gosper{xcf.copy(),
-                                                ycf.copy(),
-                                                {// numerator
-                                                 0, nmin, 1, 0,
-                                                 // denominator
-                                                 0, 0, 0, 1}});
+                    cntfrc::impl::binary_gosper<caching_xcf_ref, caching_ycf_ref>{caching_xcf,
+                                                                                  caching_ycf,
+                                                                                  {// numerator
+                                                                                   0, nmin, 1, 0,
+                                                                                   // denominator
+                                                                                   0, 0, 0, 1}});
                 cf.update();
+                caching_xcf.rewind();
+                caching_ycf.rewind();
                 return cf.current_partial_fraction().denominator;
             }();
 
@@ -96,7 +104,7 @@ namespace jkj {
                 frac_t xi_upper_bound;
                 bigint::uint_var mod_inv;
             } x_info = [&] {
-                auto xi_range = find_floor_quotient_range(xcf_copy, nlength);
+                auto xi_range = find_floor_quotient_range(caching_xcf, nlength);
 
                 if (xi_range.lower_bound().denominator == 1u) {
                     return x_info_t{xi_range.lower_bound(), xi_range.lower_bound(),
@@ -104,17 +112,17 @@ namespace jkj {
                 }
 
                 // If q_* = q^*.
-                if (xcf_copy.terminated()) {
+                if (caching_xcf.terminated()) {
                     // If x is its even convergent, then the last proper odd semiconvergent is the
                     // previous convergent. If x is its odd convergent, then the denominator of the
                     // last proper odd semiconvergent is the current denominator minust the last
                     // convergent's denominator.
                     return x_info_t{xi_range.lower_bound(), xi_range.lower_bound(),
                                     xi_range.upper_bound(),
-                                    xcf_copy.current_index() % 2 == 0
-                                        ? xcf_copy.previous_convergent_denominator()
-                                        : xcf_copy.current_convergent_denominator() -
-                                              xcf_copy.previous_convergent_denominator()};
+                                    caching_xcf.current_index() % 2 == 0
+                                        ? caching_xcf.previous_convergent_denominator()
+                                        : caching_xcf.current_convergent_denominator() -
+                                              caching_xcf.previous_convergent_denominator()};
                 }
 
                 // If the last semiconvergent is an even semiconvergent, then the last odd
@@ -123,30 +131,34 @@ namespace jkj {
                 // the denominator < q_* is the previous previous convergent.
                 return x_info_t{xi_range.lower_bound(), xi_range.upper_bound(),
                                 xi_range.upper_bound(),
-                                xcf_copy.current_index() % 2 == 0
-                                    ? xcf_copy.previous_convergent_denominator()
-                                    : xcf_copy.previous_previous_convergent_denominator()};
+                                caching_xcf.current_index() % 2 == 0
+                                    ? caching_xcf.previous_convergent_denominator()
+                                    : caching_xcf.previous_previous_convergent_denominator()};
             }();
+            bool xcf_terminated = caching_xcf.terminated();
+            caching_xcf.rewind();
 
             // See if L is empty.
             {
                 auto const lhs = [&] {
                     auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
-                        cntfrc::impl::binary_gosper{xcf.copy(),
-                                                    ycf.copy(),
-                                                    {// numerator
-                                                     0, x_info.best_below.denominator + nmin, 1, 0,
-                                                     // denominator
-                                                     0, 0, 0, 1}});
+                        cntfrc::impl::binary_gosper<caching_xcf_ref, caching_ycf_ref>{
+                            caching_xcf,
+                            caching_ycf,
+                            {// numerator
+                             0, x_info.best_below.denominator + nmin, 1, 0,
+                             // denominator
+                             0, 0, 0, 1}});
                     cf.update();
+                    caching_xcf.rewind();
+                    caching_ycf.rewind();
                     return cf.current_partial_fraction().denominator;
                 }();
                 auto rhs = x_info.best_below.numerator + floor_nmin_x_plus_y;
 
                 if (lhs > rhs) {
                     // L is empty.
-                    auto mu =
-                        xcf_copy.terminated() ? x_info.mod_inv : x_info.best_above.denominator;
+                    auto mu = xcf_terminated ? x_info.mod_inv : x_info.best_above.denominator;
 
                     return xi_zeta_trapezoid{
                         interval<frac_t, interval_type_t::bounded_left_closed_right_open>{
@@ -161,21 +173,24 @@ namespace jkj {
 
             auto const floor_qstar_yprime = [&] {
                 auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
-                    cntfrc::impl::binary_gosper{xcf.copy(),
-                                                ycf.copy(),
-                                                {// numerator
-                                                 0, x_info.best_below.denominator * nmin,
-                                                 util::to_signed(x_info.best_below.denominator), 0,
-                                                 // denominator
-                                                 0, 0, 0, 1}});
+                    cntfrc::impl::binary_gosper<caching_xcf_ref, caching_ycf_ref>{
+                        caching_xcf,
+                        caching_ycf,
+                        {// numerator
+                         0, x_info.best_below.denominator * nmin,
+                         util::to_signed(x_info.best_below.denominator), 0,
+                         // denominator
+                         0, 0, 0, 1}});
                 cf.update();
+                caching_xcf.rewind();
+                caching_ycf.rewind();
                 return cf.current_partial_fraction().denominator -
                        x_info.best_below.denominator * floor_nmin_x_plus_y;
             }();
 
             // See if R is empty.
             {
-                if (xcf_copy.terminated()) {
+                if (xcf_terminated) {
                     if (util::is_zero(floor_qstar_yprime)) {
                         // R is empty.
                         return xi_zeta_trapezoid{
@@ -192,14 +207,16 @@ namespace jkj {
                 else {
                     auto const lhs = [&] {
                         auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
-                            cntfrc::impl::binary_gosper{xcf.copy(),
-                                                        ycf.copy(),
-                                                        {// numerator
-                                                         0, x_info.best_above.denominator + nmin, 1,
-                                                         0,
-                                                         // denominator
-                                                         0, 0, 0, 1}});
+                            cntfrc::impl::binary_gosper<caching_xcf_ref, caching_ycf_ref>{
+                                caching_xcf,
+                                caching_ycf,
+                                {// numerator
+                                 0, x_info.best_above.denominator + nmin, 1, 0,
+                                 // denominator
+                                 0, 0, 0, 1}});
                         cf.update();
+                        caching_xcf.rewind();
+                        caching_ycf.rewind();
                         return cf.current_partial_fraction().denominator;
                     }();
                     auto rhs = x_info.best_above.numerator + floor_nmin_x_plus_y;
@@ -221,7 +238,7 @@ namespace jkj {
             }
 
             // Both L & R are not empty but x is rational with denominator <= nlength.
-            if (xcf_copy.terminated()) {
+            if (xcf_terminated) {
                 auto mu =
                     ((floor_qstar_yprime + 1u) * x_info.mod_inv) % x_info.best_below.denominator;
                 auto nu = (floor_qstar_yprime * x_info.mod_inv) % x_info.best_below.denominator;
@@ -251,8 +268,8 @@ namespace jkj {
 
             auto k_common = [&](auto const& r) {
                 auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
-                    cntfrc::impl::binary_gosper{
-                        xcf.copy(), ycf.copy(),
+                    cntfrc::impl::binary_gosper<caching_xcf_ref, caching_ycf_ref>{
+                        caching_xcf, caching_ycf,
                         gosper_coefficients{
                             // numerator
                             0, qstar * (nmin - q * r), util::to_signed(qstar),
@@ -260,32 +277,39 @@ namespace jkj {
                             // denominator
                             0, util::to_signed(qstar * qstar), 0, qstar * -pstar}});
                 cf.update();
+                caching_xcf.rewind();
+                caching_ycf.rewind();
                 return -cf.current_partial_fraction().denominator;
             };
 
             auto r_common = [&](auto const& k) {
                 auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
-                    cntfrc::impl::binary_gosper{
-                        xcf.copy(), ycf.copy(),
+                    cntfrc::impl::binary_gosper<caching_xcf_ref, caching_ycf_ref>{
+                        caching_xcf, caching_ycf,
                         gosper_coefficients{// numerator
                                             0, qstar * (qstar * k + nmin), util::to_signed(qstar),
                                             qstar * -(pstar * k + floor_nmin_x_plus_y + 1u),
                                             // denominator
                                             0, util::to_negative(q * qstar), 0, q * pstar + 1u}});
                 cf.update();
+                caching_xcf.rewind();
+                caching_ycf.rewind();
                 return -cf.current_partial_fraction().denominator;
             };
 
             auto const ceil_rT = qstar - floor_qstar_yprime;
             auto const ceil_rB = [&] {
                 auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
-                    cntfrc::impl::binary_gosper{xcf.copy(), ycf.copy(),
-                                                gosper_coefficients{// numerator
-                                                                    0, qstar * nrange.upper_bound(),
-                                                                    util::to_signed(qstar), 0,
-                                                                    // denominator
-                                                                    0, 0, 0, 1}});
+                    cntfrc::impl::binary_gosper<caching_xcf_ref, caching_ycf_ref>{
+                        caching_xcf, caching_ycf,
+                        gosper_coefficients{// numerator
+                                            0, qstar * nrange.upper_bound(), util::to_signed(qstar),
+                                            0,
+                                            // denominator
+                                            0, 0, 0, 1}});
                 cf.update();
+                caching_xcf.rewind();
+                caching_ycf.rewind();
                 return qstar * (floor_nmin_x_plus_y + 1u) + pstar * nlength -
                        cf.current_partial_fraction().denominator;
             }();
@@ -405,9 +429,8 @@ namespace jkj {
             Callback&& callback) {
             static_assert(
                 std::remove_cvref_t<ContinuedFractionGeneratorX>::template is_implementing_mixins<
-                    cntfrc::previous_previous_convergent_tracker, cntfrc::interval_tracker>(),
-                "the first continued fraction generator must implement "
-                "previous_previous_convergent_tracker and "
+                    cntfrc::convergent_tracker, cntfrc::interval_tracker>(),
+                "the first continued fraction generator must implement convergent_tracker and "
                 "interval_tracker");
             static_assert(
                 std::remove_cvref_t<ContinuedFractionGeneratorY>::template is_implementing_mixins<
@@ -560,9 +583,8 @@ namespace jkj {
             interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
             static_assert(
                 std::remove_cvref_t<ContinuedFractionGeneratorX>::template is_implementing_mixins<
-                    cntfrc::previous_previous_convergent_tracker, cntfrc::interval_tracker>(),
-                "the first continued fraction generator must implement "
-                "previous_previous_convergent_tracker and "
+                    cntfrc::convergent_tracker, cntfrc::interval_tracker>(),
+                "the first continued fraction generator must implement convergent_tracker and "
                 "interval_tracker");
             static_assert(
                 std::remove_cvref_t<ContinuedFractionGeneratorY>::template is_implementing_mixins<

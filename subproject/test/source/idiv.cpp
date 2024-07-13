@@ -99,8 +99,8 @@ void idiv_test() {
             auto perform_test = [](projective_rational_t const& x, projective_rational_t const& y,
                                    nrange_t const& nrange) {
                 auto xcf =
-                    cntfrc::make_generator<cntfrc::previous_previous_convergent_tracker,
-                                           cntfrc::interval_tracker>(cntfrc::impl::rational{x});
+                    cntfrc::make_generator<cntfrc::convergent_tracker, cntfrc::interval_tracker>(
+                        cntfrc::impl::rational{x});
                 auto ycf =
                     cntfrc::make_generator<cntfrc::interval_tracker>(cntfrc::impl::rational{y});
 
@@ -129,8 +129,8 @@ void idiv_test() {
             auto perform_test = [](projective_rational_t const& x, projective_rational_t const& y,
                                    nrange_t const& nrange) {
                 auto xcf =
-                    cntfrc::make_generator<cntfrc::previous_previous_convergent_tracker,
-                                           cntfrc::interval_tracker>(cntfrc::impl::rational{x});
+                    cntfrc::make_generator<cntfrc::convergent_tracker, cntfrc::interval_tracker>(
+                        cntfrc::impl::rational{x});
                 auto ycf =
                     cntfrc::make_generator<cntfrc::interval_tracker>(cntfrc::impl::rational{y});
 
@@ -174,8 +174,8 @@ void idiv_test() {
             auto perform_test = [](projective_rational_t const& x, projective_rational_t const& y,
                                    projective_rational_t const& zeta, nrange_t const& nrange) {
                 auto xcf =
-                    cntfrc::make_generator<cntfrc::previous_previous_convergent_tracker,
-                                           cntfrc::interval_tracker>(cntfrc::impl::rational{x});
+                    cntfrc::make_generator<cntfrc::convergent_tracker, cntfrc::interval_tracker>(
+                        cntfrc::impl::rational{x});
                 auto ycf =
                     cntfrc::make_generator<cntfrc::interval_tracker>(cntfrc::impl::rational{y});
                 auto zetacf = cntfrc::make_generator<cntfrc::index_tracker,
@@ -183,8 +183,9 @@ void idiv_test() {
                     cntfrc::impl::rational{zeta});
 
                 auto const maximizer_computed =
-                    idiv::find_maximizer_of_floor_subtract_quotient_positive_range(xcf, ycf, zetacf,
-                                                                                   nrange);
+                    idiv::find_maximizer_of_floor_subtract_quotient_positive_range(
+                        xcf.copy(), ycf.copy(), zetacf.copy(), nrange);
+
                 expect(maximizer_computed >= nrange.lower_bound() &&
                        maximizer_computed <= nrange.upper_bound());
 
