@@ -83,18 +83,20 @@ namespace jkj {
                     "the internal continued fraction generator for unary_gosper is required to "
                     "implement interval_tracker");
 
-                using decay_type =
-                    unary_gosper<typename ContinuedFractionGenerator::decay_type, Unity>;
-                using int_type = decltype(ContinuedFractionGenerator::convergent_type::numerator);
+                using decay_type = unary_gosper<
+                    typename std::remove_cvref_t<ContinuedFractionGenerator>::decay_type, Unity>;
+                using int_type = decltype(std::remove_cvref_t<
+                                          ContinuedFractionGenerator>::convergent_type::numerator);
                 using partial_fraction_type = projective_rational<Unity, int_type>;
-                using convergent_type = typename ContinuedFractionGenerator::convergent_type;
+                using convergent_type =
+                    typename std::remove_cvref_t<ContinuedFractionGenerator>::convergent_type;
                 using interval_type = variable_shape_cyclic_interval<
                     convergent_type, cyclic_interval_type_t::single_point,
                     cyclic_interval_type_t::left_open_right_closed,
                     cyclic_interval_type_t::left_closed_right_open, cyclic_interval_type_t::entire>;
                 using internal_continued_fraction_generator_type = ContinuedFractionGenerator;
                 using internal_continued_fraction_impl_type =
-                    typename ContinuedFractionGenerator::impl_type;
+                    typename std::remove_cvref_t<ContinuedFractionGenerator>::impl_type;
 
             private:
                 internal_continued_fraction_generator_type cf_;
@@ -328,10 +330,12 @@ namespace jkj {
                       class Unity = unity>
             class binary_gosper {
             public:
-                static_assert(std::is_same_v<typename ContinuedFractionGeneratorX::convergent_type,
-                                             typename ContinuedFractionGeneratorY::convergent_type>,
-                              "the internal continued fraction generators for binary_gosper must "
-                              "have the same convergent types");
+                static_assert(
+                    std::is_same_v<
+                        typename std::remove_cvref_t<ContinuedFractionGeneratorX>::convergent_type,
+                        typename std::remove_cvref_t<ContinuedFractionGeneratorY>::convergent_type>,
+                    "the internal continued fraction generators for binary_gosper must "
+                    "have the same convergent types");
                 static_assert(
                     std::remove_cvref_t<ContinuedFractionGeneratorX>::
                             template is_implementing_mixins<interval_tracker>() &&
@@ -340,12 +344,14 @@ namespace jkj {
                     "the internal continued fraction generators for binary_gosper are required to "
                     "implement interval_tracker");
 
-                using decay_type =
-                    binary_gosper<typename ContinuedFractionGeneratorX::decay_type,
-                                  typename ContinuedFractionGeneratorY::decay_type, Unity>;
-                using int_type = decltype(ContinuedFractionGeneratorX::convergent_type::numerator);
+                using decay_type = binary_gosper<
+                    typename std::remove_cvref_t<ContinuedFractionGeneratorX>::decay_type,
+                    typename std::remove_cvref_t<ContinuedFractionGeneratorY>::decay_type, Unity>;
+                using int_type = decltype(std::remove_cvref_t<
+                                          ContinuedFractionGeneratorX>::convergent_type::numerator);
                 using partial_fraction_type = projective_rational<Unity, int_type>;
-                using convergent_type = typename ContinuedFractionGeneratorX::convergent_type;
+                using convergent_type =
+                    typename std::remove_cvref_t<ContinuedFractionGeneratorX>::convergent_type;
                 using interval_type = variable_shape_cyclic_interval<
                     convergent_type, cyclic_interval_type_t::single_point,
                     cyclic_interval_type_t::left_open_right_closed,
@@ -353,11 +359,11 @@ namespace jkj {
                 using first_internal_continued_fraction_generator_type =
                     ContinuedFractionGeneratorX;
                 using first_internal_continued_fraction_impl_type =
-                    typename ContinuedFractionGeneratorX::impl_type;
+                    typename std::remove_cvref_t<ContinuedFractionGeneratorX>::impl_type;
                 using second_internal_continued_fraction_generator_type =
                     ContinuedFractionGeneratorY;
                 using second_internal_continued_fraction_impl_type =
-                    typename ContinuedFractionGeneratorY::impl_type;
+                    typename std::remove_cvref_t<ContinuedFractionGeneratorY>::impl_type;
 
             private:
                 first_internal_continued_fraction_generator_type xcf_;
