@@ -22,15 +22,19 @@ add_library(idiv_idiv INTERFACE
 	include/idiv/caching_generator.h
 	include/idiv/continued_fraction.h
 	include/idiv/frac.h
+	include/idiv/fractional_part_extremizer.h
 	include/idiv/gosper_continued_fraction.h
 	include/idiv/idiv.h
 	include/idiv/interval.h
 	include/idiv/log_continued_fraction.h
+	include/idiv/optimal_multiply_shift.h
 	include/idiv/projective_rational.h
 	include/idiv/rational_continued_fraction.h
+	include/idiv/simultaneous_floor.h
 	include/idiv/type_erased_continued_fraction.h
 	include/idiv/util.h
-	include/idiv/wuint.h)
+	include/idiv/wuint.h
+	include/idiv/xi_zeta_region.h)
 add_library(idiv::idiv ALIAS idiv_idiv)
 
 set_property(
