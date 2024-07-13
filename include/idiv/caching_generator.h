@@ -233,7 +233,13 @@ namespace jkj {
             constexpr auto const& current_interval() const noexcept
                 requires has_interval_tracker
             {
-                return record_[std::size_t(current_index_ + 3)].interval;
+                // current_interval() can change after termination.
+                if (terminated()) {
+                    return cf_.current_interval();
+                }
+                else {
+                    return record_[std::size_t(current_index_ + 3)].interval;
+                }
             }
 
             // Returns true if there are further partial fractions.
@@ -243,8 +249,10 @@ namespace jkj {
                     if (!terminated_) {
                         record_.reserve(record_.size() + 1);
                         terminated_ = !cf_.update();
-                        record_.push_back(snapshot());
-                        ++current_index_;
+                        if (!terminated_) {
+                            record_.push_back(snapshot());
+                            ++current_index_;
+                        }
                     }
                     return !terminated_;
                 }
