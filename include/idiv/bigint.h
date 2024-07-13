@@ -1672,7 +1672,7 @@ namespace jkj {
             auto const x_leading_one_pos = bit_width(x);
             auto const y_leading_one_pos = bit_width(y);
 
-            if (y_leading_one_pos >= x_leading_one_pos) {
+            if (y_leading_one_pos > x_leading_one_pos) {
                 return 0;
             }
 
