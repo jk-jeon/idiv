@@ -19,6 +19,7 @@
 #ifndef JKJ_HEADER_IDIV_UTIL
 #define JKJ_HEADER_IDIV_UTIL
 
+#include <bit>
 #include <cassert>
 #include <concepts>
 #include <cstddef>
@@ -450,6 +451,62 @@ namespace jkj {
                     return div_ceil(static_cast<decltype(x)&&>(x), static_cast<decltype(y)&&>(y));
                 }
             };
+
+            // Computes max(floor(log2(x / y)), 0).
+            // Precondition: x, y are not zero.
+            template <std::unsigned_integral UInt>
+            constexpr std::size_t trunc_floor_log2_div(UInt x, UInt y) noexcept {
+                util::constexpr_assert<util::error_msgs::divide_by_zero>(x != 0 && y != 0);
+
+                auto const x_leading_one_pos = std::bit_width(x);
+                auto const y_leading_one_pos = std::bit_width(y);
+
+                if (y_leading_one_pos >= x_leading_one_pos) {
+                    return 0;
+                }
+
+                auto const shift = x_leading_one_pos - y_leading_one_pos;
+                if ((y << shift) <= x) {
+                    return shift;
+                }
+                else {
+                    return shift - 1;
+                }
+            }
+            struct trunc_floor_log2_div_impl {
+                constexpr decltype(auto) operator()(auto&& x, auto&& y) const {
+                    return trunc_floor_log2_div(static_cast<decltype(x)&&>(x),
+                                                static_cast<decltype(y)&&>(y));
+                }
+            };
+
+            // Computes max(ceil(log2(x / y)), 0).
+            // Precondition: x, y are not zero.
+            template <std::unsigned_integral UInt>
+            constexpr std::size_t trunc_ceil_log2_div(UInt x, UInt y) noexcept {
+                util::constexpr_assert<util::error_msgs::divide_by_zero>(x != 0 && y != 0);
+
+                auto const x_leading_one_pos = std::bit_width(x);
+                auto const y_leading_one_pos = std::bit_width(y);
+
+                if (y_leading_one_pos > x_leading_one_pos) {
+                    return 0;
+                }
+
+                auto const shift = x_leading_one_pos - y_leading_one_pos;
+                if ((y << shift) < x) {
+                    return shift + 1;
+                }
+                else {
+                    return shift;
+                }
+            }
+            struct trunc_ceil_log2_div_impl {
+                constexpr decltype(auto) operator()(auto&& x, auto&& y) const {
+                    return trunc_ceil_log2_div(static_cast<decltype(x)&&>(x),
+                        static_cast<decltype(y)&&>(y));
+                }
+            };
         }
         inline constexpr auto to_signed = detail::to_signed_impl{};
         inline constexpr auto to_negative = detail::to_negative_impl{};
@@ -465,6 +522,8 @@ namespace jkj {
         inline constexpr auto div = detail::div_impl{};
         inline constexpr auto div_floor = detail::div_floor_impl{};
         inline constexpr auto div_ceil = detail::div_ceil_impl{};
+        inline constexpr auto trunc_floor_log2_div = detail::trunc_floor_log2_div_impl{};
+        inline constexpr auto trunc_ceil_log2_div = detail::trunc_ceil_log2_div_impl{};
 
         // Fast nonnegative integer power.
         template <class T, class UInt>
