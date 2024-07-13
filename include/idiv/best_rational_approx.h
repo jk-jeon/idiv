@@ -21,8 +21,6 @@
 #include "continued_fraction.h"
 #include "interval.h"
 #include "projective_rational.h"
-#include <cassert>
-#include <cstdlib>
 
 namespace jkj {
     namespace idiv {
