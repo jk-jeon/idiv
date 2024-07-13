@@ -439,7 +439,9 @@ namespace jkj {
 
             using frac_t = frac<bigint::int_var, bigint::uint_var>;
             using nrange_t = interval<bigint::int_var, interval_type_t::bounded_closed>;
-            auto const trapezoid = find_xi_zeta_region_simultaneous_floor(xcf, ycf, nrange);
+            auto const trapezoid = find_xi_zeta_region_simultaneous_floor(
+                std::forward<ContinuedFractionGeneratorX>(xcf),
+                std::forward<ContinuedFractionGeneratorY>(ycf), nrange);
 
             trapezoid.xi_range.visit([&callback, &trapezoid](auto const& itv) {
                 using itv_type = std::remove_cvref_t<decltype(itv)>;
@@ -592,10 +594,12 @@ namespace jkj {
                 "the second continued fraction generator must implement interval_tracker");
 
             multiply_add_shift_info result;
-            for_each_simultaneous_multiply_add_shift(xcf, ycf, nrange, [&](auto&& info) {
-                result = std::move(info);
-                return false;
-            });
+            for_each_simultaneous_multiply_add_shift(std::forward<ContinuedFractionGeneratorX>(xcf),
+                                                     std::forward<ContinuedFractionGeneratorY>(ycf),
+                                                     nrange, [&](auto&& info) {
+                                                         result = std::move(info);
+                                                         return false;
+                                                     });
             return result;
         }
     }
