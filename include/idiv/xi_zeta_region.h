@@ -51,7 +51,7 @@ namespace jkj {
             // Can be an infinite line when value_gap == 0.
             class infinite_parallelogram {
             public:
-                static constexpr region_type_t region_type = region_type_t::infinite_paralellogram;
+                static constexpr region_type_t region_type = region_type_t::infinite_parallelogram;
 
                 bigint::int_var xi_coeff;
                 bigint::uint_var zeta_coeff;
@@ -84,7 +84,7 @@ namespace jkj {
                     frac_t const& xi;
                     variable_shape_interval<frac_t const&, interval_type_t::bounded_open,
                                             interval_type_t::bounded_left_open_right_closed,
-                                            interval_type_t::left_closed_right_open,
+                                            interval_type_t::bounded_left_closed_right_open,
                                             interval_type_t::bounded_closed> const zeta_range;
                 };
 
@@ -194,19 +194,22 @@ namespace jkj {
                 auto const& turning_points() const noexcept { return turning_points_; }
                 auto const& boundary_line_pairs() const noexcept { return boundary_line_pairs_; }
                 boundary_type_t left_boundary_type() const noexcept { return left_boundary_type_; }
-                boundary_type_t right_boundary_type() const noexcept { return right_boundary_type_; }
+                boundary_type_t right_boundary_type() const noexcept {
+                    return right_boundary_type_;
+                }
 
 
                 template <std::ranges::common_range TurningPoints,
                           std::ranges::common_range BoundaryLinePairs>
                 bounded_polygon(TurningPoints&& turning_point_rg,
                                 BoundaryLinePairs&& boundary_line_pair_rg,
-                    boundary_type_t left_boundary_type_in, boundary_type_t right_boundary_type_in)
+                                boundary_type_t left_boundary_type_in,
+                                boundary_type_t right_boundary_type_in)
                     : turning_points_(turning_point_rg.cbegin(), turning_point_rg.cend()),
                       boundary_line_pairs_(boundary_line_pair_rg.cbegin(),
                                            boundary_line_pair_rg.cend()),
-                    left_boundary_type_{ left_boundary_type_in },
-                    right_boundary_type_{ right_boundary_type_in } {}
+                      left_boundary_type_{left_boundary_type_in},
+                      right_boundary_type_{right_boundary_type_in} {}
 
             private:
                 std::vector<turning_point_info> turning_points_;
@@ -257,6 +260,7 @@ namespace jkj {
 
             using frac_t = frac<bigint::int_var, bigint::uint_var>;
             using nrange_t = interval<bigint::int_var, interval_type_t::bounded_closed>;
+            using xi_zeta_region::boundary_type_t;
 
             // Get the reduced form of the number num/den, where num and den are rationals.
             auto get_reduced_quotient = [](auto const& num, auto const& den) {
@@ -276,47 +280,94 @@ namespace jkj {
 
 
             ////////////////////////////////////////////////////////////////////////////////////
-            // Step 1 - Write the region as the intersection of half-spaces.
+            // Step 1 - Write the region as the intersection of half-planes.
             ////////////////////////////////////////////////////////////////////////////////////
 
             enum class elementary_problem_sign : bool { positive, negative };
-            struct half_space_info {
+            struct half_plane_info {
                 frac_t xi_coeff;
                 frac_t zeta_coeff;
                 frac_t eta_coeff;
-                enum class boundary_type_t : bool { inclusive, exclusive } boundary_type;
+                boundary_type_t boundary_type;
             };
-            std::vector<half_space_info> right_half_spaces; // Lower bounds for xi.
-            std::vector<half_space_info> left_half_spaces;  // Upper bounds for xi.
+            std::vector<half_plane_info> upper_half_planes; // Lower bounds for zeta.
+            std::vector<half_plane_info> lower_half_planes; // Upper bounds for zeta.
 
             {
-                // First, rewrite the domain into a disjoint union of intervals.
-                std::vector<nrange_t> normalized_nranges(
-                    std::forward<RangeOfIntegerIntervals>(range_of_nranges));
-                std::ranges::sort(normalized_nranges, [](auto&& lhs, auto&& rhs) {
-                    return lhs.lower_bound() < rhs.lower_bound();
-                });
+                auto caching_xcf = cntfrc::make_caching_generator(xcf);
+                auto caching_ycf = cntfrc::make_caching_generator(ycf);
 
-                auto current_pos = normalized_nranges.begin();
-                for (auto merge_target_pos = current_pos + 1;
-                     merge_target_pos < normalized_nranges.end(); ++merge_target_pos) {
-                    // Merge if possible.
-                    if (current_pos->upper_bound() + 1 >= merge_target_pos->lower_bound()) {
-                        if (current_pos->upper_bound() < merge_target_pos->upper_bound()) {
-                            current_pos->upper_bound() = std::move(merge_target_pos->upper_bound());
-                        }
+                auto gcd = [&](bigint::uint_var const& a, bigint::uint_var const& b) {
+                    auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
+                        cntfrc::impl::rational{a, b});
+                    while (!cf.terminated()) {
+                        cf.update();
                     }
-                    else {
-                        ++current_pos;
-                        util::constexpr_assert(current_pos <= merge_target_pos);
-                        if (current_pos != merge_target_pos) {
-                            *current_pos = std::move(*merge_target_pos);
-                        }
+                    return cf.current_partial_fraction().denominator;
+                }();
+
+                // Generate a continued fraction implementation for ax + by + c.
+                auto affine_combination = [&](frac_t const& coeff_x, frac_t const& coeff_y,
+                                              frac_t const& constant) {
+                    auto denominator =
+                        (coeff_x.denominator / gcd(coeff_x.denominator, coeff_y.denominator)) *
+                        coeff_y.denominator;
+                    denominator *= (constant.denominator / gcd(denominator, constant.denominator));
+
+                    return cntfrc::impl::binary_gosper<decltype(caching_xcf)&,
+                                                       decltype(caching_ycf)&>{
+                        caching_xcf,
+                        caching_ycf,
+                        {// numerator
+                         0, coeff_x.numerator * (denominator / coeff_x.denominator),
+                         coeff_y.numerator * (denominator / coeff_y.denominator),
+                         constant.numerator * (denominator / constant.denominator),
+                         // denominator
+                         0, 0, 0, denominator}};
+                };
+
+                for (auto const& constraint_spec : range_of_constraint_specs) {
+                    // Read affine coefficients and initialize the transformed variables
+                    // (x',y') accordingly.
+                    auto xprime_cf = cntfrc::make_caching_generator(
+                        cntfrc::make_generator<cntfrc::previous_previous_convergent_tracker,
+                                               cntfrc::interval_tracker>(
+                            affine_combination(constraint_spec.affine_coeff.linear_coeff.xx,
+                                               constraint_spec.affine_coeff.linear_coeff.xy,
+                                               constraint_spec.affine_coeff.constant_coeff_x)));
+                    auto yprime_cf = cntfrc::make_caching_generator(
+                        cntfrc::make_generator<cntfrc::interval_tracker>(
+                            affine_combination(constraint_spec.affine_coeff.linear_coeff.yx,
+                                               constraint_spec.affine_coeff.linear_coeff.yy,
+                                               constraint_spec.affine_coeff.constant_coeff_y)));
+
+                    // Positive n's.
+                    if (util::is_strictly_positive(constraint_spec.nrange.upper_bound())) {
+                        // Compute a good enough approximation of (x',y') for future computations.
+                        // Since we only need to care about numbers of the form
+                        // floor(nx') and floor(nx' + y'), we do not need to use xprime_cf/yprime_cf
+                        // anymore.
+                        auto const approx_xp_yp_info = find_simultaneous_multiply_add_shift(
+                            xprime_cf, yprime_cf,
+                            nrange_t{
+                                util::is_strictly_negative(constraint_spec.nrange.lower_bound())
+                                    ? 0
+                                    : constraint_spec.nrange.lower_bound(),
+                                constraint_spec.nrange.upper_bound()});
+
+                        xprime_cf.rewind();
+                        yprime_cf.rewind();
+                        caching_xcf.rewind();
+                        caching_ycf.rewind();
+
+
                     }
                 }
-                normalized_nranges.erase(++current_pos, normalized_nranges.end());
+            }
 
-                // Compute good enough approximations of (x,y) and (-x,y) for future computations.
+            {
+                // Compute good enough approximations of (x,y) and (-x,y) for future
+                // computations.
                 auto const approx_plus_x_y_info = find_simultaneous_multiply_add_shift(
                     xcf.copy(), ycf.copy(),
                     nrange_t{util::is_strictly_negative(normalized_nranges.front().lower_bound())
@@ -377,18 +428,18 @@ namespace jkj {
                         auto& approx_xcf = sign == elementary_problem_sign::positive
                                                ? xcf_plus_side
                                                : xcf_minus_side;
-                        auto& half_spaces = sign == elementary_problem_sign::positive
-                                                ? right_half_spaces
-                                                : left_half_spaces;
+                        auto& half_planes = sign == elementary_problem_sign::positive
+                                                ? right_half_planes
+                                                : left_half_planes;
 
                         while (!util::is_zero(max_diff)) {
-                            half_spaces.push_back(
+                            half_planes.push_back(
                                 {frac_t{1, base_point},
                                  frac_t{-((base_point * approx_x_y_info.multiplier +
                                            approx_x_y_info.adder) >>
                                           approx_x_y_info.shift_amount),
                                         base_point},
-                                 half_space_info::boundary_type_t::inclusive});
+                                 half_plane_info::boundary_type_t::inclusive});
 
                             auto movement =
                                 find_extremizers_of_fractional_part(approx_xcf, max_diff)
@@ -399,15 +450,15 @@ namespace jkj {
                             max_diff -= std::move(movement);
                         }
 
-                        half_spaces.push_back({frac_t{1, base_point},
+                        half_planes.push_back({frac_t{1, base_point},
                                                frac_t{-((base_point * approx_x_y_info.multiplier +
                                                          approx_x_y_info.adder) >>
                                                         approx_x_y_info.shift_amount),
                                                       base_point},
-                                               half_space_info::boundary_type_t::inclusive});
+                                               half_plane_info::boundary_type_t::inclusive});
                     };
-                    // For the maximization on the right, the half-space at the base point is not
-                    // included.
+                    // For the maximization on the right, the half-space at the base point is
+                    // not included.
                     auto solve_maximization_on_right = [&](bigint::uint_var base_point,
                                                            bigint::uint_var max_diff,
                                                            elementary_problem_sign sign) {
@@ -417,9 +468,9 @@ namespace jkj {
                         auto& approx_xcf = sign == elementary_problem_sign::positive
                                                ? xcf_plus_side
                                                : xcf_minus_side;
-                        auto& half_spaces = sign == elementary_problem_sign::positive
-                                                ? right_half_spaces
-                                                : left_half_spaces;
+                        auto& half_planes = sign == elementary_problem_sign::positive
+                                                ? right_half_planes
+                                                : left_half_planes;
 
                         while (!util::is_zero(max_diff)) {
                             auto movement =
@@ -430,13 +481,13 @@ namespace jkj {
                             base_point += movement;
                             max_diff -= std::move(movement);
 
-                            half_spaces.push_back(
+                            half_planes.push_back(
                                 {frac_t{1, base_point},
                                  frac_t{-((base_point * approx_x_y_info.multiplier +
                                            approx_x_y_info.adder) >>
                                           approx_x_y_info.shift_amount),
                                         base_point},
-                                 half_space_info::boundary_type_t::inclusive});
+                                 half_plane_info::boundary_type_t::inclusive});
                         }
                     };
                     // For the minimization on the left, the half-space at the base point is
@@ -450,18 +501,18 @@ namespace jkj {
                         auto& approx_xcf = sign == elementary_problem_sign::positive
                                                ? xcf_plus_side
                                                : xcf_minus_side;
-                        auto& half_spaces = sign == elementary_problem_sign::positive
-                                                ? left_half_spaces
-                                                : right_half_spaces;
+                        auto& half_planes = sign == elementary_problem_sign::positive
+                                                ? left_half_planes
+                                                : right_half_planes;
 
                         while (!util::is_zero(max_diff)) {
-                            half_spaces.push_back(
+                            half_planes.push_back(
                                 {frac_t{-1, base_point},
                                  frac_t{1 + ((base_point * approx_x_y_info.multiplier +
                                               approx_x_y_info.adder) >>
                                              approx_x_y_info.shift_amount),
                                         base_point},
-                                 half_space_info::boundary_type_t::exclusive});
+                                 half_plane_info::boundary_type_t::exclusive});
 
                             auto movement =
                                 find_extremizers_of_fractional_part(approx_xcf, max_diff)
@@ -472,16 +523,16 @@ namespace jkj {
                             max_diff -= std::move(movement);
                         }
 
-                        half_spaces.push_back(
+                        half_planes.push_back(
                             {frac_t{-1, base_point},
                              frac_t{1 + ((base_point * approx_x_y_info.multiplier +
                                           approx_x_y_info.adder) >>
                                          approx_x_y_info.shift_amount),
                                     base_point},
-                             half_space_info::boundary_type_t::exclusive});
+                             half_plane_info::boundary_type_t::exclusive});
                     };
-                    // For the minimization on the right, the half-space at the base point is not
-                    // included.
+                    // For the minimization on the right, the half-space at the base point is
+                    // not included.
                     auto solve_minimization_on_right = [&](bigint::uint_var base_point,
                                                            bigint::uint_var max_diff,
                                                            elementary_problem_sign sign) {
@@ -491,9 +542,9 @@ namespace jkj {
                         auto& approx_xcf = sign == elementary_problem_sign::positive
                                                ? xcf_plus_side
                                                : xcf_minus_side;
-                        auto& half_spaces = sign == elementary_problem_sign::positive
-                                                ? left_half_spaces
-                                                : right_half_spaces;
+                        auto& half_planes = sign == elementary_problem_sign::positive
+                                                ? left_half_planes
+                                                : right_half_planes;
 
                         while (!util::is_zero(max_diff)) {
                             auto movement =
@@ -504,13 +555,13 @@ namespace jkj {
                             base_point += movement;
                             max_diff -= std::move(movement);
 
-                            half_spaces.push_back(
+                            half_planes.push_back(
                                 {frac_t{-1, base_point},
                                  frac_t{1 + ((base_point * approx_x_y_info.multiplier +
                                               approx_x_y_info.adder) >>
                                              approx_x_y_info.shift_amount),
                                         base_point},
-                                 half_space_info::boundary_type_t::exclusive});
+                                 half_plane_info::boundary_type_t::exclusive});
                         }
                     };
 
@@ -580,8 +631,8 @@ namespace jkj {
             }
 
             // If n = 0 is the only constraint, then return early.
-            if (right_half_spaces.empty()) {
-                util::constexpr_assert(nrange_contains_zero && left_half_spaces.empty());
+            if (right_half_planes.empty()) {
+                util::constexpr_assert(nrange_contains_zero && left_half_planes.empty());
                 // zeta should satisfy the inequality floor_y <= zeta < floor_y + 1.
                 auto floor_y_frac = frac_t{floor_y, 1u};
                 auto floor_y_p1_frac = frac_t{floor_y + 1, 1u};
@@ -617,8 +668,8 @@ namespace jkj {
                 bool xi_endpoint_included;
             };
 
-            // Find the extreme points for the lower/upper bounds by finding the convex hull of the
-            // dual problem projected onto the plane xi = +-1.
+            // Find the extreme points for the lower/upper bounds by finding the convex hull of
+            // the dual problem projected onto the plane xi = +-1.
             enum class bounding_direction_t : bool { lower, upper };
             auto compute_one_sided_intersection = [&](bounding_direction_t bounding_direction) {
                 struct vec2d {
@@ -631,10 +682,10 @@ namespace jkj {
                     constexpr frac_t normsq() const { return dot(*this); }
                 };
 
-                auto const& half_spaces = bounding_direction == bounding_direction_t::lower
-                                              ? right_half_spaces
-                                              : left_half_spaces;
-                util::constexpr_assert(!half_spaces.empty());
+                auto const& half_planes = bounding_direction == bounding_direction_t::lower
+                                              ? right_half_planes
+                                              : left_half_planes;
+                util::constexpr_assert(!half_planes.empty());
 
                 auto invert_sign_wrt_bounding_direction =
                     [bounding_direction](bigint::int_var const& n) {
@@ -650,11 +701,11 @@ namespace jkj {
 
                 // Start from the one with the largest zeta-coordinate, which corresponds to the
                 // half-space with the highst boundary line.
-                auto first_elmt = std::ranges::max_element(std::as_const(half_spaces), {},
-                                                           &half_space_info::zeta_coeff);
+                auto first_elmt = std::ranges::max_element(std::as_const(half_planes), {},
+                                                           &half_plane_info::zeta_coeff);
 
                 // If there is only one half-space, return immediately.
-                if (half_spaces.size() == 1) {
+                if (half_planes.size() == 1) {
                     result.push_back(
                         {interval<frac_t, interval_type_t::entire>{},
                          util::is_nonnegative(first_elmt->zeta_coeff.numerator)
@@ -664,7 +715,7 @@ namespace jkj {
                              util::is_nonnegative(first_elmt->zeta_coeff.numerator)
                                  ? util::to_signed(first_elmt->zeta_coeff.denominator)
                                  : -util::to_signed(first_elmt->zeta_coeff.denominator)),
-                         first_elmt->boundary_type == half_space_info::boundary_type_t::inclusive});
+                         first_elmt->boundary_type == half_plane_info::boundary_type_t::inclusive});
                     return result;
                 }
 
@@ -676,7 +727,7 @@ namespace jkj {
                 frac_t prev_turning_point_zeta{0, 1u};
 
                 struct angle_info {
-                    typename std::vector<half_space_info>::const_iterator itr;
+                    typename std::vector<half_plane_info>::const_iterator itr;
                     vec2d direction_vec;
                     frac_t cos_square;
                     bool is_cos_strictly_negative;
@@ -691,8 +742,8 @@ namespace jkj {
                     return angle_info{
                         itr, direction_vec, (dot_product * dot_product) / direction_vec.normsq(),
                         is_cos_strictly_negative,
-                        last_elmt->boundary_type == half_space_info::boundary_type_t::inclusive &&
-                            itr->boundary_type == half_space_info::boundary_type_t::inclusive};
+                        last_elmt->boundary_type == half_plane_info::boundary_type_t::inclusive &&
+                            itr->boundary_type == half_plane_info::boundary_type_t::inclusive};
                 };
                 auto compare_angle_info = [](angle_info const& left,
                                              angle_info const& right) -> std::strong_ordering {
@@ -717,13 +768,13 @@ namespace jkj {
                 while (true) {
                     // Find the point whose direction vector is the closest in angle to the
                     // previous direction vector.
-                    auto itr = half_spaces.cbegin();
+                    auto itr = half_planes.cbegin();
                     if (itr == last_elmt) {
                         ++itr;
                     }
                     auto current_angle_info = compute_angle_info(itr);
 
-                    for (++itr; itr != half_spaces.cend(); ++itr) {
+                    for (++itr; itr != half_planes.cend(); ++itr) {
                         if (itr == last_elmt) {
                             continue;
                         }
@@ -786,16 +837,16 @@ namespace jkj {
                                               turning_point_zeta},
                                           xi_endpoint_numerator, xi_endpoint_denominator,
                                           last_elmt->boundary_type ==
-                                              half_space_info::boundary_type_t::inclusive});
+                                              half_plane_info::boundary_type_t::inclusive});
 
                         // The horizontal ray right above it.
                         result.push_back({interval<frac_t, interval_type_t::bounded_closed>{
                                               turning_point_zeta, turning_point_zeta},
                                           xi_endpoint_numerator, xi_endpoint_denominator,
                                           last_elmt->boundary_type ==
-                                                  half_space_info::boundary_type_t::inclusive &&
+                                                  half_plane_info::boundary_type_t::inclusive &&
                                               current_angle_info.itr->boundary_type ==
-                                                  half_space_info::boundary_type_t::inclusive});
+                                                  half_plane_info::boundary_type_t::inclusive});
                     }
                     // The unbounded top boundary line.
                     else if (current_angle_info.itr == first_elmt) {
@@ -807,7 +858,7 @@ namespace jkj {
                                               prev_turning_point_zeta},
                                           xi_endpoint_numerator, xi_endpoint_denominator,
                                           last_elmt->boundary_type ==
-                                              half_space_info::boundary_type_t::inclusive});
+                                              half_plane_info::boundary_type_t::inclusive});
 
                         // End of the while (true) {...} loop.
                         break;
@@ -822,16 +873,16 @@ namespace jkj {
                                               prev_turning_point_zeta, turning_point_zeta},
                                           xi_endpoint_numerator, xi_endpoint_denominator,
                                           last_elmt->boundary_type ==
-                                              half_space_info::boundary_type_t::inclusive});
+                                              half_plane_info::boundary_type_t::inclusive});
 
                         // The horizontal ray right above it.
                         result.push_back({interval<frac_t, interval_type_t::bounded_closed>{
                                               turning_point_zeta, turning_point_zeta},
                                           xi_endpoint_numerator, xi_endpoint_denominator,
                                           last_elmt->boundary_type ==
-                                                  half_space_info::boundary_type_t::inclusive &&
+                                                  half_plane_info::boundary_type_t::inclusive &&
                                               current_angle_info.itr->boundary_type ==
-                                                  half_space_info::boundary_type_t::inclusive});
+                                                  half_plane_info::boundary_type_t::inclusive});
                     }
                     // End of the branching on top/middle/bottom regions.
 
@@ -909,7 +960,8 @@ namespace jkj {
                         auto zeta_range =
                             [&]() -> variable_shape_interval<frac_t, interval_type_t::bounded_open,
                                                              interval_type_t::bounded_closed> {
-                            // If any of the lower bound and the upper bound is a horizontal ray.
+                            // If any of the lower bound and the upper bound is a horizontal
+                            // ray.
                             if (lower_bound_itr->zeta_range.interval_type() ==
                                 interval_type_t::bounded_closed) {
                                 ++lower_bound_itr;
@@ -1013,8 +1065,8 @@ namespace jkj {
                                 upper_bound_itr->zeta_range.contains(intersection_zeta)) {
                                 // When this is the first intersection, start pushing regions.
                                 if (!found_first_intersection) {
-                                    // push_new_region() will not push the bottom vertex if both of
-                                    // the zeta-intervals are open.
+                                    // push_new_region() will not push the bottom vertex if both
+                                    // of the zeta-intervals are open.
                                     if (lower_bound_itr->zeta_range.interval_type() !=
                                             interval_type_t::bounded_closed &&
                                         lower_bound_itr->zeta_range.interval_type() !=
@@ -1035,10 +1087,11 @@ namespace jkj {
                                     found_first_intersection = true;
                                     continue;
                                 }
-                                // When this is the second intersection, we completed the process.
+                                // When this is the second intersection, we completed the
+                                // process.
                                 else {
-                                    // When the intersection is found between open intervals, then
-                                    // add both the open triangular region and the vertex.
+                                    // When the intersection is found between open intervals,
+                                    // then add both the open triangular region and the vertex.
                                     // Otherwise, just add the vertex.
                                     if (lower_bound_itr->zeta_range.interval_type() !=
                                             interval_type_t::bounded_closed &&
@@ -1077,7 +1130,8 @@ namespace jkj {
                             push_new_region();
                         }
                         else {
-                            // Choose the one with smaller upper bound and move to the next region.
+                            // Choose the one with smaller upper bound and move to the next
+                            // region.
                             lower_bound_itr->zeta_range.with_upper_bound(
                                 [&](auto const& ub1) {
                                     return upper_bound_itr->zeta_range.with_upper_bound(
@@ -1270,13 +1324,13 @@ namespace jkj {
             ////////////////////////////////////////////////////////////////////////////////////
 
             enum class elementary_problem_sign : bool { positive, negative };
-            struct half_space_info {
+            struct half_plane_info {
                 frac_t zeta_coeff;
                 frac_t eta_coeff;
                 enum class boundary_type_t : bool { inclusive, exclusive } boundary_type;
             };
-            std::vector<half_space_info> right_half_spaces; // Lower bounds for xi.
-            std::vector<half_space_info> left_half_spaces;  // Upper bounds for xi.
+            std::vector<half_plane_info> right_half_planes; // Lower bounds for xi.
+            std::vector<half_plane_info> left_half_planes;  // Upper bounds for xi.
             bool nrange_contains_zero = false;
             bigint::int_var floor_y; // Used in Step 4.
 
@@ -1368,18 +1422,18 @@ namespace jkj {
                         auto& approx_xcf = sign == elementary_problem_sign::positive
                                                ? xcf_plus_side
                                                : xcf_minus_side;
-                        auto& half_spaces = sign == elementary_problem_sign::positive
-                                                ? right_half_spaces
-                                                : left_half_spaces;
+                        auto& half_planes = sign == elementary_problem_sign::positive
+                                                ? right_half_planes
+                                                : left_half_planes;
 
                         while (!util::is_zero(max_diff)) {
-                            half_spaces.push_back(
+                            half_planes.push_back(
                                 {frac_t{1, base_point},
                                  frac_t{-((base_point * approx_x_y_info.multiplier +
                                            approx_x_y_info.adder) >>
                                           approx_x_y_info.shift_amount),
                                         base_point},
-                                 half_space_info::boundary_type_t::inclusive});
+                                 half_plane_info::boundary_type_t::inclusive});
 
                             auto movement =
                                 find_extremizers_of_fractional_part(approx_xcf, max_diff)
@@ -1390,12 +1444,12 @@ namespace jkj {
                             max_diff -= std::move(movement);
                         }
 
-                        half_spaces.push_back({frac_t{1, base_point},
+                        half_planes.push_back({frac_t{1, base_point},
                                                frac_t{-((base_point * approx_x_y_info.multiplier +
                                                          approx_x_y_info.adder) >>
                                                         approx_x_y_info.shift_amount),
                                                       base_point},
-                                               half_space_info::boundary_type_t::inclusive});
+                                               half_plane_info::boundary_type_t::inclusive});
                     };
                     // For the maximization on the right, the half-space at the base point is not
                     // included.
@@ -1408,9 +1462,9 @@ namespace jkj {
                         auto& approx_xcf = sign == elementary_problem_sign::positive
                                                ? xcf_plus_side
                                                : xcf_minus_side;
-                        auto& half_spaces = sign == elementary_problem_sign::positive
-                                                ? right_half_spaces
-                                                : left_half_spaces;
+                        auto& half_planes = sign == elementary_problem_sign::positive
+                                                ? right_half_planes
+                                                : left_half_planes;
 
                         while (!util::is_zero(max_diff)) {
                             auto movement =
@@ -1421,13 +1475,13 @@ namespace jkj {
                             base_point += movement;
                             max_diff -= std::move(movement);
 
-                            half_spaces.push_back(
+                            half_planes.push_back(
                                 {frac_t{1, base_point},
                                  frac_t{-((base_point * approx_x_y_info.multiplier +
                                            approx_x_y_info.adder) >>
                                           approx_x_y_info.shift_amount),
                                         base_point},
-                                 half_space_info::boundary_type_t::inclusive});
+                                 half_plane_info::boundary_type_t::inclusive});
                         }
                     };
                     // For the minimization on the left, the half-space at the base point is
@@ -1441,18 +1495,18 @@ namespace jkj {
                         auto& approx_xcf = sign == elementary_problem_sign::positive
                                                ? xcf_plus_side
                                                : xcf_minus_side;
-                        auto& half_spaces = sign == elementary_problem_sign::positive
-                                                ? left_half_spaces
-                                                : right_half_spaces;
+                        auto& half_planes = sign == elementary_problem_sign::positive
+                                                ? left_half_planes
+                                                : right_half_planes;
 
                         while (!util::is_zero(max_diff)) {
-                            half_spaces.push_back(
+                            half_planes.push_back(
                                 {frac_t{-1, base_point},
                                  frac_t{1 + ((base_point * approx_x_y_info.multiplier +
                                               approx_x_y_info.adder) >>
                                              approx_x_y_info.shift_amount),
                                         base_point},
-                                 half_space_info::boundary_type_t::exclusive});
+                                 half_plane_info::boundary_type_t::exclusive});
 
                             auto movement =
                                 find_extremizers_of_fractional_part(approx_xcf, max_diff)
@@ -1463,13 +1517,13 @@ namespace jkj {
                             max_diff -= std::move(movement);
                         }
 
-                        half_spaces.push_back(
+                        half_planes.push_back(
                             {frac_t{-1, base_point},
                              frac_t{1 + ((base_point * approx_x_y_info.multiplier +
                                           approx_x_y_info.adder) >>
                                          approx_x_y_info.shift_amount),
                                     base_point},
-                             half_space_info::boundary_type_t::exclusive});
+                             half_plane_info::boundary_type_t::exclusive});
                     };
                     // For the minimization on the right, the half-space at the base point is not
                     // included.
@@ -1482,9 +1536,9 @@ namespace jkj {
                         auto& approx_xcf = sign == elementary_problem_sign::positive
                                                ? xcf_plus_side
                                                : xcf_minus_side;
-                        auto& half_spaces = sign == elementary_problem_sign::positive
-                                                ? left_half_spaces
-                                                : right_half_spaces;
+                        auto& half_planes = sign == elementary_problem_sign::positive
+                                                ? left_half_planes
+                                                : right_half_planes;
 
                         while (!util::is_zero(max_diff)) {
                             auto movement =
@@ -1495,13 +1549,13 @@ namespace jkj {
                             base_point += movement;
                             max_diff -= std::move(movement);
 
-                            half_spaces.push_back(
+                            half_planes.push_back(
                                 {frac_t{-1, base_point},
                                  frac_t{1 + ((base_point * approx_x_y_info.multiplier +
                                               approx_x_y_info.adder) >>
                                              approx_x_y_info.shift_amount),
                                         base_point},
-                                 half_space_info::boundary_type_t::exclusive});
+                                 half_plane_info::boundary_type_t::exclusive});
                         }
                     };
 
@@ -1571,8 +1625,8 @@ namespace jkj {
             }
 
             // If n = 0 is the only constraint, then return early.
-            if (right_half_spaces.empty()) {
-                util::constexpr_assert(nrange_contains_zero && left_half_spaces.empty());
+            if (right_half_planes.empty()) {
+                util::constexpr_assert(nrange_contains_zero && left_half_planes.empty());
                 // zeta should satisfy the inequality floor_y <= zeta < floor_y + 1.
                 auto floor_y_frac = frac_t{floor_y, 1u};
                 auto floor_y_p1_frac = frac_t{floor_y + 1, 1u};
@@ -1622,10 +1676,10 @@ namespace jkj {
                     constexpr frac_t normsq() const { return dot(*this); }
                 };
 
-                auto const& half_spaces = bounding_direction == bounding_direction_t::lower
-                                              ? right_half_spaces
-                                              : left_half_spaces;
-                util::constexpr_assert(!half_spaces.empty());
+                auto const& half_planes = bounding_direction == bounding_direction_t::lower
+                                              ? right_half_planes
+                                              : left_half_planes;
+                util::constexpr_assert(!half_planes.empty());
 
                 auto invert_sign_wrt_bounding_direction =
                     [bounding_direction](bigint::int_var const& n) {
@@ -1641,11 +1695,11 @@ namespace jkj {
 
                 // Start from the one with the largest zeta-coordinate, which corresponds to the
                 // half-space with the highst boundary line.
-                auto first_elmt = std::ranges::max_element(std::as_const(half_spaces), {},
-                                                           &half_space_info::zeta_coeff);
+                auto first_elmt = std::ranges::max_element(std::as_const(half_planes), {},
+                                                           &half_plane_info::zeta_coeff);
 
                 // If there is only one half-space, return immediately.
-                if (half_spaces.size() == 1) {
+                if (half_planes.size() == 1) {
                     result.push_back(
                         {interval<frac_t, interval_type_t::entire>{},
                          util::is_nonnegative(first_elmt->zeta_coeff.numerator)
@@ -1655,7 +1709,7 @@ namespace jkj {
                              util::is_nonnegative(first_elmt->zeta_coeff.numerator)
                                  ? util::to_signed(first_elmt->zeta_coeff.denominator)
                                  : -util::to_signed(first_elmt->zeta_coeff.denominator)),
-                         first_elmt->boundary_type == half_space_info::boundary_type_t::inclusive});
+                         first_elmt->boundary_type == half_plane_info::boundary_type_t::inclusive});
                     return result;
                 }
 
@@ -1667,7 +1721,7 @@ namespace jkj {
                 frac_t prev_turning_point_zeta{0, 1u};
 
                 struct angle_info {
-                    typename std::vector<half_space_info>::const_iterator itr;
+                    typename std::vector<half_plane_info>::const_iterator itr;
                     vec2d direction_vec;
                     frac_t cos_square;
                     bool is_cos_strictly_negative;
@@ -1682,8 +1736,8 @@ namespace jkj {
                     return angle_info{
                         itr, direction_vec, (dot_product * dot_product) / direction_vec.normsq(),
                         is_cos_strictly_negative,
-                        last_elmt->boundary_type == half_space_info::boundary_type_t::inclusive &&
-                            itr->boundary_type == half_space_info::boundary_type_t::inclusive};
+                        last_elmt->boundary_type == half_plane_info::boundary_type_t::inclusive &&
+                            itr->boundary_type == half_plane_info::boundary_type_t::inclusive};
                 };
                 auto compare_angle_info = [](angle_info const& left,
                                              angle_info const& right) -> std::strong_ordering {
@@ -1708,13 +1762,13 @@ namespace jkj {
                 while (true) {
                     // Find the point whose direction vector is the closest in angle to the
                     // previous direction vector.
-                    auto itr = half_spaces.cbegin();
+                    auto itr = half_planes.cbegin();
                     if (itr == last_elmt) {
                         ++itr;
                     }
                     auto current_angle_info = compute_angle_info(itr);
 
-                    for (++itr; itr != half_spaces.cend(); ++itr) {
+                    for (++itr; itr != half_planes.cend(); ++itr) {
                         if (itr == last_elmt) {
                             continue;
                         }
@@ -1777,16 +1831,16 @@ namespace jkj {
                                               turning_point_zeta},
                                           xi_endpoint_numerator, xi_endpoint_denominator,
                                           last_elmt->boundary_type ==
-                                              half_space_info::boundary_type_t::inclusive});
+                                              half_plane_info::boundary_type_t::inclusive});
 
                         // The horizontal ray right above it.
                         result.push_back({interval<frac_t, interval_type_t::bounded_closed>{
                                               turning_point_zeta, turning_point_zeta},
                                           xi_endpoint_numerator, xi_endpoint_denominator,
                                           last_elmt->boundary_type ==
-                                                  half_space_info::boundary_type_t::inclusive &&
+                                                  half_plane_info::boundary_type_t::inclusive &&
                                               current_angle_info.itr->boundary_type ==
-                                                  half_space_info::boundary_type_t::inclusive});
+                                                  half_plane_info::boundary_type_t::inclusive});
                     }
                     // The unbounded top boundary line.
                     else if (current_angle_info.itr == first_elmt) {
@@ -1798,7 +1852,7 @@ namespace jkj {
                                               prev_turning_point_zeta},
                                           xi_endpoint_numerator, xi_endpoint_denominator,
                                           last_elmt->boundary_type ==
-                                              half_space_info::boundary_type_t::inclusive});
+                                              half_plane_info::boundary_type_t::inclusive});
 
                         // End of the while (true) {...} loop.
                         break;
@@ -1813,16 +1867,16 @@ namespace jkj {
                                               prev_turning_point_zeta, turning_point_zeta},
                                           xi_endpoint_numerator, xi_endpoint_denominator,
                                           last_elmt->boundary_type ==
-                                              half_space_info::boundary_type_t::inclusive});
+                                              half_plane_info::boundary_type_t::inclusive});
 
                         // The horizontal ray right above it.
                         result.push_back({interval<frac_t, interval_type_t::bounded_closed>{
                                               turning_point_zeta, turning_point_zeta},
                                           xi_endpoint_numerator, xi_endpoint_denominator,
                                           last_elmt->boundary_type ==
-                                                  half_space_info::boundary_type_t::inclusive &&
+                                                  half_plane_info::boundary_type_t::inclusive &&
                                               current_angle_info.itr->boundary_type ==
-                                                  half_space_info::boundary_type_t::inclusive});
+                                                  half_plane_info::boundary_type_t::inclusive});
                     }
                     // End of the branching on top/middle/bottom regions.
 
