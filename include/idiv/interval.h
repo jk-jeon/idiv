@@ -45,13 +45,13 @@ namespace jkj {
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
-            return static_cast<Functor>(f)(*this);
+            return static_cast<Functor&&>(f)(*this);
         }
         // Returns true if the visitation was successful.
         template <interval_type_t it, class Functor>
         constexpr bool visit_if(Functor&& f) const {
             if constexpr (it == interval_type()) {
-                static_cast<Functor>(f)(*this);
+                static_cast<Functor&&>(f)(*this);
                 return true;
             }
             return false;
@@ -81,13 +81,13 @@ namespace jkj {
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
-            return static_cast<Functor>(f)(*this);
+            return static_cast<Functor&&>(f)(*this);
         }
         // Returns true if the visitation was successful.
         template <interval_type_t it, class Functor>
         constexpr bool visit_if(Functor&& f) const {
             if constexpr (it == interval_type()) {
-                static_cast<Functor>(f)(*this);
+                static_cast<Functor&&>(f)(*this);
                 return true;
             }
             return false;
@@ -112,7 +112,7 @@ namespace jkj {
               upper_bound_{static_cast<U&&>(upper_bound)} {}
 
         template <class T>
-        constexpr bool contains(T const& x) const noexcept {
+        constexpr bool contains(T const& x) const {
             return lower_bound_ < x && x < upper_bound_;
         }
 
@@ -127,13 +127,13 @@ namespace jkj {
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
-            return static_cast<Functor>(f)(*this);
+            return static_cast<Functor&&>(f)(*this);
         }
         // Returns true if the visitation was successful.
         template <interval_type_t it, class Functor>
         constexpr bool visit_if(Functor&& f) const {
             if constexpr (it == interval_type()) {
-                static_cast<Functor>(f)(*this);
+                static_cast<Functor&&>(f)(*this);
                 return true;
             }
             return false;
@@ -160,7 +160,7 @@ namespace jkj {
               upper_bound_{static_cast<U&&>(upper_bound)} {}
 
         template <class T>
-        constexpr bool contains(T const& x) const noexcept {
+        constexpr bool contains(T const& x) const {
             return lower_bound_ < x && x <= upper_bound_;
         }
 
@@ -175,13 +175,13 @@ namespace jkj {
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
-            return static_cast<Functor>(f)(*this);
+            return static_cast<Functor&&>(f)(*this);
         }
         // Returns true if the visitation was successful.
         template <interval_type_t it, class Functor>
         constexpr bool visit_if(Functor&& f) const {
             if constexpr (it == interval_type()) {
-                static_cast<Functor>(f)(*this);
+                static_cast<Functor&&>(f)(*this);
                 return true;
             }
             return false;
@@ -208,7 +208,7 @@ namespace jkj {
               upper_bound_{static_cast<U&&>(upper_bound)} {}
 
         template <class T>
-        constexpr bool contains(T const& x) const noexcept {
+        constexpr bool contains(T const& x) const {
             return lower_bound_ <= x && x < upper_bound_;
         }
 
@@ -223,13 +223,13 @@ namespace jkj {
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
-            return static_cast<Functor>(f)(*this);
+            return static_cast<Functor&&>(f)(*this);
         }
         // Returns true if the visitation was successful.
         template <interval_type_t it, class Functor>
         constexpr bool visit_if(Functor&& f) const {
             if constexpr (it == interval_type()) {
-                static_cast<Functor>(f)(*this);
+                static_cast<Functor&&>(f)(*this);
                 return true;
             }
             return false;
@@ -254,7 +254,7 @@ namespace jkj {
               upper_bound_{static_cast<U&&>(upper_bound)} {}
 
         template <class T>
-        constexpr bool contains(T const& x) const noexcept {
+        constexpr bool contains(T const& x) const {
             return lower_bound_ <= x && x <= upper_bound_;
         }
 
@@ -269,13 +269,13 @@ namespace jkj {
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
-            return static_cast<Functor>(f)(*this);
+            return static_cast<Functor&&>(f)(*this);
         }
         // Returns true if the visitation was successful.
         template <interval_type_t it, class Functor>
         constexpr bool visit_if(Functor&& f) const {
             if constexpr (it == interval_type()) {
-                static_cast<Functor>(f)(*this);
+                static_cast<Functor&&>(f)(*this);
                 return true;
             }
             return false;
@@ -301,7 +301,7 @@ namespace jkj {
             : lower_bound_{static_cast<T&&>(lower_bound)} {}
 
         template <class T>
-        constexpr bool contains(T const& x) const noexcept {
+        constexpr bool contains(T const& x) const {
             return lower_bound_ < x;
         }
 
@@ -315,13 +315,13 @@ namespace jkj {
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
-            return static_cast<Functor>(f)(*this);
+            return static_cast<Functor&&>(f)(*this);
         }
         // Returns true if the visitation was successful.
         template <interval_type_t it, class Functor>
         constexpr bool visit_if(Functor&& f) const {
             if constexpr (it == interval_type()) {
-                static_cast<Functor>(f)(*this);
+                static_cast<Functor&&>(f)(*this);
                 return true;
             }
             return false;
@@ -347,7 +347,7 @@ namespace jkj {
             : lower_bound_{static_cast<T&&>(lower_bound)} {}
 
         template <class T>
-        constexpr bool contains(T const& x) const noexcept {
+        constexpr bool contains(T const& x) const {
             return lower_bound_ <= x;
         }
 
@@ -361,13 +361,13 @@ namespace jkj {
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
-            return static_cast<Functor>(f)(*this);
+            return static_cast<Functor&&>(f)(*this);
         }
         // Returns true if the visitation was successful.
         template <interval_type_t it, class Functor>
         constexpr bool visit_if(Functor&& f) const {
             if constexpr (it == interval_type()) {
-                static_cast<Functor>(f)(*this);
+                static_cast<Functor&&>(f)(*this);
                 return true;
             }
             return false;
@@ -393,7 +393,7 @@ namespace jkj {
             : upper_bound_{static_cast<T&&>(upper_bound)} {}
 
         template <class T>
-        constexpr bool contains(T const& x) const noexcept {
+        constexpr bool contains(T const& x) const {
             return x < upper_bound_;
         }
 
@@ -407,13 +407,13 @@ namespace jkj {
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
-            return static_cast<Functor>(f)(*this);
+            return static_cast<Functor&&>(f)(*this);
         }
         // Returns true if the visitation was successful.
         template <interval_type_t it, class Functor>
         constexpr bool visit_if(Functor&& f) const {
             if constexpr (it == interval_type()) {
-                static_cast<Functor>(f)(*this);
+                static_cast<Functor&&>(f)(*this);
                 return true;
             }
             return false;
@@ -439,7 +439,7 @@ namespace jkj {
             : upper_bound_{static_cast<T&&>(upper_bound)} {}
 
         template <class T>
-        constexpr bool contains(T const& x) const noexcept {
+        constexpr bool contains(T const& x) const {
             return x <= upper_bound_;
         }
 
@@ -453,13 +453,13 @@ namespace jkj {
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
-            return static_cast<Functor>(f)(*this);
+            return static_cast<Functor&&>(f)(*this);
         }
         // Returns true if the visitation was successful.
         template <interval_type_t it, class Functor>
         constexpr bool visit_if(Functor&& f) const {
             if constexpr (it == interval_type()) {
-                static_cast<Functor>(f)(*this);
+                static_cast<Functor&&>(f)(*this);
                 return true;
             }
             return false;
@@ -478,7 +478,7 @@ namespace jkj {
         constexpr auto&& upper_bound() && noexcept = delete;
 
         template <class T>
-        static constexpr bool contains(T const&) noexcept {
+        static constexpr bool contains(T const&) {
             return true;
         }
     };
@@ -507,13 +507,13 @@ namespace jkj {
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
-            return static_cast<Functor>(f)(*this);
+            return static_cast<Functor&&>(f)(*this);
         }
         // Returns true if the visitation was successful.
         template <cyclic_interval_type_t it, class Functor>
         constexpr bool visit_if(Functor&& f) const {
             if constexpr (it == interval_type()) {
-                static_cast<Functor>(f)(*this);
+                static_cast<Functor&&>(f)(*this);
                 return true;
             }
             return false;
@@ -543,13 +543,13 @@ namespace jkj {
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
-            return static_cast<Functor>(f)(*this);
+            return static_cast<Functor&&>(f)(*this);
         }
         // Returns true if the visitation was successful.
         template <cyclic_interval_type_t it, class Functor>
         constexpr bool visit_if(Functor&& f) const {
             if constexpr (it == interval_type()) {
-                static_cast<Functor>(f)(*this);
+                static_cast<Functor&&>(f)(*this);
                 return true;
             }
             return false;
@@ -574,7 +574,7 @@ namespace jkj {
         explicit constexpr cyclic_interval(T&& point) : point_{static_cast<T&&>(point)} {}
 
         template <class T>
-        constexpr bool contains(T const& x) const noexcept {
+        constexpr bool contains(T const& x) const {
             return x == point_;
         }
 
@@ -588,13 +588,13 @@ namespace jkj {
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
-            return static_cast<Functor>(f)(*this);
+            return static_cast<Functor&&>(f)(*this);
         }
         // Returns true if the visitation was successful.
         template <cyclic_interval_type_t it, class Functor>
         constexpr bool visit_if(Functor&& f) const {
             if constexpr (it == interval_type()) {
-                static_cast<Functor>(f)(*this);
+                static_cast<Functor&&>(f)(*this);
                 return true;
             }
             return false;
@@ -634,13 +634,13 @@ namespace jkj {
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
-            return static_cast<Functor>(f)(*this);
+            return static_cast<Functor&&>(f)(*this);
         }
         // Returns true if the visitation was successful.
         template <cyclic_interval_type_t it, class Functor>
         constexpr bool visit_if(Functor&& f) const {
             if constexpr (it == interval_type()) {
-                static_cast<Functor>(f)(*this);
+                static_cast<Functor&&>(f)(*this);
                 return true;
             }
             return false;
@@ -682,13 +682,13 @@ namespace jkj {
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
-            return static_cast<Functor>(f)(*this);
+            return static_cast<Functor&&>(f)(*this);
         }
         // Returns true if the visitation was successful.
         template <cyclic_interval_type_t it, class Functor>
         constexpr bool visit_if(Functor&& f) const {
             if constexpr (it == interval_type()) {
-                static_cast<Functor>(f)(*this);
+                static_cast<Functor&&>(f)(*this);
                 return true;
             }
             return false;
@@ -730,13 +730,13 @@ namespace jkj {
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
-            return static_cast<Functor>(f)(*this);
+            return static_cast<Functor&&>(f)(*this);
         }
         // Returns true if the visitation was successful.
         template <cyclic_interval_type_t it, class Functor>
         constexpr bool visit_if(Functor&& f) const {
             if constexpr (it == interval_type()) {
-                static_cast<Functor>(f)(*this);
+                static_cast<Functor&&>(f)(*this);
                 return true;
             }
             return false;
@@ -777,13 +777,13 @@ namespace jkj {
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
-            return static_cast<Functor>(f)(*this);
+            return static_cast<Functor&&>(f)(*this);
         }
         // Returns true if the visitation was successful.
         template <cyclic_interval_type_t it, class Functor>
         constexpr bool visit_if(Functor&& f) const {
             if constexpr (it == interval_type()) {
-                static_cast<Functor>(f)(*this);
+                static_cast<Functor&&>(f)(*this);
                 return true;
             }
             return false;
@@ -1034,10 +1034,10 @@ namespace jkj {
             }
 
             constexpr Enum interval_type() const noexcept { return interval_type_; }
-            constexpr auto left_endpoint_type() noexcept {
+            constexpr auto left_endpoint_type() const noexcept {
                 return visit([](auto&& itv) { return itv.left_endpoint_type(); });
             }
-            constexpr auto right_endpoint_type() noexcept {
+            constexpr auto right_endpoint_type() const noexcept {
                 return visit([](auto&& itv) { return itv.right_endpoint_type(); });
             }
             template <class T>
