@@ -61,10 +61,8 @@ namespace jkj {
             // TODO: deal with possible rational dependence between x and y.
 
             using frac_t = frac<bigint::int_var, bigint::uint_var>;
-            auto caching_xcf = cntfrc::caching_generator<ContinuedFractionGeneratorX>{
-                std::forward<ContinuedFractionGeneratorX>(xcf)};
-            auto caching_ycf = cntfrc::caching_generator<ContinuedFractionGeneratorY>{
-                std::forward<ContinuedFractionGeneratorY>(ycf)};
+            auto caching_xcf = cntfrc::caching_generator<ContinuedFractionGeneratorX&>{xcf};
+            auto caching_ycf = cntfrc::caching_generator<ContinuedFractionGeneratorY&>{ycf};
 
             using caching_xcf_ref = decltype(caching_xcf)&;
             using caching_ycf_ref = decltype(caching_ycf)&;
@@ -365,7 +363,7 @@ namespace jkj {
                 auto const ceil_kBL = k_common(rBprime);
                 auto const floor_kBR = util::div_floor(nlength + q * rBprime, qstar);
                 auto const ceil_rBL = r_common(floor_kBR);
-                auto const ceil_rBR = util::div_ceil(nlength + qstar * ceil_kBL, q);
+                auto const ceil_rBR = util::div_ceil(qstar * ceil_kBL - nlength, q);
                 auto const ceil_kBLL = k_common(ceil_rBL);
                 auto const ceil_kBRL = k_common(ceil_rBR);
 
@@ -438,7 +436,6 @@ namespace jkj {
                 "the second continued fraction generator must implement interval_tracker");
 
             using frac_t = frac<bigint::int_var, bigint::uint_var>;
-            using nrange_t = interval<bigint::int_var, interval_type_t::bounded_closed>;
             auto const trapezoid = find_xi_zeta_region_simultaneous_floor(
                 std::forward<ContinuedFractionGeneratorX>(xcf),
                 std::forward<ContinuedFractionGeneratorY>(ycf), nrange);
