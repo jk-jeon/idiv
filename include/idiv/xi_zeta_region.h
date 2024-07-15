@@ -220,7 +220,7 @@ namespace jkj {
                          turning_point_idx < turning_points().size(); ++turning_point_idx) {
                         f(horizontally_open_trapezoid{
                             .xi_range =
-                                interval<frac_t, interval_type_t::bounded_open>{
+                                interval<frac_t const&, interval_type_t::bounded_open>{
                                     turning_points()[turning_point_idx - 1].xi,
                                     turning_points()[turning_point_idx].xi},
                             .lower_boundary_linear_coeff =
