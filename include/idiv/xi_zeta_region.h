@@ -65,7 +65,6 @@ namespace jkj {
         };
 
         namespace xi_zeta_region {
-            enum class boundary_type_t : bool { exclusive, inclusive };
             enum class region_type_t {
                 entire_plane,
                 single_point,
@@ -168,8 +167,8 @@ namespace jkj {
                     util::constexpr_assert(!boundary_line_pairs_.empty());
 
                     auto on_turning_point = [&f](auto const& turning_point) {
-                        if (turning_point.lower_boundary_type == boundary_type_t::inclusive) {
-                            if (turning_point.upper_boundary_type == boundary_type_t::inclusive) {
+                        if (turning_point.lower_boundary_type == boundary_type_t::closed) {
+                            if (turning_point.upper_boundary_type == boundary_type_t::closed) {
                                 f(vertical_line_segment{
                                     turning_point.xi,
                                     interval<frac_t, interval_type_t::bounded_closed>{
@@ -184,7 +183,7 @@ namespace jkj {
                             }
                         }
                         else {
-                            if (turning_point.upper_boundary_type == boundary_type_t::inclusive) {
+                            if (turning_point.upper_boundary_type == boundary_type_t::closed) {
                                 f(vertical_line_segment{
                                     turning_point.xi,
                                     interval<frac_t,
@@ -203,8 +202,8 @@ namespace jkj {
                     auto on_last_turning_point = [&](auto const& turning_point) {
                         if (turning_point.lower_zeta == turning_point.upper_zeta) {
                             util::constexpr_assert(
-                                turning_point.lower_boundary_type == boundary_type_t::inclusive &&
-                                turning_point.upper_boundary_type == boundary_type_t::inclusive);
+                                turning_point.lower_boundary_type == boundary_type_t::closed &&
+                                turning_point.upper_boundary_type == boundary_type_t::closed);
                             f(single_point{turning_point.xi, turning_point.lower_zeta});
                         }
                         else {
@@ -212,7 +211,7 @@ namespace jkj {
                         }
                     };
 
-                    if (left_boundary_type() == boundary_type_t::inclusive) {
+                    if (left_boundary_type() == boundary_type_t::closed) {
                         on_last_turning_point(turning_points().front());
                     }
 
@@ -243,7 +242,7 @@ namespace jkj {
                         if (turning_point_idx < turning_points().size() - 1) {
                             on_turning_point(turning_points()[turning_point_idx]);
                         }
-                        else if (right_boundary_type() == boundary_type_t::inclusive) {
+                        else if (right_boundary_type() == boundary_type_t::closed) {
                             on_last_turning_point(turning_points().back());
                         }
                     }
@@ -317,7 +316,6 @@ namespace jkj {
 
             using frac_t = frac<bigint::int_var, bigint::uint_var>;
             using nrange_t = interval<bigint::int_var, interval_type_t::bounded_closed>;
-            using xi_zeta_region::boundary_type_t;
 
             auto gcd = [](auto const& a, auto const& b) {
                 auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
@@ -462,7 +460,7 @@ namespace jkj {
                                    1u};
 
                         triage_and_push_half_plane(xi_coeff, minus_zeta_coeff, eta_coeff,
-                                                   boundary_type_t::inclusive);
+                                                   boundary_type_t::closed);
                     };
 
                 auto push_open_half_plane =
@@ -494,7 +492,7 @@ namespace jkj {
                             affine_transform.constant_coeff_y;
 
                         triage_and_push_half_plane(xi_coeff, minus_zeta_coeff, eta_coeff,
-                                                   boundary_type_t::exclusive);
+                                                   boundary_type_t::open);
                     };
 
                 // For the maximization on the left, the half-space at the base point is
@@ -709,14 +707,14 @@ namespace jkj {
                                                    -constraint_spec.affine_coeff.linear_coeff.yy,
                                                    constraint_spec.affine_coeff.constant_coeff_y -
                                                        frac_t{floor_yp, 1u},
-                                                   boundary_type_t::inclusive);
+                                                   boundary_type_t::closed);
 
                         triage_and_push_half_plane(
                             -constraint_spec.affine_coeff.linear_coeff.yx,
                             constraint_spec.affine_coeff.linear_coeff.yy,
                             frac_t{floor_yp + 1u, 1u} -
                                 constraint_spec.affine_coeff.constant_coeff_y,
-                            boundary_type_t::exclusive);
+                            boundary_type_t::open);
                     }
                 } // for (auto const& constraint_spec : range_of_constraint_specs)
             }
@@ -738,8 +736,8 @@ namespace jkj {
                         return false;
                     }
                     else {
-                        return lhs.boundary_type == boundary_type_t::inclusive &&
-                               rhs.boundary_type == boundary_type_t::exclusive;
+                        return lhs.boundary_type == boundary_type_t::closed &&
+                               rhs.boundary_type == boundary_type_t::open;
                     }
                 });
             auto xi_max_itr =
@@ -751,8 +749,8 @@ namespace jkj {
                         return false;
                     }
                     else {
-                        return lhs.boundary_type == boundary_type_t::exclusive &&
-                               rhs.boundary_type == boundary_type_t::inclusive;
+                        return lhs.boundary_type == boundary_type_t::open &&
+                               rhs.boundary_type == boundary_type_t::closed;
                     }
                 });
 
@@ -821,8 +819,8 @@ namespace jkj {
                                                                                           : true;
                         }
                         else {
-                            return lhs.boundary_type == boundary_type_t::exclusive &&
-                                   rhs.boundary_type == boundary_type_t::inclusive;
+                            return lhs.boundary_type == boundary_type_t::open &&
+                                   rhs.boundary_type == boundary_type_t::closed;
                         }
                     });
 
@@ -849,10 +847,10 @@ namespace jkj {
                         // Remember inclusiveness of the turning point.
                         result.turning_point_types.push_back(
                             result.boundary_lines.front().boundary_type ==
-                                        boundary_type_t::inclusive &&
-                                    curr_itr->boundary_type == boundary_type_t::inclusive
-                                ? boundary_type_t::inclusive
-                                : boundary_type_t::exclusive);
+                                        boundary_type_t::closed &&
+                                    curr_itr->boundary_type == boundary_type_t::closed
+                                ? boundary_type_t::closed
+                                : boundary_type_t::open);
                         break;
                     }
                 }
@@ -902,10 +900,10 @@ namespace jkj {
                         result.boundary_lines.pop_back();
                         result.boundary_lines.push_back(*curr_itr);
                         result.turning_point_types.back() =
-                            result.turning_point_types.back() == boundary_type_t::inclusive &&
-                                    curr_itr->boundary_type == boundary_type_t::inclusive
-                                ? boundary_type_t::inclusive
-                                : boundary_type_t::exclusive;
+                            result.turning_point_types.back() == boundary_type_t::closed &&
+                                    curr_itr->boundary_type == boundary_type_t::closed
+                                ? boundary_type_t::closed
+                                : boundary_type_t::open;
                     }
                     else {
                         // Push the newly found point.
@@ -913,11 +911,10 @@ namespace jkj {
 
                         // Remember inclusiveness of the turning point.
                         result.turning_point_types.push_back(
-                            result.boundary_lines.back().boundary_type ==
-                                        boundary_type_t::inclusive &&
-                                    curr_itr->boundary_type == boundary_type_t::inclusive
-                                ? boundary_type_t::inclusive
-                                : boundary_type_t::exclusive);
+                            result.boundary_lines.back().boundary_type == boundary_type_t::closed &&
+                                    curr_itr->boundary_type == boundary_type_t::closed
+                                ? boundary_type_t::closed
+                                : boundary_type_t::open);
                     }
                 } // while (++curr_itr != half_planes.cend())
 
@@ -963,8 +960,8 @@ namespace jkj {
 
                 util::constexpr_assert(min_value < max_value ||
                                        (min_value == max_value &&
-                                        lower_bdy.boundary_type == boundary_type_t::inclusive &&
-                                        upper_bdy.boundary_type == boundary_type_t::inclusive));
+                                        lower_bdy.boundary_type == boundary_type_t::closed &&
+                                        upper_bdy.boundary_type == boundary_type_t::closed));
 
                 return xi_zeta_region::infinite_parallelogram{
                     .xi_coeff = lower_bdy.linear_coeff.numerator *
@@ -980,9 +977,8 @@ namespace jkj {
             if (!right_half_planes.empty()) {
                 util::constexpr_assert(!left_half_planes.empty());
                 if (xi_min_itr->threshold == xi_max_itr->threshold) {
-                    util::constexpr_assert(xi_min_itr->boundary_type ==
-                                               boundary_type_t::inclusive &&
-                                           xi_max_itr->boundary_type == boundary_type_t::inclusive);
+                    util::constexpr_assert(xi_min_itr->boundary_type == boundary_type_t::closed &&
+                                           xi_max_itr->boundary_type == boundary_type_t::closed);
 
                     struct endpoint_t {
                         frac_t zeta;
@@ -1182,15 +1178,15 @@ namespace jkj {
 
                     if (cmp_result <= 0) {
                         if (lower_envelope.turning_point_types[lower_idx] ==
-                            boundary_type_t::exclusive) {
-                            lower_boundary_type = boundary_type_t::exclusive;
+                            boundary_type_t::open) {
+                            lower_boundary_type = boundary_type_t::open;
                         }
                         ++lower_idx;
                     }
                     if (cmp_result >= 0) {
                         if (upper_envelope.turning_point_types[upper_idx] ==
-                            boundary_type_t::exclusive) {
-                            upper_boundary_type = boundary_type_t::exclusive;
+                            boundary_type_t::open) {
+                            upper_boundary_type = boundary_type_t::open;
                         }
                         ++upper_idx;
                     }
@@ -1257,27 +1253,25 @@ namespace jkj {
                                     // Make sure the set is not empty.
                                     util::constexpr_assert(
                                         lower_envelope.boundary_lines[lower_idx].boundary_type ==
-                                            boundary_type_t::inclusive &&
+                                            boundary_type_t::closed &&
                                         upper_envelope.boundary_lines[upper_idx].boundary_type ==
-                                            boundary_type_t::inclusive &&
+                                            boundary_type_t::closed &&
                                         (position_in_lower_domain !=
                                              position_in_interval_t::right_endpoint ||
                                          lower_envelope.turning_point_types[lower_idx] ==
-                                             boundary_type_t::inclusive) &&
+                                             boundary_type_t::closed) &&
                                         (position_in_upper_domain !=
                                              position_in_interval_t::right_endpoint ||
                                          upper_envelope.turning_point_types[upper_idx] ==
-                                             boundary_type_t::inclusive));
+                                             boundary_type_t::closed));
                                     util::constexpr_assert(
                                         (right_half_planes.empty() ||
                                          (xi_min_itr->threshold <= intersection_xi &&
-                                          (xi_min_itr->boundary_type ==
-                                               boundary_type_t::inclusive ||
+                                          (xi_min_itr->boundary_type == boundary_type_t::closed ||
                                            xi_min_itr->threshold < intersection_xi))) &&
                                         (left_half_planes.empty() ||
                                          (xi_max_itr->threshold >= intersection_xi &&
-                                          (xi_max_itr->boundary_type ==
-                                               boundary_type_t::inclusive ||
+                                          (xi_max_itr->boundary_type == boundary_type_t::closed ||
                                            xi_max_itr->threshold > intersection_xi))));
 
                                     return xi_zeta_region::single_point{
@@ -1290,9 +1284,9 @@ namespace jkj {
                                     // The intersection is a non-vertical line segment.
                                     // We need to find the left and the right endpoints.
                                     util::constexpr_assert(lower_bdy.boundary_type ==
-                                                           boundary_type_t::inclusive);
+                                                           boundary_type_t::closed);
                                     util::constexpr_assert(upper_bdy.boundary_type ==
-                                                           boundary_type_t::inclusive);
+                                                           boundary_type_t::closed);
 
                                     struct endpoint_t {
                                         frac_t xi;
@@ -1300,19 +1294,19 @@ namespace jkj {
                                     };
 
                                     auto xi_min = [&]() -> endpoint_t {
-                                        auto boundary_type = boundary_type_t::inclusive;
+                                        auto boundary_type = boundary_type_t::closed;
                                         if (position_in_lower_domain ==
                                             position_in_interval_t::right_endpoint) {
                                             if (lower_envelope.turning_point_types[lower_idx] ==
-                                                boundary_type_t::exclusive) {
-                                                boundary_type = boundary_type_t::exclusive;
+                                                boundary_type_t::open) {
+                                                boundary_type = boundary_type_t::open;
                                             }
                                         }
                                         if (position_in_upper_domain ==
                                             position_in_interval_t::right_endpoint) {
                                             if (upper_envelope.turning_point_types[lower_idx] ==
-                                                boundary_type_t::exclusive) {
-                                                boundary_type = boundary_type_t::exclusive;
+                                                boundary_type_t::open) {
+                                                boundary_type = boundary_type_t::open;
                                             }
                                         }
 
@@ -1327,8 +1321,8 @@ namespace jkj {
                                             }
                                             else if (cmp_result == 0) {
                                                 if (xi_min_itr->boundary_type ==
-                                                    boundary_type_t::exclusive) {
-                                                    boundary_type = boundary_type_t::exclusive;
+                                                    boundary_type_t::open) {
+                                                    boundary_type = boundary_type_t::open;
                                                 }
                                                 return {std::move(intersection_xi), boundary_type};
                                             }
@@ -1381,12 +1375,12 @@ namespace jkj {
                                                 return {
                                                     lower_envelope.turning_points[lower_idx],
                                                     lower_envelope.turning_point_types[lower_idx] ==
-                                                                boundary_type_t::exclusive ||
+                                                                boundary_type_t::open ||
                                                             upper_envelope.turning_point_types
                                                                     [upper_idx] ==
-                                                                boundary_type_t::exclusive
-                                                        ? boundary_type_t::exclusive
-                                                        : boundary_type_t::inclusive};
+                                                                boundary_type_t::open
+                                                        ? boundary_type_t::open
+                                                        : boundary_type_t::closed};
                                             }
                                         }();
 
@@ -1406,11 +1400,11 @@ namespace jkj {
                                         else {
                                             return {min_between_lower_and_upper.xi,
                                                     min_between_lower_and_upper.boundary_type ==
-                                                                boundary_type_t::exclusive ||
+                                                                boundary_type_t::open ||
                                                             xi_max_itr->boundary_type ==
-                                                                boundary_type_t::exclusive
-                                                        ? boundary_type_t::exclusive
-                                                        : boundary_type_t::inclusive};
+                                                                boundary_type_t::open
+                                                        ? boundary_type_t::open
+                                                        : boundary_type_t::closed};
                                         }
                                     }();
 
@@ -1423,10 +1417,9 @@ namespace jkj {
                                         auto cmp_result = xi_min.xi <=> xi_max.xi;
                                         util::constexpr_assert(cmp_result <= 0);
                                         if (cmp_result == 0) {
-                                            util::constexpr_assert(xi_min.boundary_type ==
-                                                                       boundary_type_t::inclusive &&
-                                                                   xi_max.boundary_type ==
-                                                                       boundary_type_t::inclusive);
+                                            util::constexpr_assert(
+                                                xi_min.boundary_type == boundary_type_t::closed &&
+                                                xi_max.boundary_type == boundary_type_t::closed);
 
                                             return xi_zeta_region::single_point{xi_min.xi,
                                                                                 base_point_zeta};
@@ -1463,25 +1456,25 @@ namespace jkj {
                                     lower_envelope.boundary_lines[lower_idx].constant_coeff);
                                 auto boundary_type =
                                     lower_envelope.boundary_lines[lower_idx].boundary_type ==
-                                                boundary_type_t::inclusive &&
+                                                boundary_type_t::closed &&
                                             upper_envelope.boundary_lines[upper_idx]
-                                                    .boundary_type == boundary_type_t::inclusive
-                                        ? boundary_type_t::inclusive
-                                        : boundary_type_t::exclusive;
+                                                    .boundary_type == boundary_type_t::closed
+                                        ? boundary_type_t::closed
+                                        : boundary_type_t::open;
 
                                 if (position_in_lower_domain ==
                                     position_in_interval_t::right_endpoint) {
                                     if (lower_envelope.turning_point_types[lower_idx] ==
-                                        boundary_type_t::exclusive) {
-                                        boundary_type = boundary_type_t::exclusive;
+                                        boundary_type_t::open) {
+                                        boundary_type = boundary_type_t::open;
                                     }
                                     ++lower_idx;
                                 }
                                 if (position_in_upper_domain ==
                                     position_in_interval_t::right_endpoint) {
                                     if (upper_envelope.turning_point_types[upper_idx] ==
-                                        boundary_type_t::exclusive) {
-                                        boundary_type = boundary_type_t::exclusive;
+                                        boundary_type_t::open) {
+                                        boundary_type = boundary_type_t::open;
                                     }
                                     ++upper_idx;
                                 }
@@ -1516,23 +1509,23 @@ namespace jkj {
                                     lower_envelope.boundary_lines[lower_idx].constant_coeff);
                                 auto boundary_type =
                                     lower_envelope.boundary_lines[lower_idx].boundary_type ==
-                                                boundary_type_t::inclusive &&
+                                                boundary_type_t::closed &&
                                             upper_envelope.boundary_lines[upper_idx]
-                                                    .boundary_type == boundary_type_t::inclusive
-                                        ? boundary_type_t::inclusive
-                                        : boundary_type_t::exclusive;
+                                                    .boundary_type == boundary_type_t::closed
+                                        ? boundary_type_t::closed
+                                        : boundary_type_t::open;
 
                                 if (position_in_lower_domain ==
                                         position_in_interval_t::right_endpoint &&
                                     lower_envelope.turning_point_types[lower_idx] ==
-                                        boundary_type_t::exclusive) {
-                                    boundary_type = boundary_type_t::exclusive;
+                                        boundary_type_t::open) {
+                                    boundary_type = boundary_type_t::open;
                                 }
                                 if (position_in_upper_domain ==
                                         position_in_interval_t::right_endpoint &&
                                     upper_envelope.turning_point_types[upper_idx] ==
-                                        boundary_type_t::exclusive) {
-                                    boundary_type = boundary_type_t::exclusive;
+                                        boundary_type_t::open) {
+                                    boundary_type = boundary_type_t::open;
                                 }
 
                                 turning_points.push_back(
@@ -1592,13 +1585,13 @@ namespace jkj {
                             position_in_interval_t::right_endpoint) {
                             is_single_point = true;
                             util::constexpr_assert(lower_envelope.turning_point_types[0] !=
-                                                   boundary_type_t::exclusive);
+                                                   boundary_type_t::open);
                         }
                         if (xi_min_position_in_upper_domain ==
                             position_in_interval_t::right_endpoint) {
                             is_single_point = true;
                             util::constexpr_assert(upper_envelope.turning_point_types[0] !=
-                                                   boundary_type_t::exclusive);
+                                                   boundary_type_t::open);
                         }
 
                         if (is_single_point) {
@@ -1623,12 +1616,12 @@ namespace jkj {
                                 else {
                                     return {std::move(xi_max_itr->threshold),
                                             (lower_envelope.turning_point_types[0] ==
-                                             boundary_type_t::inclusive) &&
+                                             boundary_type_t::closed) &&
                                                     (cmp_result < 0 ||
                                                      upper_envelope.turning_point_types[0] ==
-                                                         boundary_type_t::inclusive)
+                                                         boundary_type_t::closed)
                                                 ? xi_max_itr->boundary_type
-                                                : boundary_type_t::exclusive};
+                                                : boundary_type_t::open};
                                 }
                             }
                             else {
@@ -1645,9 +1638,9 @@ namespace jkj {
                                 else {
                                     return {std::move(xi_max_itr->threshold),
                                             upper_envelope.turning_point_types[0] ==
-                                                    boundary_type_t::inclusive
+                                                    boundary_type_t::closed
                                                 ? xi_max_itr->boundary_type
-                                                : boundary_type_t::exclusive};
+                                                : boundary_type_t::open};
                                 }
                             }
                         }();
@@ -1726,8 +1719,8 @@ namespace jkj {
             // Step 4 - Vertically cut the region if necessary.
             ////////////////////////////////////////////////////////////////////////////////////
 
-            auto left_boundary_type = boundary_type_t::inclusive;
-            auto right_boundary_type = boundary_type_t::inclusive;
+            auto left_boundary_type = boundary_type_t::closed;
+            auto right_boundary_type = boundary_type_t::closed;
 
             if (!right_half_planes.empty()) {
                 util::constexpr_assert(!left_half_planes.empty());
@@ -1746,12 +1739,12 @@ namespace jkj {
                         if (!infinite_min_xi && idx == 0) {
                             util::constexpr_assert(turning_points[0].lower_zeta ==
                                                    turning_points[0].upper_zeta);
-                            left_boundary_type = turning_points[0].lower_boundary_type ==
-                                                             boundary_type_t::inclusive &&
-                                                         turning_points[0].upper_boundary_type ==
-                                                             boundary_type_t::inclusive
-                                                     ? boundary_type_t::inclusive
-                                                     : boundary_type_t::exclusive;
+                            left_boundary_type =
+                                turning_points[0].lower_boundary_type == boundary_type_t::closed &&
+                                        turning_points[0].upper_boundary_type ==
+                                            boundary_type_t::closed
+                                    ? boundary_type_t::closed
+                                    : boundary_type_t::open;
 
                             trimmed_turning_points.push_back(turning_points[0]);
                             ++idx;
@@ -1789,18 +1782,18 @@ namespace jkj {
                             util::constexpr_assert(turning_point.lower_zeta ==
                                                    turning_point.upper_zeta);
                             util::constexpr_assert(
-                                left_boundary_type == boundary_type_t::inclusive &&
-                                turning_point.lower_boundary_type == boundary_type_t::inclusive &&
-                                turning_point.upper_boundary_type == boundary_type_t::inclusive);
+                                left_boundary_type == boundary_type_t::closed &&
+                                turning_point.lower_boundary_type == boundary_type_t::closed &&
+                                turning_point.upper_boundary_type == boundary_type_t::closed);
 
                             return xi_zeta_region::single_point{
                                 std::move(turning_point.xi), std::move(turning_point.lower_zeta)};
                         }
 
                         if (turning_point.lower_zeta == turning_point.upper_zeta &&
-                            (turning_point.lower_boundary_type == boundary_type_t::exclusive ||
-                             turning_point.upper_boundary_type == boundary_type_t::exclusive)) {
-                            left_boundary_type = boundary_type_t::exclusive;
+                            (turning_point.lower_boundary_type == boundary_type_t::open ||
+                             turning_point.upper_boundary_type == boundary_type_t::open)) {
+                            left_boundary_type = boundary_type_t::open;
                         }
 
                         trimmed_turning_points.push_back(turning_point);
@@ -1843,18 +1836,18 @@ namespace jkj {
                             util::constexpr_assert(turning_point.lower_zeta ==
                                                    turning_point.upper_zeta);
                             util::constexpr_assert(
-                                right_boundary_type == boundary_type_t::inclusive &&
-                                turning_point.lower_boundary_type == boundary_type_t::inclusive &&
-                                turning_point.upper_boundary_type == boundary_type_t::inclusive);
+                                right_boundary_type == boundary_type_t::closed &&
+                                turning_point.lower_boundary_type == boundary_type_t::closed &&
+                                turning_point.upper_boundary_type == boundary_type_t::closed);
 
                             return xi_zeta_region::single_point{
                                 std::move(turning_point.xi), std::move(turning_point.lower_zeta)};
                         }
 
                         if (turning_point.lower_zeta == turning_point.upper_zeta &&
-                            (turning_point.lower_boundary_type == boundary_type_t::exclusive ||
-                             turning_point.upper_boundary_type == boundary_type_t::exclusive)) {
-                            right_boundary_type = boundary_type_t::exclusive;
+                            (turning_point.lower_boundary_type == boundary_type_t::open ||
+                             turning_point.upper_boundary_type == boundary_type_t::open)) {
+                            right_boundary_type = boundary_type_t::open;
                         }
 
                         trimmed_turning_points.push_back(std::move(turning_point));
@@ -1906,13 +1899,13 @@ namespace jkj {
                 util::constexpr_assert(turning_points.back().lower_zeta ==
                                        turning_points.back().upper_zeta);
 
-                if (turning_points.front().lower_boundary_type == boundary_type_t::exclusive ||
-                    turning_points.front().upper_boundary_type == boundary_type_t::exclusive) {
-                    left_boundary_type = boundary_type_t::exclusive;
+                if (turning_points.front().lower_boundary_type == boundary_type_t::open ||
+                    turning_points.front().upper_boundary_type == boundary_type_t::open) {
+                    left_boundary_type = boundary_type_t::open;
                 }
-                if (turning_points.back().lower_boundary_type == boundary_type_t::exclusive ||
-                    turning_points.back().upper_boundary_type == boundary_type_t::exclusive) {
-                    right_boundary_type = boundary_type_t::exclusive;
+                if (turning_points.back().lower_boundary_type == boundary_type_t::open ||
+                    turning_points.back().upper_boundary_type == boundary_type_t::open) {
+                    right_boundary_type = boundary_type_t::open;
                 }
             }
 

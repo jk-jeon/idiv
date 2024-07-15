@@ -34,7 +34,7 @@ namespace jkj {
         bounded_above_closed,           // (-infty,b]
         entire                          // (-infty,infty)
     };
-    enum class endpoint_type_t { empty, open, closed };
+    enum class boundary_type_t : bool { open, closed };
 
     template <std::totally_ordered Value, interval_type_t it>
     struct interval;
@@ -58,8 +58,8 @@ namespace jkj {
         }
 
         static constexpr auto interval_type() noexcept { return interval_type_t::empty; }
-        static constexpr auto left_endpoint_type() noexcept { return endpoint_type_t::empty; }
-        static constexpr auto right_endpoint_type() noexcept { return endpoint_type_t::empty; }
+        static constexpr auto left_boundary_type() noexcept { return boundary_type_t::open; }
+        static constexpr auto right_boundary_type() noexcept { return boundary_type_t::open; }
 
         constexpr auto const& lower_bound() const& noexcept = delete;
         constexpr auto& lower_bound() & noexcept = delete;
@@ -94,8 +94,8 @@ namespace jkj {
         }
 
         static constexpr auto interval_type() noexcept { return interval_type_t::bounded_open; }
-        static constexpr auto left_endpoint_type() noexcept { return endpoint_type_t::open; }
-        static constexpr auto right_endpoint_type() noexcept { return endpoint_type_t::open; }
+        static constexpr auto left_boundary_type() noexcept { return boundary_type_t::open; }
+        static constexpr auto right_boundary_type() noexcept { return boundary_type_t::open; }
 
         constexpr auto const& lower_bound() const& noexcept { return lower_bound_; }
         constexpr auto& lower_bound() & noexcept { return lower_bound_; }
@@ -142,8 +142,8 @@ namespace jkj {
         static constexpr auto interval_type() noexcept {
             return interval_type_t::bounded_left_open_right_closed;
         }
-        static constexpr auto left_endpoint_type() noexcept { return endpoint_type_t::open; }
-        static constexpr auto right_endpoint_type() noexcept { return endpoint_type_t::closed; }
+        static constexpr auto left_boundary_type() noexcept { return boundary_type_t::open; }
+        static constexpr auto right_boundary_type() noexcept { return boundary_type_t::closed; }
 
         constexpr auto const& lower_bound() const& noexcept { return lower_bound_; }
         constexpr auto& lower_bound() & noexcept { return lower_bound_; }
@@ -190,8 +190,8 @@ namespace jkj {
         static constexpr auto interval_type() noexcept {
             return interval_type_t::bounded_left_closed_right_open;
         }
-        static constexpr auto left_endpoint_type() noexcept { return endpoint_type_t::closed; }
-        static constexpr auto right_endpoint_type() noexcept { return endpoint_type_t::open; }
+        static constexpr auto left_boundary_type() noexcept { return boundary_type_t::closed; }
+        static constexpr auto right_boundary_type() noexcept { return boundary_type_t::open; }
 
         constexpr auto const& lower_bound() const& noexcept { return lower_bound_; }
         constexpr auto& lower_bound() & noexcept { return lower_bound_; }
@@ -236,8 +236,8 @@ namespace jkj {
         }
 
         static constexpr auto interval_type() noexcept { return interval_type_t::bounded_closed; }
-        static constexpr auto left_endpoint_type() noexcept { return endpoint_type_t::closed; }
-        static constexpr auto right_endpoint_type() noexcept { return endpoint_type_t::closed; }
+        static constexpr auto left_boundary_type() noexcept { return boundary_type_t::closed; }
+        static constexpr auto right_boundary_type() noexcept { return boundary_type_t::closed; }
 
         constexpr auto const& lower_bound() const& noexcept { return lower_bound_; }
         constexpr auto& lower_bound() & noexcept { return lower_bound_; }
@@ -284,8 +284,8 @@ namespace jkj {
         static constexpr auto interval_type() noexcept {
             return interval_type_t::bounded_below_open;
         }
-        static constexpr auto left_endpoint_type() noexcept { return endpoint_type_t::open; }
-        static constexpr auto right_endpoint_type() noexcept { return endpoint_type_t::open; }
+        static constexpr auto left_boundary_type() noexcept { return boundary_type_t::open; }
+        static constexpr auto right_boundary_type() noexcept { return boundary_type_t::open; }
 
         constexpr auto const& lower_bound() const& noexcept { return lower_bound_; }
         constexpr auto& lower_bound() & noexcept { return lower_bound_; }
@@ -330,8 +330,8 @@ namespace jkj {
         static constexpr auto interval_type() noexcept {
             return interval_type_t::bounded_below_closed;
         }
-        static constexpr auto left_endpoint_type() noexcept { return endpoint_type_t::closed; }
-        static constexpr auto right_endpoint_type() noexcept { return endpoint_type_t::open; }
+        static constexpr auto left_boundary_type() noexcept { return boundary_type_t::closed; }
+        static constexpr auto right_boundary_type() noexcept { return boundary_type_t::open; }
 
         constexpr auto const& lower_bound() const& noexcept { return lower_bound_; }
         constexpr auto& lower_bound() & noexcept { return lower_bound_; }
@@ -376,8 +376,8 @@ namespace jkj {
         static constexpr auto interval_type() noexcept {
             return interval_type_t::bounded_above_open;
         }
-        static constexpr auto left_endpoint_type() noexcept { return endpoint_type_t::open; }
-        static constexpr auto right_endpoint_type() noexcept { return endpoint_type_t::open; }
+        static constexpr auto left_boundary_type() noexcept { return boundary_type_t::open; }
+        static constexpr auto right_boundary_type() noexcept { return boundary_type_t::open; }
 
         constexpr auto const& lower_bound() const& noexcept = delete;
         constexpr auto& lower_bound() & noexcept = delete;
@@ -422,8 +422,8 @@ namespace jkj {
         static constexpr auto interval_type() noexcept {
             return interval_type_t::bounded_above_closed;
         }
-        static constexpr auto left_endpoint_type() noexcept { return endpoint_type_t::open; }
-        static constexpr auto right_endpoint_type() noexcept { return endpoint_type_t::closed; }
+        static constexpr auto left_boundary_type() noexcept { return boundary_type_t::open; }
+        static constexpr auto right_boundary_type() noexcept { return boundary_type_t::closed; }
 
         constexpr auto const& lower_bound() const& noexcept = delete;
         constexpr auto& lower_bound() & noexcept = delete;
@@ -466,8 +466,8 @@ namespace jkj {
         }
 
         static constexpr auto interval_type() noexcept { return interval_type_t::entire; }
-        static constexpr auto left_endpoint_type() noexcept { return endpoint_type_t::open; }
-        static constexpr auto right_endpoint_type() noexcept { return endpoint_type_t::open; }
+        static constexpr auto left_boundary_type() noexcept { return boundary_type_t::open; }
+        static constexpr auto right_boundary_type() noexcept { return boundary_type_t::open; }
 
         constexpr auto const& lower_bound() const& noexcept = delete;
         constexpr auto& lower_bound() & noexcept = delete;
@@ -520,8 +520,8 @@ namespace jkj {
         }
 
         static constexpr auto interval_type() noexcept { return cyclic_interval_type_t::empty; }
-        static constexpr auto left_endpoint_type() noexcept { return endpoint_type_t::empty; }
-        static constexpr auto right_endpoint_type() noexcept { return endpoint_type_t::empty; }
+        static constexpr auto left_boundary_type() noexcept { return boundary_type_t::open; }
+        static constexpr auto right_boundary_type() noexcept { return boundary_type_t::open; }
 
         constexpr auto const& lower_bound() const& noexcept = delete;
         constexpr auto& lower_bound() & noexcept = delete;
@@ -558,8 +558,8 @@ namespace jkj {
         static constexpr auto interval_type() noexcept {
             return cyclic_interval_type_t::single_point;
         }
-        static constexpr auto left_endpoint_type() noexcept { return endpoint_type_t::closed; }
-        static constexpr auto right_endpoint_type() noexcept { return endpoint_type_t::closed; }
+        static constexpr auto left_boundary_type() noexcept { return boundary_type_t::closed; }
+        static constexpr auto right_boundary_type() noexcept { return boundary_type_t::closed; }
 
         constexpr auto const& lower_bound() const& noexcept { return point_; }
         constexpr auto& lower_bound() & noexcept { return point_; }
@@ -601,8 +601,8 @@ namespace jkj {
         }
 
         static constexpr auto interval_type() noexcept { return cyclic_interval_type_t::open; }
-        static constexpr auto left_endpoint_type() noexcept { return endpoint_type_t::open; }
-        static constexpr auto right_endpoint_type() noexcept { return endpoint_type_t::open; }
+        static constexpr auto left_boundary_type() noexcept { return boundary_type_t::open; }
+        static constexpr auto right_boundary_type() noexcept { return boundary_type_t::open; }
 
         constexpr auto const& lower_bound() const& noexcept { return lower_bound_; }
         constexpr auto& lower_bound() & noexcept { return lower_bound_; }
@@ -649,8 +649,8 @@ namespace jkj {
         static constexpr auto interval_type() noexcept {
             return cyclic_interval_type_t::left_open_right_closed;
         }
-        static constexpr auto left_endpoint_type() noexcept { return endpoint_type_t::open; }
-        static constexpr auto right_endpoint_type() noexcept { return endpoint_type_t::closed; }
+        static constexpr auto left_boundary_type() noexcept { return boundary_type_t::open; }
+        static constexpr auto right_boundary_type() noexcept { return boundary_type_t::closed; }
 
         constexpr auto const& lower_bound() const& noexcept { return lower_bound_; }
         constexpr auto& lower_bound() & noexcept { return lower_bound_; }
@@ -697,8 +697,8 @@ namespace jkj {
         static constexpr auto interval_type() noexcept {
             return cyclic_interval_type_t::left_closed_right_open;
         }
-        static constexpr auto left_endpoint_type() noexcept { return endpoint_type_t::closed; }
-        static constexpr auto right_endpoint_type() noexcept { return endpoint_type_t::open; }
+        static constexpr auto left_boundary_type() noexcept { return boundary_type_t::closed; }
+        static constexpr auto right_boundary_type() noexcept { return boundary_type_t::open; }
 
         constexpr auto const& lower_bound() const& noexcept { return lower_bound_; }
         constexpr auto& lower_bound() & noexcept { return lower_bound_; }
@@ -743,8 +743,8 @@ namespace jkj {
         }
 
         static constexpr auto interval_type() noexcept { return cyclic_interval_type_t::closed; }
-        static constexpr auto left_endpoint_type() noexcept { return endpoint_type_t::closed; }
-        static constexpr auto right_endpoint_type() noexcept { return endpoint_type_t::closed; }
+        static constexpr auto left_boundary_type() noexcept { return boundary_type_t::closed; }
+        static constexpr auto right_boundary_type() noexcept { return boundary_type_t::closed; }
 
         constexpr auto const& lower_bound() const& noexcept { return lower_bound_; }
         constexpr auto& lower_bound() & noexcept { return lower_bound_; }
@@ -790,8 +790,8 @@ namespace jkj {
         }
 
         static constexpr auto interval_type() noexcept { return cyclic_interval_type_t::entire; }
-        static constexpr auto left_endpoint_type() noexcept { return endpoint_type_t::empty; }
-        static constexpr auto right_endpoint_type() noexcept { return endpoint_type_t::empty; }
+        static constexpr auto left_boundary_type() noexcept { return boundary_type_t::open; }
+        static constexpr auto right_boundary_type() noexcept { return boundary_type_t::open; }
 
         constexpr auto const& lower_bound() const& noexcept = delete;
         constexpr auto& lower_bound() & noexcept = delete;
@@ -1053,11 +1053,11 @@ namespace jkj {
             }
 
             constexpr Enum interval_type() const noexcept { return interval_type_; }
-            constexpr auto left_endpoint_type() const noexcept {
-                return visit([](auto&& itv) { return itv.left_endpoint_type(); });
+            constexpr auto left_boundary_type() const noexcept {
+                return visit([](auto&& itv) { return itv.left_boundary_type(); });
             }
-            constexpr auto right_endpoint_type() const noexcept {
-                return visit([](auto&& itv) { return itv.right_endpoint_type(); });
+            constexpr auto right_boundary_type() const noexcept {
+                return visit([](auto&& itv) { return itv.right_boundary_type(); });
             }
             template <class T>
             constexpr bool contains(T const& x) const {

@@ -53,7 +53,7 @@ namespace jkj {
                         return {0, 0u};
                     }
 
-                    auto numerator = itv_type::left_endpoint_type() == endpoint_type_t::open
+                    auto numerator = itv_type::left_boundary_type() == boundary_type_t::open
                                          ? util::div_floor(itv.lower_bound().numerator,
                                                            itv.lower_bound().denominator) +
                                                1u
@@ -67,7 +67,7 @@ namespace jkj {
                         return {0, 0u};
                     }
 
-                    auto numerator = itv_type::right_endpoint_type() == endpoint_type_t::open
+                    auto numerator = itv_type::right_boundary_type() == boundary_type_t::open
                                          ? util::div_ceil(itv.upper_bound().numerator,
                                                           itv.upper_bound().denominator) -
                                                1u
@@ -78,12 +78,12 @@ namespace jkj {
                 else {
                     auto interval_sign = util::sign_t::positive;
                     if (util::is_zero(itv.lower_bound().numerator)) {
-                        if constexpr (itv_type::left_endpoint_type() == endpoint_type_t::closed) {
+                        if constexpr (itv_type::left_boundary_type() == boundary_type_t::closed) {
                             return {0, 0u};
                         }
                     }
                     else if (util::is_zero(itv.upper_bound().numerator)) {
-                        if constexpr (itv_type::right_endpoint_type() == endpoint_type_t::closed) {
+                        if constexpr (itv_type::right_boundary_type() == boundary_type_t::closed) {
                             return {0, 0u};
                         }
                         interval_sign = util::sign_t::negative;
@@ -110,7 +110,7 @@ namespace jkj {
                     auto numerator = [&] {
                         if (interval_sign == util::sign_t::positive) {
                             // Take the left-most lattice point.
-                            if constexpr (itv_type::left_endpoint_type() == endpoint_type_t::open) {
+                            if constexpr (itv_type::left_boundary_type() == boundary_type_t::open) {
                                 return util::div_floor((itv.lower_bound().numerator << k),
                                                        itv.lower_bound().denominator) +
                                        1u;
@@ -122,8 +122,8 @@ namespace jkj {
                         }
                         else {
                             // Take the right-most lattice point.
-                            if constexpr (itv_type::right_endpoint_type() ==
-                                          endpoint_type_t::open) {
+                            if constexpr (itv_type::right_boundary_type() ==
+                                          boundary_type_t::open) {
                                 return util::div_ceil((itv.upper_bound().numerator << k),
                                                       itv.upper_bound().denominator) -
                                        1u;
@@ -153,10 +153,10 @@ namespace jkj {
                         else {
                             if (interval_sign == util::sign_t::positive) {
                                 auto next_lattice_point = numerator + 1u;
-                                if ((itv_type::right_endpoint_type() == endpoint_type_t::open &&
+                                if ((itv_type::right_boundary_type() == boundary_type_t::open &&
                                      next_lattice_point * itv.upper_bound().denominator <
                                          (itv.upper_bound().numerator << k)) ||
-                                    (itv_type::right_endpoint_type() == endpoint_type_t::closed &&
+                                    (itv_type::right_boundary_type() == boundary_type_t::closed &&
                                      next_lattice_point * itv.upper_bound().denominator <=
                                          (itv.upper_bound().numerator << k))) {
                                     numerator = std::move(next_lattice_point);
@@ -165,10 +165,10 @@ namespace jkj {
                             }
                             else {
                                 auto next_lattice_point = numerator - 1u;
-                                if ((itv_type::left_endpoint_type() == endpoint_type_t::open &&
+                                if ((itv_type::left_boundary_type() == boundary_type_t::open &&
                                      next_lattice_point * itv.lower_bound().denominator >
                                          (itv.lower_bound().numerator << k)) ||
-                                    (itv_type::left_endpoint_type() == endpoint_type_t::closed &&
+                                    (itv_type::left_boundary_type() == boundary_type_t::closed &&
                                      next_lattice_point * itv.lower_bound().denominator <=
                                          (itv.lower_bound().numerator << k))) {
                                     numerator = std::move(next_lattice_point);

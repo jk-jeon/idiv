@@ -178,9 +178,9 @@ namespace jkj {
                         else {
                             auto lower_bound = itv.lower_bound();
                             bool lower_bound_inclusive =
-                                (itv_type::left_endpoint_type() == endpoint_type_t::closed);
+                                (itv_type::left_boundary_type() == boundary_type_t::closed);
                             bool upper_bound_inclusive =
-                                (itv_type::right_endpoint_type() == endpoint_type_t::closed);
+                                (itv_type::right_boundary_type() == boundary_type_t::closed);
                             if (is_first_) {
                                 // Cannot do anything if the range estimate contains the infinity.
                                 if (lower_bound == infinity || itv.upper_bound() == infinity ||

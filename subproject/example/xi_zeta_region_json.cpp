@@ -412,6 +412,7 @@ int main() {
             static constexpr auto region_type = std::remove_cvref_t<decltype(region)>::region_type;
 
             namespace xi_zeta_region = jkj::idiv::xi_zeta_region;
+            using jkj::boundary_type_t;
 
             if constexpr (region_type == jkj::idiv::xi_zeta_region::region_type_t::entire_plane) {
                 std::cout << "Entire plane.\n\n";
@@ -423,14 +424,14 @@ int main() {
             }
             else if constexpr (region_type == xi_zeta_region::region_type_t::line_segment) {
                 std::cout << "For t in ";
-                if (region.left_boundary_type == xi_zeta_region::boundary_type_t::inclusive) {
+                if (region.left_boundary_type == boundary_type_t::closed) {
                     std::cout << "[";
                 }
                 else {
                     std::cout << "(";
                 }
                 std::cout << "0, 1";
-                if (region.right_boundary_type == xi_zeta_region::boundary_type_t::inclusive) {
+                if (region.right_boundary_type == boundary_type_t::closed) {
                     std::cout << "]";
                 }
                 else {
@@ -453,14 +454,14 @@ int main() {
                 }
                 else {
                     std::cout << region.min_value;
-                    if (region.lower_boundary_type == xi_zeta_region::boundary_type_t::inclusive) {
+                    if (region.lower_boundary_type == boundary_type_t::closed) {
                         std::cout << " <= ";
                     }
                     else {
                         std::cout << " < ";
                     }
                     std::cout << region.xi_coeff << " xi + " << region.zeta_coeff << " zeta";
-                    if (region.upper_boundary_type == xi_zeta_region::boundary_type_t::inclusive) {
+                    if (region.upper_boundary_type == boundary_type_t::closed) {
                         std::cout << " <= ";
                     }
                     else {
@@ -486,13 +487,13 @@ int main() {
                                   << slice.xi.denominator << ",\n  "
                                   << slice.zeta_range.lower_bound().numerator << " / "
                                   << slice.zeta_range.lower_bound().denominator;
-                        if (slice.zeta_range.left_endpoint_type() == jkj::endpoint_type_t::open) {
+                        if (slice.zeta_range.left_boundary_type() == jkj::boundary_type_t::open) {
                             std::cout << " < zeta ";
                         }
                         else {
                             std::cout << " <= zeta ";
                         }
-                        if (slice.zeta_range.right_endpoint_type() == jkj::endpoint_type_t::open) {
+                        if (slice.zeta_range.right_boundary_type() == jkj::boundary_type_t::open) {
                             std::cout << "< ";
                         }
                         else {
@@ -510,16 +511,14 @@ int main() {
                                   << slice.lower_boundary_linear_coeff.denominator << ") xi + ("
                                   << slice.lower_boundary_constant_coeff.numerator << " / "
                                   << slice.lower_boundary_constant_coeff.denominator << ")";
-                        if (slice.lower_boundary_type ==
-                            xi_zeta_region::boundary_type_t::inclusive) {
+                        if (slice.lower_boundary_type == boundary_type_t::closed) {
                             std::cout << " <= ";
                         }
                         else {
                             std::cout << " < ";
                         }
                         std::cout << "zeta";
-                        if (slice.upper_boundary_type ==
-                            xi_zeta_region::boundary_type_t::inclusive) {
+                        if (slice.upper_boundary_type == boundary_type_t::closed) {
                             std::cout << " <= ";
                         }
                         else {
