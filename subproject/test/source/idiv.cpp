@@ -166,6 +166,8 @@ void idiv_test() {
             };
             perform_test(projective_rational_t{17, 129u}, projective_rational_t{39, 176u},
                          nrange_t{-150, 150});
+            perform_test(projective_rational_t{614, 36899u}, projective_rational_t{685105, 313003u},
+                         nrange_t{1, 100});
             perform_test(projective_rational_t{1'936'274, 6'432'163u},
                          projective_rational_t{-4'206'456, 33'668'149u}, nrange_t{-1000, 1000});
         };
