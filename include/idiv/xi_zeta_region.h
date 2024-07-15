@@ -151,7 +151,7 @@ namespace jkj {
                     static constexpr slice_type_t slice_type =
                         slice_type_t::horizontally_open_trapezoid;
 
-                    interval<frac_t, interval_type_t::bounded_open> xi_range;
+                    interval<frac_t const&, interval_type_t::bounded_open> xi_range;
 
                     frac_t const& lower_boundary_linear_coeff;
                     frac_t const& lower_boundary_constant_coeff;
