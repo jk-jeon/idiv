@@ -194,7 +194,7 @@
 //
 // When xi = -614 / 36899,
 //   80765 / 36899 <= zeta < 80766 / 36899
-// 
+//
 // When -614 / 36899 < xi < -2789 / 167608,
 //   (91515 / 1) xi + (1525 / 1) <= zeta < (-76093 / 1) xi + (-1264 / 1)
 //
@@ -483,29 +483,23 @@ int main() {
                     else if constexpr (slice_type == xi_zeta_region::bounded_polygon::slice_type_t::
                                                          vertical_line_segment) {
                         std::cout << "When xi = " << slice.xi.numerator << " / "
-                                  << slice.xi.denominator << ",\n  ";
-                        slice.zeta_range.visit([](auto const& itv) {
-                            static constexpr auto itv_type =
-                                std::remove_cvref_t<decltype(itv)>::interval_type();
-
-                            std::cout << itv.lower_bound().numerator << " / ";
-                            if constexpr (itv_type == jkj::interval_type_t::bounded_open) {
-                                std::cout << itv.lower_bound().denominator << " < zeta < ";
-                            }
-                            else if constexpr (itv_type == jkj::interval_type_t::
-                                                               bounded_left_open_right_closed) {
-                                std::cout << itv.lower_bound().denominator << " < zeta <= ";
-                            }
-                            else if constexpr (itv_type == jkj::interval_type_t::
-                                                               bounded_left_closed_right_open) {
-                                std::cout << itv.lower_bound().denominator << " <= zeta < ";
-                            }
-                            else {
-                                std::cout << itv.lower_bound().denominator << " <= zeta <= ";
-                            }
-                            std::cout << itv.upper_bound().numerator << " / "
-                                      << itv.upper_bound().denominator << "\n\n";
-                        });
+                                  << slice.xi.denominator << ",\n  "
+                                  << slice.zeta_range.lower_bound().numerator << " / "
+                                  << slice.zeta_range.lower_bound().denominator;
+                        if (slice.zeta_range.left_endpoint_type() == jkj::endpoint_type_t::open) {
+                            std::cout << " < zeta ";
+                        }
+                        else {
+                            std::cout << " <= zeta ";
+                        }
+                        if (slice.zeta_range.right_endpoint_type() == jkj::endpoint_type_t::open) {
+                            std::cout << "< ";
+                        }
+                        else {
+                            std::cout << "<= ";
+                        }
+                        std::cout << slice.zeta_range.upper_bound().numerator << " / "
+                                  << slice.zeta_range.upper_bound().denominator << "\n\n";
                     }
                     else {
                         std::cout << "When " << slice.xi_range.lower_bound().numerator << " / "
