@@ -79,6 +79,11 @@ namespace jkj {
         return x.numerator * y.denominator <=> y.numerator * x.denominator;
     }
 
+    template <class Num, class Den>
+    constexpr auto operator-(frac<Num, Den> const& x) {
+        return frac{-x.numerator, x.denominator};
+    }
+
     // Performs no reduction.
     template <class Num1, class Den1, class Num2, class Den2>
     constexpr auto operator+(frac<Num1, Den1> const& x, frac<Num2, Den2> const& y) {
