@@ -876,6 +876,25 @@ namespace jkj {
 
             static constexpr auto allowed_interval_types_ = allowed_interval_types_arg;
 
+            // Check if all the alternatives provide lower_bound().
+            static constexpr bool lower_bound_exists() noexcept {
+                return []<std::size_t... I>(std::index_sequence<I...>) {
+                    return (
+                        (requires(StaticIntervalTemplate<Value, allowed_interval_types()[I]> x) {
+                            x.lower_bound();
+                        }) && ...);
+                }(std::make_index_sequence<N>{});
+            }
+            // Check if all the alternatives provide upper_bound().
+            static constexpr bool upper_bound_exists() noexcept {
+                return []<std::size_t... I>(std::index_sequence<I...>) {
+                    return (
+                        (requires(StaticIntervalTemplate<Value, allowed_interval_types()[I]> x) {
+                            x.upper_bound();
+                        }) && ...);
+                }(std::make_index_sequence<N>{});
+            }
+
         public:
             template <class, class Enum_, template <class, Enum_> class, auto>
             friend class variable_shape_interval_impl;
@@ -1050,12 +1069,11 @@ namespace jkj {
             template <class SuccessFunctor, class FailFunctor>
             constexpr decltype(auto) with_lower_bound(SuccessFunctor&& success,
                                                       FailFunctor&& fail) const {
-                return visit([&](auto&& itv) {
+                return visit([&](auto&& itv) -> decltype(auto) {
                     using itv_type = std::remove_cvref_t<decltype(itv)>;
-                    if constexpr (requires {
-                                      std::declval<StaticIntervalTemplate<
-                                          Value, itv_type::interval_type()>>()
-                                          .lower_bound();
+                    if constexpr (requires(
+                                      StaticIntervalTemplate<Value, itv_type::interval_type()> x) {
+                                      x.lower_bound();
                                   }) {
                         return static_cast<SuccessFunctor&&>(success)(itv.lower_bound());
                     }
@@ -1070,12 +1088,11 @@ namespace jkj {
             template <class SuccessFunctor, class FailFunctor>
             constexpr decltype(auto) with_upper_bound(SuccessFunctor&& success,
                                                       FailFunctor&& fail) const {
-                return visit([&](auto&& itv) {
+                return visit([&](auto&& itv) -> decltype(auto) {
                     using itv_type = std::remove_cvref_t<decltype(itv)>;
-                    if constexpr (requires {
-                                      std::declval<StaticIntervalTemplate<
-                                          Value, itv_type::interval_type()>>()
-                                          .upper_bound();
+                    if constexpr (requires(
+                                      StaticIntervalTemplate<Value, itv_type::interval_type()> x) {
+                                      x.upper_bound();
                                   }) {
                         return static_cast<SuccessFunctor&&>(success)(itv.upper_bound());
                     }
@@ -1083,6 +1100,26 @@ namespace jkj {
                         return static_cast<FailFunctor&&>(fail)();
                     }
                 });
+            }
+
+            constexpr value_type const& lower_bound() const noexcept
+                requires(lower_bound_exists())
+            {
+                return with_lower_bound([](auto const& lb) -> decltype(auto) { return lb; },
+                                        [this] {
+                                            // Unreachable.
+                                            return first_data_;
+                                        });
+            }
+
+            constexpr value_type const& upper_bound() const noexcept
+                requires(upper_bound_exists())
+            {
+                return with_upper_bound([](auto const& ub) -> decltype(auto) { return ub; },
+                                        [this] {
+                                            // Unreachable.
+                                            return first_data_;
+                                        });
             }
 
             template <Enum it, class Functor>
