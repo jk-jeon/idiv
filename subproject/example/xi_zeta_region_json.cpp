@@ -25,80 +25,179 @@
 // [Example input JSON file]
 //
 // {
-//   "x" : {
-//     "type" : "rational",
-//     "params" : {
-//       "numerator" : -614,
-//       "denominator" : 36899
+//   "x": {
+//     "type": "rational",
+//     "params": {
+//       "numerator": -614,
+//       "denominator": 36899
 //     }
 //   },
-//   "y" : {
-//     "type" : "unary_gosper",
-//     "params" : {
-//       "x" : {
-//         "type" : "binary_gosper",
-//         "params" : {
-//           "x" : {
-//             "type" : "general_log",
-//             "params" : {
-//               "base" : {
-//                 "numerator" : 10,
-//                 "denominator" : 3
+//   "y": {
+//     "type": "unary_gosper",
+//     "params": {
+//       "x": {
+//         "type": "binary_gosper",
+//         "params": {
+//           "x": {
+//             "type": "general_log",
+//             "params": {
+//               "base": {
+//                 "numerator": 10,
+//                 "denominator": 3
 //               },
-//               "number" : {
-//                 "numerator" : 5,
-//                 "denominator" : 2
+//               "number": {
+//                 "numerator": 5,
+//                 "denominator": 2
 //               }
 //             }
 //           },
-//           "y" : {
-//             "type" : "natural_log",
-//             "params" : {
-//               "number" : {
-//                 "numerator" : 18,
-//                 "denominator" : 7
+//           "y": {
+//             "type": "natural_log",
+//             "params": {
+//               "number": {
+//                 "numerator": 18,
+//                 "denominator": 7
 //               }
 //             }
 //           },
-//           "coefficients" : [
-//             3, 6, 17, -6,
-//             -5, 13, 9, 1
+//           "coefficients": [
+//             3,
+//             6,
+//             17,
+//             -6,
+//             -5,
+//             13,
+//             9,
+//             1
 //           ]
 //         }
 //       },
-//       "coefficients" : [
-//         -7, 14,
-//         0, 3
+//       "coefficients": [
+//         -7,
+//         14,
+//         0,
+//         3
 //       ]
 //     }
 //   },
-//   "ranges" : [
-//     { "min" : -100, "max" : 100 },
-//     { "min" : -100000, "max" : -700 },
-//     { "min" : 300, "max" : 100000 }
+//   "constraints": [
+//     {
+//       "affine_coefficients": {
+//         "linear_coefficients": [
+//           {
+//             "numerator": 1,
+//             "denominator": 1
+//           },
+//           {
+//             "numerator": 0,
+//             "denominator": 1
+//           },
+//           {
+//             "numerator": 0,
+//             "denominator": 1
+//           },
+//           {
+//             "numerator": 1,
+//             "denominator": 1
+//           }
+//         ],
+//         "constant_coefficient_x": {
+//           "numerator": 0,
+//           "denominator": 1
+//         },
+//         "constant_coefficient_y": {
+//           "numerator": 0,
+//           "denominator": 1
+//         }
+//       },
+//       "range": {
+//         "min": -100,
+//         "max": 100
+//       }
+//     },
+//     {
+//       "affine_coefficients": {
+//         "linear_coefficients": [
+//           {
+//             "numerator": 1,
+//             "denominator": 1
+//           },
+//           {
+//             "numerator": 0,
+//             "denominator": 1
+//           },
+//           {
+//             "numerator": 0,
+//             "denominator": 1
+//           },
+//           {
+//             "numerator": 1,
+//             "denominator": 1
+//           }
+//         ],
+//         "constant_coefficient_x": {
+//           "numerator": 0,
+//           "denominator": 1
+//         },
+//         "constant_coefficient_y": {
+//           "numerator": 0,
+//           "denominator": 1
+//         }
+//       },
+//       "range": {
+//         "min": -100000,
+//         "max": -700
+//       }
+//     },
+//     {
+//       "affine_coefficients": {
+//         "linear_coefficients": [
+//           {
+//             "numerator": 1,
+//             "denominator": 1
+//           },
+//           {
+//             "numerator": 0,
+//             "denominator": 1
+//           },
+//           {
+//             "numerator": 0,
+//             "denominator": 1
+//           },
+//           {
+//             "numerator": 1,
+//             "denominator": 1
+//           }
+//         ],
+//         "constant_coefficient_x": {
+//           "numerator": 0,
+//           "denominator": 1
+//         },
+//         "constant_coefficient_y": {
+//           "numerator": 0,
+//           "denominator": 1
+//         }
+//       },
+//       "range": {
+//         "min": 300,
+//         "max": 100000
+//       }
+//     }
 //   ]
 // }
 //
-// 
+//
 // [Corresponding output]
 //
-// When zeta = 80765 / 36899:
-//   (-317 - zeta) / 19182 <= xi <= (297 - zeta) / -17717
+// When -2737 / 164483 < xi < -614 / 36899,
+//   (-92980 / 1) xi + (-1545 / 1) <= zeta < (71503 / 1) xi + (1192 / 1)
+//
+// When xi = -614 / 36899,
+//   80765 / 36899 <= zeta < 80766 / 36899
 // 
-// When zeta in (80765 / 36899, 366865 / 167608):
-//   (-1545 - zeta) / 92980 <= xi <= (1525 - zeta) / -91515
-// 
-// When zeta = 366865 / 167608:
-//   (-1545 - zeta) / 92980 <= xi < (1525 - zeta) / -91515
-// 
-// When zeta in (366865 / 167608, 360025 / 164483):
-//   (-1545 - zeta) / 92980 <= xi < (-1264 - zeta) / 76093
-// 
-// When zeta = 360025 / 164483:
-//   (-1545 - zeta) / 92980 < xi < (-1264 - zeta) / 76093
-// 
-// When zeta in (360025 / 164483, 80766 / 36899):
-//   (1192 - zeta) / -71503 < xi < (-1264 - zeta) / 76093
+// When -614 / 36899 < xi < -2789 / 167608,
+//   (91515 / 1) xi + (1525 / 1) <= zeta < (-76093 / 1) xi + (-1264 / 1)
+//
 
 using partial_fraction_type =
     jkj::cntfrc::projective_rational<jkj::cntfrc::unity, jkj::bigint::int_var>;
@@ -124,6 +223,12 @@ struct daw::json::json_data_contract<
 template <>
 struct daw::json::json_data_contract<jkj::frac<jkj::bigint::uint_var, jkj::bigint::uint_var>> {
     using type = json_member_list<json_number<"numerator", std::uint_least64_t>,
+                                  json_number<"denominator", std::uint_least64_t>>;
+};
+
+template <>
+struct daw::json::json_data_contract<jkj::frac<jkj::bigint::int_var, jkj::bigint::uint_var>> {
+    using type = json_member_list<json_number<"numerator", std::int_least64_t>,
                                   json_number<"denominator", std::uint_least64_t>>;
 };
 
@@ -213,24 +318,51 @@ struct daw::json::json_data_contract<continued_fraction_generator> {
 
 template <>
 struct daw::json::json_data_contract<
+    jkj::idiv::floor_constraint_spec::affine_transform::linear_transform> {
+    using type =
+        json_tuple_member_list<::jkj::frac<::jkj::bigint::int_var, ::jkj::bigint::uint_var>,
+                               ::jkj::frac<::jkj::bigint::int_var, ::jkj::bigint::uint_var>,
+                               ::jkj::frac<::jkj::bigint::int_var, ::jkj::bigint::uint_var>,
+                               ::jkj::frac<::jkj::bigint::int_var, ::jkj::bigint::uint_var>>;
+};
+
+template <>
+struct daw::json::json_data_contract<jkj::idiv::floor_constraint_spec::affine_transform> {
+    using type = json_member_list<
+        json_class<"linear_coefficients",
+                   ::jkj::idiv::floor_constraint_spec::affine_transform::linear_transform>,
+        json_class<"constant_coefficient_x",
+                   ::jkj::frac<::jkj::bigint::int_var, ::jkj::bigint::uint_var>>,
+        json_class<"constant_coefficient_y",
+                   ::jkj::frac<::jkj::bigint::int_var, ::jkj::bigint::uint_var>>>;
+};
+
+template <>
+struct daw::json::json_data_contract<
     jkj::interval<jkj::bigint::int_var, jkj::interval_type_t::bounded_closed>> {
     using type = json_member_list<json_number<"min", std::int_least64_t>,
                                   json_number<"max", std::int_least64_t>>;
 };
 
+template <>
+struct daw::json::json_data_contract<jkj::idiv::floor_constraint_spec> {
+    using type = json_member_list<
+        json_class<"affine_coefficients", ::jkj::idiv::floor_constraint_spec::affine_transform>,
+        json_class<"range", ::jkj::interval<::jkj::bigint::int_var,
+                                            ::jkj::interval_type_t::bounded_closed>>>;
+};
+
 struct input_params {
     continued_fraction_generator x;
     continued_fraction_generator y;
-    std::vector<jkj::interval<jkj::bigint::int_var, jkj::interval_type_t::bounded_closed>> ranges;
+    std::vector<jkj::idiv::floor_constraint_spec> constraints;
 };
 
 template <>
 struct daw::json::json_data_contract<input_params> {
-    using type = json_member_list<
-        json_class<"x", continued_fraction_generator>,
-        json_class<"y", continued_fraction_generator>,
-        json_array<"ranges", ::jkj::interval<::jkj::bigint::int_var,
-                                             ::jkj::interval_type_t::bounded_closed>>>;
+    using type = json_member_list<json_class<"x", continued_fraction_generator>,
+                                  json_class<"y", continued_fraction_generator>,
+                                  json_array<"constraints", ::jkj::idiv::floor_constraint_spec>>;
 };
 
 #include <fstream>
@@ -273,58 +405,139 @@ int main() {
         return daw::json::from_json<input_params>(strstream.str());
     }();
 
-    auto const result = jkj::idiv::find_xi_zeta_region(params.x, params.y, params.ranges);
+    auto const result = jkj::idiv::find_xi_zeta_region(params.x, params.y, params.constraints);
 
-    for (auto const& elementary_region : result) {
-        if (jkj::util::is_zero(elementary_region.xi_left_endpoint_denominator)) {
-            elementary_region.zeta_range.visit([](auto const& itv) {
-                using itv_type = std::remove_cvref_t<decltype(itv)>;
+    std::visit(
+        [](auto const& region) {
+            static constexpr auto region_type = std::remove_cvref_t<decltype(region)>::region_type;
 
-                if constexpr (itv_type::interval_type() == jkj::interval_type_t::bounded_open) {
-                    std::cout << itv.lower_bound().numerator << " / "
-                              << itv.lower_bound().denominator << " <= zeta <"
-                              << itv.upper_bound().numerator << " / "
-                              << itv.upper_bound().denominator << ")\n\n";
-                }
-            });
-            break;
-        }
+            namespace xi_zeta_region = jkj::idiv::xi_zeta_region;
 
-        std::cout << "When zeta ";
-        elementary_region.zeta_range.visit([](auto const& itv) {
-            using itv_type = std::remove_cvref_t<decltype(itv)>;
-
-            if constexpr (itv_type::interval_type() == jkj::interval_type_t::bounded_open) {
-                std::cout << "in (" << itv.lower_bound().numerator << " / "
-                          << itv.lower_bound().denominator << ", " << itv.upper_bound().numerator
-                          << " / " << itv.upper_bound().denominator << "):\n";
+            if constexpr (region_type == jkj::idiv::xi_zeta_region::region_type_t::entire_plane) {
+                std::cout << "Entire plane.\n\n";
             }
-            else if constexpr (itv_type::interval_type() == jkj::interval_type_t::bounded_closed) {
-                std::cout << "= " << itv.lower_bound().numerator << " / "
-                          << itv.lower_bound().denominator << ":\n";
+            else if constexpr (region_type == xi_zeta_region::region_type_t::single_point) {
+                std::cout << "(xi, zeta) = (" << region.xi.numerator << " / "
+                          << region.xi.denominator << ", " << region.zeta.numerator << " / "
+                          << region.zeta.denominator << ")\n\n";
+            }
+            else if constexpr (region_type == xi_zeta_region::region_type_t::line_segment) {
+                std::cout << "For t in ";
+                if (region.left_boundary_type == xi_zeta_region::boundary_type_t::inclusive) {
+                    std::cout << "[";
+                }
+                else {
+                    std::cout << "(";
+                }
+                std::cout << "0, 1";
+                if (region.right_boundary_type == xi_zeta_region::boundary_type_t::inclusive) {
+                    std::cout << "]";
+                }
+                else {
+                    std::cout << "),\n    xi = (";
+                }
+                std::cout << region.base_point_xi.numerator << " / "
+                          << region.base_point_xi.denominator << ") + t("
+                          << region.direction_vector_xi.numerator << " / "
+                          << region.direction_vector_xi.denominator << "),\n zeta = ("
+                          << region.base_point_zeta.numerator << " / "
+                          << region.base_point_zeta.denominator << ") + t("
+                          << region.direction_vector_zeta.numerator << " / "
+                          << region.direction_vector_zeta.denominator << ")\n\n";
+            }
+            else if constexpr (region_type ==
+                               xi_zeta_region::region_type_t::infinite_parallelogram) {
+                if (jkj::util::is_zero(region.value_gap)) {
+                    std::cout << region.xi_coeff << " xi + " << region.zeta_coeff
+                              << " zeta = " << region.min_value;
+                }
+                else {
+                    std::cout << region.min_value;
+                    if (region.lower_boundary_type == xi_zeta_region::boundary_type_t::inclusive) {
+                        std::cout << " <= ";
+                    }
+                    else {
+                        std::cout << " < ";
+                    }
+                    std::cout << region.xi_coeff << " xi + " << region.zeta_coeff << " zeta";
+                    if (region.upper_boundary_type == xi_zeta_region::boundary_type_t::inclusive) {
+                        std::cout << " <= ";
+                    }
+                    else {
+                        std::cout << " < ";
+                    }
+                    std::cout << region.min_value + region.value_gap << "\n\n";
+                }
             }
             else {
-                std::cout << "in (-inf, inf):\n";
+                region.for_each_vertical_slice([](auto const& slice) {
+                    static constexpr auto slice_type =
+                        std::remove_cvref_t<decltype(slice)>::slice_type;
+
+                    if constexpr (slice_type ==
+                                  xi_zeta_region::bounded_polygon::slice_type_t::single_point) {
+                        std::cout << "When xi = " << slice.xi.numerator << " / "
+                                  << slice.xi.denominator << ",\n  zeta = " << slice.zeta.numerator
+                                  << " / " << slice.zeta.denominator << "\n\n";
+                    }
+                    else if constexpr (slice_type == xi_zeta_region::bounded_polygon::slice_type_t::
+                                                         vertical_line_segment) {
+                        std::cout << "When xi = " << slice.xi.numerator << " / "
+                                  << slice.xi.denominator << ",\n  ";
+                        slice.zeta_range.visit([](auto const& itv) {
+                            static constexpr auto itv_type =
+                                std::remove_cvref_t<decltype(itv)>::interval_type();
+
+                            std::cout << itv.lower_bound().numerator << " / ";
+                            if constexpr (itv_type == jkj::interval_type_t::bounded_open) {
+                                std::cout << itv.lower_bound().denominator << " < zeta < ";
+                            }
+                            else if constexpr (itv_type == jkj::interval_type_t::
+                                                               bounded_left_open_right_closed) {
+                                std::cout << itv.lower_bound().denominator << " < zeta <= ";
+                            }
+                            else if constexpr (itv_type == jkj::interval_type_t::
+                                                               bounded_left_closed_right_open) {
+                                std::cout << itv.lower_bound().denominator << " <= zeta < ";
+                            }
+                            else {
+                                std::cout << itv.lower_bound().denominator << " <= zeta <= ";
+                            }
+                            std::cout << itv.upper_bound().numerator << " / "
+                                      << itv.upper_bound().denominator << "\n\n";
+                        });
+                    }
+                    else {
+                        std::cout << "When " << slice.xi_range.lower_bound().numerator << " / "
+                                  << slice.xi_range.lower_bound().denominator << " < xi < "
+                                  << slice.xi_range.upper_bound().numerator << " / "
+                                  << slice.xi_range.upper_bound().denominator << ",\n  ("
+                                  << slice.lower_boundary_linear_coeff.numerator << " / "
+                                  << slice.lower_boundary_linear_coeff.denominator << ") xi + ("
+                                  << slice.lower_boundary_constant_coeff.numerator << " / "
+                                  << slice.lower_boundary_constant_coeff.denominator << ")";
+                        if (slice.lower_boundary_type ==
+                            xi_zeta_region::boundary_type_t::inclusive) {
+                            std::cout << " <= ";
+                        }
+                        else {
+                            std::cout << " < ";
+                        }
+                        std::cout << "zeta";
+                        if (slice.upper_boundary_type ==
+                            xi_zeta_region::boundary_type_t::inclusive) {
+                            std::cout << " <= ";
+                        }
+                        else {
+                            std::cout << " < ";
+                        }
+                        std::cout << "(" << slice.upper_boundary_linear_coeff.numerator << " / "
+                                  << slice.upper_boundary_linear_coeff.denominator << ") xi + ("
+                                  << slice.upper_boundary_constant_coeff.numerator << " / "
+                                  << slice.upper_boundary_constant_coeff.denominator << ")\n\n";
+                    }
+                });
             }
-        });
-
-        std::cout << "  (" << elementary_region.xi_left_endpoint_numerator << " - zeta) / "
-                  << elementary_region.xi_left_endpoint_denominator;
-
-        if (elementary_region.xi_left_endpoint_included) {
-            std::cout << " <= xi ";
-        }
-        else {
-            std::cout << " < xi ";
-        }
-        if (elementary_region.xi_right_endpoint_included) {
-            std::cout << "<= ";
-        }
-        else {
-            std::cout << "< ";
-        }
-
-        std::cout << "(" << elementary_region.xi_right_endpoint_numerator << " - zeta) / "
-                  << elementary_region.xi_right_endpoint_denominator << "\n\n";
-    }
+        },
+        result);
 }

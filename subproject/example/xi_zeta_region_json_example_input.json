@@ -1,62 +1,161 @@
 {
-    "x": {
-        "type": "rational",
+  "x": {
+    "type": "rational",
+    "params": {
+      "numerator": -614,
+      "denominator": 36899
+    }
+  },
+  "y": {
+    "type": "unary_gosper",
+    "params": {
+      "x": {
+        "type": "binary_gosper",
         "params": {
-            "numerator": -614,
-            "denominator": 36899
+          "x": {
+            "type": "general_log",
+            "params": {
+              "base": {
+                "numerator": 10,
+                "denominator": 3
+              },
+              "number": {
+                "numerator": 5,
+                "denominator": 2
+              }
+            }
+          },
+          "y": {
+            "type": "natural_log",
+            "params": {
+              "number": {
+                "numerator": 18,
+                "denominator": 7
+              }
+            }
+          },
+          "coefficients": [
+            3,
+            6,
+            17,
+            -6,
+            -5,
+            13,
+            9,
+            1
+          ]
         }
-    },
-    "y": {
-        "type": "unary_gosper",
-        "params": {
-            "x": {
-                "type": "binary_gosper",
-                "params": {
-                    "x": {
-                        "type": "general_log",
-                        "params": {
-                            "base": {
-                                "numerator": 10,
-                                "denominator": 3
-                            },
-                            "number": {
-                                "numerator": 5,
-                                "denominator": 2
-                            }
-                        }
-                    },
-                    "y": {
-                        "type": "natural_log",
-                        "params": {
-                            "number": {
-                                "numerator": 18,
-                                "denominator": 7
-                            }
-                        }
-                    },
-                    "coefficients": [
-                        3, 6, 17, -6,
-                        -5, 13, 9, 1
-                    ]
-                }
-            },
-            "coefficients": [
-                -7, 14, 0, 3
-            ]
-        }
-    },
-    "ranges": [
-        {
-            "min": -100,
-            "max": 100
+      },
+      "coefficients": [
+        -7,
+        14,
+        0,
+        3
+      ]
+    }
+  },
+  "constraints": [
+    {
+      "affine_coefficients": {
+        "linear_coefficients": [
+          {
+            "numerator": 1,
+            "denominator": 1
+          },
+          {
+            "numerator": 0,
+            "denominator": 1
+          },
+          {
+            "numerator": 0,
+            "denominator": 1
+          },
+          {
+            "numerator": 1,
+            "denominator": 1
+          }
+        ],
+        "constant_coefficient_x": {
+          "numerator": 0,
+          "denominator": 1
         },
-        {
-            "min": -100000,
-            "max": -700
-        },
-        {
-            "min": 300,
-            "max": 100000
+        "constant_coefficient_y": {
+          "numerator": 0,
+          "denominator": 1
         }
-    ]
+      },
+      "range": {
+        "min": -100,
+        "max": 100
+      }
+    },
+    {
+      "affine_coefficients": {
+        "linear_coefficients": [
+          {
+            "numerator": 1,
+            "denominator": 1
+          },
+          {
+            "numerator": 0,
+            "denominator": 1
+          },
+          {
+            "numerator": 0,
+            "denominator": 1
+          },
+          {
+            "numerator": 1,
+            "denominator": 1
+          }
+        ],
+        "constant_coefficient_x": {
+          "numerator": 0,
+          "denominator": 1
+        },
+        "constant_coefficient_y": {
+          "numerator": 0,
+          "denominator": 1
+        }
+      },
+      "range": {
+        "min": -100000,
+        "max": -700
+      }
+    },
+    {
+      "affine_coefficients": {
+        "linear_coefficients": [
+          {
+            "numerator": 1,
+            "denominator": 1
+          },
+          {
+            "numerator": 0,
+            "denominator": 1
+          },
+          {
+            "numerator": 0,
+            "denominator": 1
+          },
+          {
+            "numerator": 1,
+            "denominator": 1
+          }
+        ],
+        "constant_coefficient_x": {
+          "numerator": 0,
+          "denominator": 1
+        },
+        "constant_coefficient_y": {
+          "numerator": 0,
+          "denominator": 1
+        }
+      },
+      "range": {
+        "min": 300,
+        "max": 100000
+      }
+    }
+  ]
 }
