@@ -100,7 +100,7 @@ namespace jkj {
                 boundary_type_t right_boundary_type;
             };
 
-            // Can be an infinite line when value_gap == 0.
+            // Can be an infinite line when value_range is a single point.
             class infinite_parallelogram {
             public:
                 static constexpr region_type_t region_type = region_type_t::infinite_parallelogram;
@@ -109,14 +109,13 @@ namespace jkj {
                 bigint::int_var xi_coeff;
                 bigint::uint_var zeta_coeff;
 
-                bigint::int_var min_value;
-                bigint::uint_var value_gap;
-
-                boundary_type_t lower_boundary_type;
-                boundary_type_t upper_boundary_type;
+                variable_shape_interval<bigint::int_var, interval_type_t::bounded_open,
+                                        interval_type_t::bounded_left_open_right_closed,
+                                        interval_type_t::bounded_left_closed_right_open,
+                                        interval_type_t::bounded_closed>
+                    value_range;
             };
 
-            // Can be a line segment or a single point.
             class bounded_polygon {
             public:
                 static constexpr region_type_t region_type = region_type_t::bounded_polygon;
@@ -774,13 +773,34 @@ namespace jkj {
                                  (denominator / xi_max_itr->threshold.denominator);
                 util::constexpr_assert(min_value <= max_value);
 
+                auto value_range =
+                    [&]() -> decltype(xi_zeta_region::infinite_parallelogram::value_range) {
+                    if (xi_min_itr->boundary_type == boundary_type_t::open) {
+                        if (xi_max_itr->boundary_type == boundary_type_t::open) {
+                            return interval<bigint::int_var, interval_type_t::bounded_open>{
+                                std::move(min_value), std::move(max_value)};
+                        }
+                        else {
+                            return interval<bigint::int_var,
+                                            interval_type_t::bounded_left_open_right_closed>{
+                                std::move(min_value), std::move(max_value)};
+                        }
+                    }
+                    else if (xi_max_itr->boundary_type == boundary_type_t::open) {
+                        return interval<bigint::int_var,
+                                        interval_type_t::bounded_left_closed_right_open>{
+                            std::move(min_value), std::move(max_value)};
+                    }
+                    else {
+                        return interval<bigint::int_var, interval_type_t::bounded_closed>{
+                            std::move(min_value), std::move(max_value)};
+                    }
+                }();
+
                 return xi_zeta_region::infinite_parallelogram{
                     .xi_coeff = util::to_signed(denominator),
                     .zeta_coeff = 0u,
-                    .min_value = min_value,
-                    .value_gap = util::abs(max_value - min_value),
-                    .lower_boundary_type = xi_min_itr->boundary_type,
-                    .upper_boundary_type = xi_max_itr->boundary_type};
+                    .value_range = std::move(value_range)};
             }
             util::constexpr_assert(!upper_half_planes.empty());
 
@@ -963,14 +983,35 @@ namespace jkj {
                                         lower_bdy.boundary_type == boundary_type_t::closed &&
                                         upper_bdy.boundary_type == boundary_type_t::closed));
 
+                auto value_range =
+                    [&]() -> decltype(xi_zeta_region::infinite_parallelogram::value_range) {
+                    if (lower_bdy.boundary_type == boundary_type_t::open) {
+                        if (upper_bdy.boundary_type == boundary_type_t::open) {
+                            return interval<bigint::int_var, interval_type_t::bounded_open>{
+                                std::move(min_value), std::move(max_value)};
+                        }
+                        else {
+                            return interval<bigint::int_var,
+                                            interval_type_t::bounded_left_open_right_closed>{
+                                std::move(min_value), std::move(max_value)};
+                        }
+                    }
+                    else if (upper_bdy.boundary_type == boundary_type_t::open) {
+                        return interval<bigint::int_var,
+                                        interval_type_t::bounded_left_closed_right_open>{
+                            std::move(min_value), std::move(max_value)};
+                    }
+                    else {
+                        return interval<bigint::int_var, interval_type_t::bounded_closed>{
+                            std::move(min_value), std::move(max_value)};
+                    }
+                }();
+
                 return xi_zeta_region::infinite_parallelogram{
                     .xi_coeff = lower_bdy.linear_coeff.numerator *
                                 (denominator / lower_bdy.linear_coeff.denominator),
                     .zeta_coeff = denominator,
-                    .min_value = min_value,
-                    .value_gap = util::abs(max_value - min_value),
-                    .lower_boundary_type = lower_bdy.boundary_type,
-                    .upper_boundary_type = upper_bdy.boundary_type};
+                    .value_range = std::move(value_range)};
             } // Early return for infinite parallelogram.
 
             // Early return for vertical line segments.

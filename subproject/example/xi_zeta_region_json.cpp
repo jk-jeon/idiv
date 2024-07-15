@@ -448,26 +448,26 @@ int main() {
             }
             else if constexpr (region_type ==
                                xi_zeta_region::region_type_t::infinite_parallelogram) {
-                if (jkj::util::is_zero(region.value_gap)) {
+                if (region.value_range.lower_bound() == region.value_range.upper_bound()) {
                     std::cout << region.xi_coeff << " xi + " << region.zeta_coeff
-                              << " zeta = " << region.min_value;
+                              << " zeta = " << region.value_range.lower_bound();
                 }
                 else {
-                    std::cout << region.min_value;
-                    if (region.lower_boundary_type == boundary_type_t::closed) {
-                        std::cout << " <= ";
+                    std::cout << region.value_range.lower_bound();
+                    if (region.value_range.left_boundary_type() == boundary_type_t::open) {
+                        std::cout << " < ";
                     }
                     else {
-                        std::cout << " < ";
+                        std::cout << " <= ";
                     }
                     std::cout << region.xi_coeff << " xi + " << region.zeta_coeff << " zeta";
-                    if (region.upper_boundary_type == boundary_type_t::closed) {
-                        std::cout << " <= ";
-                    }
-                    else {
+                    if (region.value_range.right_boundary_type() == boundary_type_t::open) {
                         std::cout << " < ";
                     }
-                    std::cout << region.min_value + region.value_gap << "\n\n";
+                    else {
+                        std::cout << " <= ";
+                    }
+                    std::cout << region.value_range.upper_bound() << "\n\n";
                 }
             }
             else {
