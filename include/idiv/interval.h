@@ -22,6 +22,8 @@
 #include <concepts>
 
 namespace jkj {
+    enum class boundary_type_t : bool { open, closed };
+
     enum class interval_type_t {
         empty,                          // empty
         bounded_open,                   // (a,b)
@@ -34,7 +36,6 @@ namespace jkj {
         bounded_above_closed,           // (-infty,b]
         entire                          // (-infty,infty)
     };
-    enum class boundary_type_t : bool { open, closed };
 
     template <std::totally_ordered Value, interval_type_t it>
     struct interval;
@@ -790,8 +791,8 @@ namespace jkj {
         }
 
         static constexpr auto interval_type() noexcept { return cyclic_interval_type_t::entire; }
-        static constexpr auto left_boundary_type() noexcept { return boundary_type_t::open; }
-        static constexpr auto right_boundary_type() noexcept { return boundary_type_t::open; }
+        static constexpr auto left_boundary_type() noexcept { return boundary_type_t::closed; }
+        static constexpr auto right_boundary_type() noexcept { return boundary_type_t::closed; }
 
         constexpr auto const& lower_bound() const& noexcept = delete;
         constexpr auto& lower_bound() & noexcept = delete;
