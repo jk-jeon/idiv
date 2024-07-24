@@ -37,10 +37,12 @@ void gosper_algorithm_test() {
                 rational_continued_fraction_t{481, 2245u});
 
             while (!cf2.terminated()) {
-                expect(cf1.update() == cf2.update());
+                expect(cf1.proceed_to_next_partial_fraction() ==
+                       cf2.proceed_to_next_partial_fraction());
                 expect(cf1.current_convergent() == cf2.current_convergent());
             }
-            expect(cf1.update() == cf2.update());
+            expect(cf1.proceed_to_next_partial_fraction() ==
+                   cf2.proceed_to_next_partial_fraction());
         };
 
         should("binary_gosper") = [] {
@@ -57,10 +59,12 @@ void gosper_algorithm_test() {
                 rational_continued_fraction_t{2655, 182u});
 
             while (!cf2.terminated()) {
-                expect(cf1.update() == cf2.update());
+                expect(cf1.proceed_to_next_partial_fraction() ==
+                       cf2.proceed_to_next_partial_fraction());
                 expect(cf1.current_convergent() == cf2.current_convergent());
             }
-            expect(cf1.update() == cf2.update());
+            expect(cf1.proceed_to_next_partial_fraction() ==
+                   cf2.proceed_to_next_partial_fraction());
         };
     };
 }

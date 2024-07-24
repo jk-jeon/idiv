@@ -243,12 +243,12 @@ namespace jkj {
             }
 
             // Returns true if there are further partial fractions.
-            constexpr bool update() {
+            constexpr bool proceed_to_next_partial_fraction() {
                 // Progress the implementation only if the indices match.
-                if (current_index_ + 4 == record_.size()) {
+                if (std::size_t(current_index_ + 4) == record_.size()) {
                     if (!terminated_) {
                         record_.reserve(record_.size() + 1);
-                        terminated_ = !cf_.update();
+                        terminated_ = !cf_.proceed_to_next_partial_fraction();
                         if (!terminated_) {
                             record_.push_back(snapshot());
                             ++current_index_;
@@ -263,7 +263,7 @@ namespace jkj {
             }
 
             constexpr bool terminated() const noexcept {
-                return terminated_ && current_index_ + 4 == record_.size();
+                return terminated_ && std::size_t(current_index_ + 4) == record_.size();
             }
 
             // Go back to the initial state.

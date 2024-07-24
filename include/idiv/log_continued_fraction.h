@@ -33,17 +33,17 @@ namespace jkj {
             // By specializing the general recurrence relation for generalized continued fractions,
             // we obtain
             //
-            // A_0 = 0, A_1 = 2z, A_n = (2n-1)A_(n-1) - (n-1)^2 z^2 A_(n-2) for n >= 2,
-            // B_0 = 1, B_1 = 1,  B_n = (2n-1)B_(n-1) - (n-1)^2 z^2 B_(n-2) for n >= 2,
+            // P_0 = 0, P_1 = 2z, P_n = (2n-1)P_(n-1) - (n-1)^2 z^2 P_(n-2) for n >= 2,
+            // Q_0 = 1, Q_1 = 1,  Q_n = (2n-1)Q_(n-1) - (n-1)^2 z^2 Q_(n-2) for n >= 2,
             //
-            // where A_n/B_n is the nth convergent. By substituting z <- p/q and letting P_n = q^n
-            // A_n, Q_n = q^n B_n, we obtain the recurrence relation
+            // where P_n/Q_n is the nth convergent. By substituting z <- p/q and letting
+            // p_n = q^n P_n, q_n = q^n Q_n, we obtain the recurrence relation
             //
-            // P_0 = 0, P_1 = 2p, P_n = (2n-1)qP_(n-1) - (n-1)^2 p^2 P_(n-2) for n >= 2,
-            // Q_0 = 1, Q_1 = q,  Q_n = (2n-1)qQ_(n-1) - (n-1)^2 p^2 Q_(n-2) for n >= 2.
+            // p_0 = 0, p_1 = 2p, p_n = (2n-1)qp_(n-1) - (n-1)^2 p^2 p_(n-2) for n >= 2,
+            // q_0 = 1, q_1 = q,  q_n = (2n-1)qq_(n-1) - (n-1)^2 p^2 q_(n-2) for n >= 2.
             //
-            // Then it can be shown that the denominators Q_n's are always positive and the sequence
-            // (P_n/Q_n)_n of convergents converges to 2atanh(z).
+            // Then it can be shown that the denominators q_n's are always positive and the sequence
+            // (p_n/q_n)_n of convergents converges to 2atanh(z).
 
             template <class Int, class UInt>
             class natural_log_calculator {
@@ -56,9 +56,6 @@ namespace jkj {
 
                 using required_mixins =
                     mixin_list<index_tracker, partial_fraction_tracker, convergent_tracker>;
-                using mixin_ordering_constraints = mixin_ordering_constraint::constraint_list<
-                    mixin_ordering_constraint::before_after<index_tracker, interval_tracker>,
-                    mixin_ordering_constraint::before_after<convergent_tracker, interval_tracker>>;
 
             private:
                 // Used as a temporary storage for the quantity |p|/q for initial indices.
@@ -90,7 +87,7 @@ namespace jkj {
                             positive_rational.numerator + positive_rational.denominator});
 
                         while (!cf.terminated()) {
-                            cf.update();
+                            cf.proceed_to_next_partial_fraction();
                         }
                         return cf.current_convergent();
                     }();
@@ -107,11 +104,11 @@ namespace jkj {
                 constexpr void with_next_partial_fraction(Callback&& callback) {
                     auto const& gen = callback.get_generator();
                     if (gen.current_index() == -1) {
-                        callback(partial_fraction_type{1, 0u});
+                        callback.on_next_partial_fraction(partial_fraction_type{1, 0u});
                     }
                     else if (gen.current_index() == 0) {
                         current_error_bound_.numerator <<= 1;
-                        callback(partial_fraction_type{
+                        callback.on_next_partial_fraction(partial_fraction_type{
                             is_z_negative_
                                 ? util::to_negative(std::move(current_error_bound_.numerator))
                                 : util::to_signed(std::move(current_error_bound_.numerator)),
@@ -121,18 +118,17 @@ namespace jkj {
                         auto result = gen.current_partial_fraction();
                         result.numerator = (-gen.current_index() * gen.current_index()) * p_square_;
                         result.denominator += two_q_;
-                        callback(static_cast<decltype(result)&&>(result));
+                        callback.on_next_partial_fraction(std::move(result));
                     }
-                }
 
-                template <class ContinuedFractionGenerator>
-                constexpr interval_type next_interval(ContinuedFractionGenerator const& gen) {
-                    util::constexpr_assert(gen.current_index() >= 0);
+                    // Update interval estimate.
+
                     // When p = 0.
                     if (util::is_zero(p_square_)) {
-                        return cyclic_interval<convergent_type,
-                                               cyclic_interval_type_t::single_point>{
-                            convergent_type{0, 1u}};
+                        callback.on_next_interval(
+                            cyclic_interval<convergent_type, cyclic_interval_type_t::single_point>{
+                                convergent_type{0, 1u}});
+                        return;
                     }
 
                     if (gen.current_index() == 0) {
@@ -144,18 +140,22 @@ namespace jkj {
                         error_bound.denominator -= p_square_;
 
                         if (is_z_negative_) {
-                            return cyclic_interval<convergent_type, cyclic_interval_type_t::open>{
-                                convergent_type{
-                                    util::to_negative(static_cast<UInt&&>(error_bound.numerator)),
-                                    static_cast<UInt&&>(error_bound.denominator)},
-                                convergent_type{0, 1u}};
+                            callback.on_next_interval(
+                                cyclic_interval<convergent_type, cyclic_interval_type_t::open>{
+                                    convergent_type{util::to_negative(
+                                                        static_cast<UInt&&>(error_bound.numerator)),
+                                                    static_cast<UInt&&>(error_bound.denominator)},
+                                    convergent_type{0, 1u}});
+                            return;
                         }
                         else {
-                            return cyclic_interval<convergent_type, cyclic_interval_type_t::open>{
-                                convergent_type{0, 1u},
-                                convergent_type{
-                                    util::to_signed(static_cast<UInt&&>(error_bound.numerator)),
-                                    static_cast<UInt&&>(error_bound.denominator)}};
+                            callback.on_next_interval(
+                                cyclic_interval<convergent_type, cyclic_interval_type_t::open>{
+                                    convergent_type{0, 1u},
+                                    convergent_type{
+                                        util::to_signed(static_cast<UInt&&>(error_bound.numerator)),
+                                        static_cast<UInt&&>(error_bound.denominator)}});
+                            return;
                         }
                     }
                     else if (gen.current_index() == 1) {
@@ -183,21 +183,28 @@ namespace jkj {
                         auto lower_bound = linear_fractional_translation(
                             util::to_negative(current_error_bound_.numerator),
                             current_error_bound_.denominator)(gen.current_convergent());
-                        return cyclic_interval<convergent_type, cyclic_interval_type_t::open>{
-                            convergent_type{
-                                util::is_strictly_negative(lower_bound.denominator)
-                                    ? util::invert_sign(std::move(lower_bound.numerator))
-                                    : std::move(lower_bound.numerator),
-                                std::move(lower_bound.denominator)},
-                            gen.current_convergent()};
+                        callback.on_next_interval(
+                            cyclic_interval<convergent_type, cyclic_interval_type_t::open>{
+                                convergent_type{
+                                    util::is_strictly_negative(lower_bound.denominator)
+                                        ? util::invert_sign(std::move(lower_bound.numerator))
+                                        : std::move(lower_bound.numerator),
+                                    std::move(lower_bound.denominator)},
+                                gen.current_convergent()});
                     }
                     else {
-                        return cyclic_interval<convergent_type, cyclic_interval_type_t::open>{
-                            gen.current_convergent(),
-                            linear_fractional_translation(current_error_bound_.numerator,
-                                                          current_error_bound_.denominator)(
-                                gen.current_convergent())};
+                        callback.on_next_interval(
+                            cyclic_interval<convergent_type, cyclic_interval_type_t::open>{
+                                gen.current_convergent(),
+                                linear_fractional_translation(current_error_bound_.numerator,
+                                                              current_error_bound_.denominator)(
+                                    gen.current_convergent())});
                     }
+                }
+
+                template <class Callback>
+                constexpr void with_next_interval(Callback&& callback) {
+                    with_next_partial_fraction(static_cast<Callback&&>(callback));
                 }
             };
 

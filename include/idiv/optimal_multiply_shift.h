@@ -189,9 +189,9 @@ namespace jkj {
         // The number x is specified in terms of a continued fraction generator giving its continued
         // fraction expansion. The generator needs to have index_tracker and
         // previous_previous_convergent_tracker within it, and it also needs to be at its initial
-        // stage, i.e., the call to current_index() without calling update() should return -1.
-        // After the function returns, the generator is terminated if x is rational and its
-        // denominator is at most nmax.
+        // stage, i.e., the call to current_index() without calling
+        // proceed_to_next_partial_fraction() should return -1. After the function returns, the
+        // generator is terminated if x is rational and its denominator is at most nmax.
 
         template <class Int>
         struct multiply_shift_info {

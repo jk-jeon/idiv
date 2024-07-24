@@ -79,7 +79,7 @@ namespace jkj {
                                                                                    0, nmin, 1, 0,
                                                                                    // denominator
                                                                                    0, 0, 0, 1}});
-                cf.update();
+                cf.proceed_to_next_partial_fraction();
                 caching_xcf.rewind();
                 caching_ycf.rewind();
                 return cf.current_partial_fraction().denominator;
@@ -147,7 +147,7 @@ namespace jkj {
                              0, x_info.best_below.denominator + nmin, 1, 0,
                              // denominator
                              0, 0, 0, 1}});
-                    cf.update();
+                    cf.proceed_to_next_partial_fraction();
                     caching_xcf.rewind();
                     caching_ycf.rewind();
                     return cf.current_partial_fraction().denominator;
@@ -179,7 +179,7 @@ namespace jkj {
                          util::to_signed(x_info.best_below.denominator), 0,
                          // denominator
                          0, 0, 0, 1}});
-                cf.update();
+                cf.proceed_to_next_partial_fraction();
                 caching_xcf.rewind();
                 caching_ycf.rewind();
                 return cf.current_partial_fraction().denominator -
@@ -212,7 +212,7 @@ namespace jkj {
                                  0, x_info.best_above.denominator + nmin, 1, 0,
                                  // denominator
                                  0, 0, 0, 1}});
-                        cf.update();
+                        cf.proceed_to_next_partial_fraction();
                         caching_xcf.rewind();
                         caching_ycf.rewind();
                         return cf.current_partial_fraction().denominator;
@@ -274,7 +274,7 @@ namespace jkj {
                             (q * pstar + 1) * r - qstar * (floor_nmin_x_plus_y + 1u),
                             // denominator
                             0, util::to_signed(qstar * qstar), 0, qstar * -pstar}});
-                cf.update();
+                cf.proceed_to_next_partial_fraction();
                 caching_xcf.rewind();
                 caching_ycf.rewind();
                 return -cf.current_partial_fraction().denominator;
@@ -289,7 +289,7 @@ namespace jkj {
                                             qstar * -(pstar * k + floor_nmin_x_plus_y + 1u),
                                             // denominator
                                             0, util::to_negative(q * qstar), 0, q * pstar + 1u}});
-                cf.update();
+                cf.proceed_to_next_partial_fraction();
                 caching_xcf.rewind();
                 caching_ycf.rewind();
                 return -cf.current_partial_fraction().denominator;
@@ -305,7 +305,7 @@ namespace jkj {
                                             0,
                                             // denominator
                                             0, 0, 0, 1}});
-                cf.update();
+                cf.proceed_to_next_partial_fraction();
                 caching_xcf.rewind();
                 caching_ycf.rewind();
                 return qstar * (floor_nmin_x_plus_y + 1u) + pstar * nlength -

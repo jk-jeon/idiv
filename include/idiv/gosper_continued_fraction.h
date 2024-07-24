@@ -149,7 +149,7 @@ namespace jkj {
                         coeff_.translate(-common_floor);
                         coeff_.reflect();
                         determinant_sign_ *= -1;
-                        callback(partial_fraction_type{
+                        callback.on_next_partial_fraction(partial_fraction_type{
                             Unity{unity{}}, static_cast<decltype(common_floor)&&>(common_floor)});
                     };
                     enum class final_result { success, terminate, fail };
@@ -314,7 +314,7 @@ namespace jkj {
                             return;
                         case final_result::fail:;
                         }
-                        cf_.update();
+                        cf_.proceed_to_next_partial_fraction();
                     }
                 }
             };
@@ -852,8 +852,8 @@ namespace jkj {
                     };
 
                     while (has_singularity()) {
-                        xcf_.update();
-                        ycf_.update();
+                        xcf_.proceed_to_next_partial_fraction();
+                        ycf_.proceed_to_next_partial_fraction();
                     }
                 }
 
@@ -864,7 +864,8 @@ namespace jkj {
                         is_first_ = false;
                         coeff_.translate(-common_floor);
                         coeff_.reflect();
-                        callback(partial_fraction_type{Unity{unity{}}, std::move(common_floor)});
+                        callback.on_next_partial_fraction(
+                            partial_fraction_type{Unity{unity{}}, std::move(common_floor)});
                     };
                     enum class final_result { success, terminate, fail };
                     auto check_floor = [&](auto&& itv) -> final_result {
@@ -1178,8 +1179,8 @@ namespace jkj {
                         case final_result::fail:;
                         }
 
-                        xcf_.update();
-                        ycf_.update();
+                        xcf_.proceed_to_next_partial_fraction();
+                        ycf_.proceed_to_next_partial_fraction();
                     }
                 }
             };

@@ -36,8 +36,11 @@ namespace jkj {
             private:
                 // We do not need a virtual destructor for this.
                 struct callback_wrapper_base {
+                    constexpr virtual void on_next_partial_fraction(
+                        partial_fraction_type const& next_partial_fraction) const = 0;
+
                     constexpr virtual void
-                    operator()(partial_fraction_type const& next_partial_fraction) const = 0;
+                    on_next_interval(interval_type const& next_interval) const = 0;
                 };
 
                 template <class Callback>
@@ -47,9 +50,14 @@ namespace jkj {
                 public:
                     constexpr callback_wrapper(Callback& callback) : callback_{callback} {}
 
+                    constexpr void on_next_partial_fraction(
+                        partial_fraction_type const& next_partial_fraction) const override {
+                        callback_.on_next_partial_fraction(next_partial_fraction);
+                    }
+
                     constexpr void
-                    operator()(partial_fraction_type const& next_partial_fraction) const override {
-                        callback_(next_partial_fraction);
+                    on_next_interval(interval_type const& next_interval) const override {
+                        callback_.on_next_interval(next_interval);
                     }
                 };
 

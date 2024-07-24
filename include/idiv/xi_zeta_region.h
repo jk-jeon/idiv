@@ -320,7 +320,7 @@ namespace jkj {
                 auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
                     cntfrc::impl::rational{a, b});
                 while (!cf.terminated()) {
-                    cf.update();
+                    cf.proceed_to_next_partial_fraction();
                 }
                 return cf.current_partial_fraction().denominator;
             };
@@ -332,7 +332,7 @@ namespace jkj {
                     cntfrc::impl::rational{static_cast<decltype(fr)&&>(fr).numerator,
                                            static_cast<decltype(fr)&&>(fr).denominator});
                 while (!cf.terminated()) {
-                    cf.update();
+                    cf.proceed_to_next_partial_fraction();
                 }
                 return project_to_rational(cf.current_convergent());
             };
@@ -348,7 +348,7 @@ namespace jkj {
                 auto cf = cntfrc::make_generator<cntfrc::convergent_tracker>(
                     cntfrc::impl::rational{num_int, util::abs(den_int)});
                 while (!cf.terminated()) {
-                    cf.update();
+                    cf.proceed_to_next_partial_fraction();
                 }
                 return project_to_rational(cf.current_convergent());
             };
@@ -696,7 +696,7 @@ namespace jkj {
                                                    constraint_spec.affine_coeff.linear_coeff.yx,
                                                    constraint_spec.affine_coeff.linear_coeff.yy,
                                                    constraint_spec.affine_coeff.constant_coeff_y));
-                            cf.update();
+                            cf.proceed_to_next_partial_fraction();
                             caching_xcf_for_yp.rewind();
                             caching_ycf_for_yp.rewind();
                             return cf.current_partial_fraction().denominator;

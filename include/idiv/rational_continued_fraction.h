@@ -57,7 +57,8 @@ namespace jkj {
                         fraction_.numerator = Int{std::move(fraction_.denominator)};
                         fraction_.denominator = std::move(div_result.rem);
 
-                        callback(partial_fraction_type{Unity{unity{}}, std::move(div_result.quot)});
+                        callback.on_next_partial_fraction(
+                            partial_fraction_type{Unity{unity{}}, std::move(div_result.quot)});
                     }
                 }
             };

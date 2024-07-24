@@ -29,52 +29,51 @@ void rational_continued_fraction_test() {
             auto cf = cntfrc::make_generator<cntfrc::convergent_tracker>(
                 cntfrc::impl::rational{convergent_t{156, 179u}});
 
-            expect(cf.update() == true);
+            expect(cf.proceed_to_next_partial_fraction() == true);
             expect(cf.current_convergent() == convergent_t{0, 1u});
-            expect(cf.update() == true);
+            expect(cf.proceed_to_next_partial_fraction() == true);
             expect(cf.current_convergent() == convergent_t{1, 1u});
-            expect(cf.update() == true);
+            expect(cf.proceed_to_next_partial_fraction() == true);
             expect(cf.current_convergent() == convergent_t{6, 7u});
-            expect(cf.update() == true);
+            expect(cf.proceed_to_next_partial_fraction() == true);
             expect(cf.current_convergent() == convergent_t{7, 8u});
-            expect(cf.update() == true);
+            expect(cf.proceed_to_next_partial_fraction() == true);
             expect(cf.current_convergent() == convergent_t{27, 31u});
-            expect(cf.update() == true);
+            expect(cf.proceed_to_next_partial_fraction() == true);
             expect(cf.current_convergent() == convergent_t{34, 39u});
-            expect(cf.update() == true);
+            expect(cf.proceed_to_next_partial_fraction() == true);
             expect(cf.current_convergent() == convergent_t{61, 70u});
-            expect(cf.update() == true);
+            expect(cf.proceed_to_next_partial_fraction() == true);
             expect(cf.current_convergent() == convergent_t{156, 179u});
-            expect(cf.update() == false);
+            expect(cf.proceed_to_next_partial_fraction() == false);
         }
         {
             auto cf = cntfrc::make_generator<cntfrc::convergent_tracker>(
                 cntfrc::impl::rational{convergent_t{-2767, 1982u}});
 
-            expect(cf.update() == true);
+            expect(cf.proceed_to_next_partial_fraction() == true);
             expect(cf.current_convergent() == convergent_t{-2, 1u});
-            expect(cf.update() == true);
+            expect(cf.proceed_to_next_partial_fraction() == true);
             expect(cf.current_convergent() == convergent_t{-1, 1u});
-            expect(cf.update() == true);
+            expect(cf.proceed_to_next_partial_fraction() == true);
             expect(cf.current_convergent() == convergent_t{-3, 2u});
-            expect(cf.update() == true);
+            expect(cf.proceed_to_next_partial_fraction() == true);
             expect(cf.current_convergent() == convergent_t{-4, 3u});
-            expect(cf.update() == true);
+            expect(cf.proceed_to_next_partial_fraction() == true);
             expect(cf.current_convergent() == convergent_t{-7, 5u});
-            expect(cf.update() == true);
+            expect(cf.proceed_to_next_partial_fraction() == true);
             expect(cf.current_convergent() == convergent_t{-67, 48u});
-            expect(cf.update() == true);
+            expect(cf.proceed_to_next_partial_fraction() == true);
             expect(cf.current_convergent() == convergent_t{-74, 53u});
-            expect(cf.update() == true);
+            expect(cf.proceed_to_next_partial_fraction() == true);
             expect(cf.current_convergent() == convergent_t{-141, 101u});
-            expect(cf.update() == true);
+            expect(cf.proceed_to_next_partial_fraction() == true);
             expect(cf.current_convergent() == convergent_t{-497, 356u});
-            expect(cf.update() == true);
+            expect(cf.proceed_to_next_partial_fraction() == true);
             expect(cf.current_convergent() == convergent_t{-1135, 813u});
-            expect(cf.update() == true);
+            expect(cf.proceed_to_next_partial_fraction() == true);
             expect(cf.current_convergent() == convergent_t{-2767, 1982u});
-            expect(cf.update() == false);
+            expect(cf.proceed_to_next_partial_fraction() == false);
         }
     };
 }
-

@@ -82,7 +82,7 @@ namespace jkj {
             while (!found_minimizer || !found_maximizer) {
                 // Maximizer.
                 // Find a new even convergent.
-                xi_cf.update();
+                xi_cf.proceed_to_next_partial_fraction();
                 auto scaled_lhs_for_convergent =
                     util::abs(approx_info.multiplier * xi_cf.current_convergent_denominator() -
                               (xi_cf.current_convergent_numerator() << approx_info.shift_amount));
@@ -137,7 +137,7 @@ namespace jkj {
 
                 // Minimizer.
                 // Find a new odd convergent.
-                xi_cf.update();
+                xi_cf.proceed_to_next_partial_fraction();
                 scaled_lhs_for_convergent =
                     util::abs((xi_cf.current_convergent_numerator() << approx_info.shift_amount) -
                               approx_info.multiplier * xi_cf.current_convergent_denominator());

@@ -509,14 +509,10 @@ namespace jkj {
                 using convergent_type = typename std::remove_cvref_t<Impl>::convergent_type;
                 using interval_type = typename std::remove_cvref_t<Impl>::interval_type;
 
-            private:
-                Impl impl_;
-                bool terminated_ = false;
-
                 struct callback_type {
                 private:
                     generator_impl& gen_;
-                    bool called_ = false;
+                    bool got_new_partial_fraction_ = false;
 
                     friend generator_impl;
                     explicit constexpr callback_type(generator_impl& gen) noexcept : gen_{gen} {}
@@ -530,15 +526,57 @@ namespace jkj {
                     callback_type& operator=(callback_type const&) = delete;
                     callback_type& operator=(callback_type&&) = delete;
 
-                    constexpr void operator()(partial_fraction_type const& next_partial_fraction) {
-                        if (!called_) {
-                            (static_cast<Mixins<Impl, generator_impl>&>(gen_).update(
-                                 next_partial_fraction, gen_.impl_),
-                             ...);
+                    constexpr void
+                    on_next_partial_fraction(partial_fraction_type const& next_partial_fraction) {
+                        if (!got_new_partial_fraction_) {
+                            gen_.call_on_next_partial_fraction(next_partial_fraction);
                         }
-                        called_ = true;
+                        got_new_partial_fraction_ = true;
+                    }
+
+                    constexpr void on_next_interval(interval_type const& next_interval) {
+                        gen_.call_on_next_interval(next_interval);
                     }
                 };
+
+            private:
+                Impl impl_;
+                bool terminated_ = false;
+
+                template <class Functor>
+                constexpr bool update_impl(Functor&& functor) {
+                    if (!terminated_) {
+                        callback_type callback{*this};
+                        functor(callback);
+                        if (!callback.got_new_partial_fraction_) {
+                            terminated_ = true;
+
+                            auto invoke_final_update = [this](auto&& mixin) {
+                                if constexpr (requires { mixin.final_update(impl_); }) {
+                                    mixin.final_update(impl_);
+                                }
+                            };
+                            (invoke_final_update(static_cast<Mixins<Impl, generator_impl>&>(*this)),
+                             ...);
+                        }
+                    }
+                    return !terminated_;
+                }
+
+                constexpr void
+                call_on_next_partial_fraction(partial_fraction_type const& next_partial_fraction) {
+                    (static_cast<Mixins<Impl, generator_impl>&>(*this).on_next_partial_fraction(
+                         next_partial_fraction, impl_),
+                     ...);
+                }
+
+                constexpr void call_on_next_interval(interval_type const& next_interval) {
+                    auto caller = [this, &next_interval](auto&& mixin) {
+                        if constexpr (requires { mixin.on_next_interval(next_interval, impl_); })
+                            mixin.on_next_interval(next_interval, impl_);
+                    };
+                    (caller(static_cast<Mixins<Impl, generator_impl>&>(*this)), ...);
+                }
 
             public:
                 template <template <class, class> class... QueriedMixins>
@@ -560,23 +598,28 @@ namespace jkj {
                 constexpr decay_type copy() const { return decay_type{impl_}; }
 
                 // Returns true if succeeded obtaining a further partial fraction.
-                constexpr bool update() {
-                    if (!terminated_) {
-                        callback_type callback{*this};
+                constexpr bool proceed_to_next_partial_fraction() {
+                    return update_impl([this](callback_type& callback) {
                         impl_.with_next_partial_fraction(callback);
-                        if (!callback.called_) {
-                            terminated_ = true;
+                    });
+                }
 
-                            auto invoke_final_update = [this](auto&& mixin) {
-                                if constexpr (requires { mixin.final_update(impl_); }) {
-                                    mixin.final_update(impl_);
-                                }
-                            };
-                            (invoke_final_update(static_cast<Mixins<Impl, generator_impl>&>(*this)),
-                             ...);
+                // Refine the current interval estimate, possibly without proceeding to the next
+                // partial fraction. Returns true if a new estimate is obtained, and returns false
+                // if it already has reached the best possible estimate.
+                constexpr bool refine_interval() {
+                    // Just call proceed_to_next_partial_fraction() if Impl does not have any
+                    // special support for refining the interval estimate.
+                    return update_impl([this](callback_type& callback) {
+                        if constexpr (requires(callback_type& callback) {
+                                          impl_.with_next_interval(callback);
+                                      }) {
+                            impl_.with_next_interval(callback);
                         }
-                    }
-                    return !terminated_;
+                        else {
+                            impl_.with_next_partial_fraction(callback);
+                        }
+                    });
                 }
 
                 constexpr bool terminated() const noexcept { return terminated_; }
@@ -616,7 +659,8 @@ namespace jkj {
 
             explicit constexpr index_tracker(Impl const&) noexcept {}
 
-            constexpr void update(partial_fraction_type const&, Impl const&) noexcept {
+            constexpr void on_next_partial_fraction(partial_fraction_type const&,
+                                                    Impl const&) noexcept {
                 ++current_index_;
             }
 
@@ -636,7 +680,9 @@ namespace jkj {
             explicit constexpr partial_fraction_tracker(Impl const& impl)
                 : current_partial_fraction_{impl.initial_partial_fraction()} {}
 
-            constexpr void update(partial_fraction_type const& next_partial_fraction, Impl const&) {
+            constexpr void
+            on_next_partial_fraction(partial_fraction_type const& next_partial_fraction,
+                                     Impl const&) {
                 current_partial_fraction_ = next_partial_fraction;
             }
 
@@ -660,7 +706,9 @@ namespace jkj {
 
             explicit constexpr convergent_tracker(Impl const&) noexcept {}
 
-            constexpr void update(partial_fraction_type const& next_partial_fraction, Impl const&) {
+            constexpr void
+            on_next_partial_fraction(partial_fraction_type const& next_partial_fraction,
+                                     Impl const&) {
                 auto next_numerator =
                     next_partial_fraction.denominator * current_convergent_numerator() +
                     next_partial_fraction.numerator * previous_convergent_numerator();
@@ -709,7 +757,7 @@ namespace jkj {
 
             explicit constexpr previous_previous_convergent_tracker(Impl const&) noexcept {}
 
-            constexpr void update(partial_fraction_type const&, Impl const&) {
+            constexpr void on_next_partial_fraction(partial_fraction_type const&, Impl const&) {
                 previous_previous_convergent_ =
                     static_cast<Generator const&>(*this).previous_convergent();
             }
@@ -745,14 +793,24 @@ namespace jkj {
             explicit constexpr interval_tracker(Impl const& impl)
                 : current_interval_{impl.initial_interval()} {}
 
-            constexpr void update(partial_fraction_type const&, Impl& impl) {
-                auto const& self = static_cast<Generator const&>(*this);
-                if constexpr (requires { impl.next_interval(self); }) {
-                    current_interval_ = impl.next_interval(self);
+            constexpr void on_next_partial_fraction(partial_fraction_type const&, Impl& impl) {
+                if constexpr (requires(typename Generator::callback_type callback) {
+                                  impl.with_next_interval(callback);
+                              }) {
+                    // on_next_interval() should be called whenever necessary, so nothing to do
+                    // here.
                 }
                 else {
                     // Use convergents. Note that this is valid only for regular continued
                     // fractions.
+                    static_assert(
+                        std::is_same_v<decltype(partial_fraction_type::numerator), unity>,
+                        "inspecting partial_fraction_type concludes that the continued fraction is "
+                        "not regular; interval_tracker requires generalized continued fraction "
+                        "implementations to provides with_next_interval() member function, but the "
+                        "given implementation does not have one.");
+
+                    auto const& self = static_cast<Generator const&>(*this);
                     if (self.current_index() >= 1) {
                         if (self.current_index() % 2 == 0) {
                             current_interval_ =
@@ -769,6 +827,11 @@ namespace jkj {
                     }
                 }
             }
+
+            constexpr void on_next_interval(interval_type const& new_interval, Impl&) {
+                current_interval_ = new_interval;
+            }
+
             constexpr void final_update(Impl const&) {
                 if constexpr (interval_type::is_allowed_interval_type(
                                   cyclic_interval_type_t::single_point)) {
@@ -784,7 +847,7 @@ namespace jkj {
             // Refine the current value so that the maximum possible error is no more than the
             // given bound.
             template <class ErrorValue>
-            convergent_type const& progress_until(ErrorValue const& error_bound) {
+            constexpr convergent_type const& refine_interval_until(ErrorValue const& error_bound) {
                 // Translate the lower bound by error_bound and see if it belongs to the interval.
                 while (current_interval().visit([&](auto&& itv) {
                     static_assert(itv.interval_type() != cyclic_interval_type_t::empty);
@@ -810,7 +873,7 @@ namespace jkj {
                         return true;
                     }
                 })) {
-                    static_cast<Generator&>(*this).update();
+                    static_cast<Generator&>(*this).proceed_to_next_partial_fraction();
                 }
                 return static_cast<Generator const&>(*this).current_convergent();
             }
