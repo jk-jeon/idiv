@@ -561,7 +561,7 @@ namespace jkj {
                             (invoke_final_update(static_cast<Mixins<Impl, generator_impl>&>(*this)),
                              ...);
                         }
-                        return got_new_partial_fraction_;
+                        return callback.got_new_partial_fraction_;
                     }
                     return !terminated_;
                 }
