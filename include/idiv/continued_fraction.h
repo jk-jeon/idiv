@@ -40,28 +40,30 @@ namespace jkj {
     // continued fraction implementation which will be instantiated as a data member of the
     // generator class.
     //
-    // When update() member function of the generator class is called, the generator class calls the
-    // with_next_partial_fraction() member function of the implementation. This function is supposed
-    // to take one callback parameter by reference whose function call operator will be called with
-    // the newly computed partial fraction. The callback parameter also has a member function
-    // get_generator() which returns a const reference to the containing generator object. Since the
-    // implementation class does not know about the containing generator class, the type of the
-    // callback should be a template parameter.
+    // When proceed_to_next_partial_fraction() member function of the generator class is called, the
+    // generator class calls the with_next_partial_fraction() member function of the implementation.
+    // This function is supposed to take one callback parameter by reference which has a member
+    // function on_next_partial_fraction() which will be called with the newly computed partial
+    // fraction. The callback parameter also has a member function get_generator() which returns a
+    // const reference to the containing generator object. Since the implementation class does not
+    // know about the containing generator class, the type of the callback should be a template
+    // parameter.
     //
-    // When the callback is called inside with_next_partial_fraction() for the first time, it then
-    // calls the update() member function of each of the mixins the generator is deriving from, with
-    // two arguments, one for the passed new partial fraction, and another for the reference to the
-    // instance of the implementation class. If the callback is called again, it does not do
-    // anything further and returns immediately. If with_next_partial_fraction() calls the callback
-    // at least once, the update() function returns true.
+    // When the on_next_partial_fraction() member function of the callback parameter is called
+    // inside with_next_partial_fraction() for the first time, it then calls the
+    // on_next_partial_fraction() member function of each of the mixins the generator is deriving
+    // from, with two arguments, one for the passed new partial fraction, and another for the
+    // reference to the instance of the implementation class. If the callback is called again, it
+    // does not do anything further and returns immediately. If with_next_partial_fraction() calls
+    // the callback at least once, the proceed_to_next_partial_fraction() function returns true.
     //
-    // If with_next_partial_fraction() returns without calling the callback, then the generator
-    // considers that there is no more partial fractions remaining and the continued fraction
-    // expansion is done. It then sets the termination flag so that now its terminated() member
-    // function returns true. Also, it calls the final_update() member function of each of the
-    // mixins with the reference to the implementation object. After that, the update() function
-    // returns false. Once termination flag is set, now calling update() does not do anything other
-    // than just returning false.
+    // If with_next_partial_fraction() returns without calling on_next_partial_fraction() of the
+    // callback parameter, then the generator considers that there is no more partial fractions
+    // remaining and the continued fraction expansion is done. It then sets the termination flag so
+    // that now its terminated() member function returns true. Also, it calls the final_update()
+    // member function of each of the mixins with the reference to the implementation object. After
+    // that, the update() function returns false. Once termination flag is set, now calling update()
+    // does not do anything other than just returning false.
     //
     // Some mixins may properly function only when some other mixins coexist inside the same
     // generator. Such a dependency, if needed, is supposed to be specified by specializing a class
@@ -559,6 +561,7 @@ namespace jkj {
                             (invoke_final_update(static_cast<Mixins<Impl, generator_impl>&>(*this)),
                              ...);
                         }
+                        return got_new_partial_fraction_;
                     }
                     return !terminated_;
                 }
@@ -605,8 +608,8 @@ namespace jkj {
                 }
 
                 // Refine the current interval estimate, possibly without proceeding to the next
-                // partial fraction. Returns true if a new estimate is obtained, and returns false
-                // if it already has reached the best possible estimate.
+                // partial fraction. Returns true if the generator has proceeded to the next partial
+                // fraction in order to refine the interval, and returns false otherwise.
                 constexpr bool refine_interval() {
                     // Just call proceed_to_next_partial_fraction() if Impl does not have any
                     // special support for refining the interval estimate.
