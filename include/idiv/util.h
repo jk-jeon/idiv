@@ -394,11 +394,12 @@ namespace jkj {
         // The reasons for reinventing this are:
         //   - std::variant is not really constexpr in C++20, and
         //   - I want to guarantee strong exception safety.
-        // For reference types, we follow the assign-through semantics because it is easier to
-        // implement consistently without pessimizing the case of value types.
+        // For reference-like proxy types, we follow the assign-through semantics because it is
+        // easier to implement consistently without pessimizing the case of value types. Pure
+        // reference types are disallowed for the ease of implementation.
         namespace detail {
             // Helpers for variant_storage.
-            // Modified from
+            // Copied and modified from
             // https://github.com/microsoft/STL/blob/18c09c48f5666e6b1ea2a3724c5f6f9917c4c6fb/stl/inc/variant#L865.
 
             template <std::size_t idx, class TargetType>
@@ -429,14 +430,15 @@ namespace jkj {
             using variant_init_overload_set =
                 variant_init_overload_set_impl<std::index_sequence_for<Types...>, Types...>;
 
+            // Failure case (has no member "type").
             template <class Enable, class T, class... Types>
-            struct variant_init_helper {}; // failure case (has no member "type")
+            struct variant_init_helper {};
 
             template <class T, class... Types>
             struct variant_init_helper<std::void_t<decltype(variant_init_overload_set<Types...>{}(
                                            std::declval<T>(), std::declval<T>()))>,
                                        T, Types...> {
-                // perform overload resolution to determine the unique alternative that should be
+                // Perform overload resolution to determine the unique alternative that should be
                 // initialized in variant<Types...> from an argument expression with type and value
                 // category T.
                 using type = decltype(variant_init_overload_set<Types...>{}(std::declval<T>(),
@@ -444,11 +446,13 @@ namespace jkj {
             };
         }
 
-        template <class T, class... Types> // extract the type from variant_init_helper
+        // Extract the type from variant_init_helper.
+        template <class T, class... Types>
         using variant_init_type =
             tmp::get_type<1, typename detail::variant_init_helper<void, T, Types...>::type>;
 
-        template <class T, class... Types> // extract the index from variant_init_helper
+        // Extract the index from variant_init_helper.
+        template <class T, class... Types>
         static constexpr std::size_t variant_init_index =
             tmp::get_type<0, typename detail::variant_init_helper<void, T, Types...>::type>::value;
 
