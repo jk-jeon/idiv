@@ -614,8 +614,8 @@ namespace jkj {
                     // Just call proceed_to_next_partial_fraction() if Impl does not have any
                     // special support for refining the interval estimate.
                     return update_impl([this](callback_type& callback) {
-                        if constexpr (requires(callback_type& callback) {
-                                          impl_.with_next_interval(callback);
+                        if constexpr (requires(callback_type& callback_) {
+                                          impl_.with_next_interval(callback_);
                                       }) {
                             impl_.with_next_interval(callback);
                         }
