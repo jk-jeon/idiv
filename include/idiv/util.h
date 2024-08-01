@@ -149,6 +149,19 @@ namespace jkj {
             static constexpr std::size_t size() noexcept { return 0; }
         };
 
+        // Make an array of std::size_t consisting of 0, ... , N-1.
+        namespace detail {
+            template <std::size_t... I>
+            constexpr array<std::size_t, sizeof...(I)>
+            make_index_array_helper(std::index_sequence<I...>) noexcept {
+                return {{I...}};
+            }
+        }
+        template <std::size_t N>
+        constexpr array<std::size_t, N> make_index_array() noexcept {
+            return detail::make_index_array_helper(std::make_index_sequence<N>{});
+        }
+
         // A minimal implementation of std::span.
         template <class T>
         class span {
@@ -392,7 +405,8 @@ namespace jkj {
         // Storage for std::variant-like classes.
         // Follows double-storage strategy to guarantee strong exception safety.
         // The reasons for reinventing this are:
-        //   - std::variant is not really constexpr in C++20, and
+        //   - std::variant used to be no constexpr in C++20; fixed by the defect report P2231R1,
+        //     but the patch is not widely available, and
         //   - I want to guarantee strong exception safety.
         // For reference-like proxy types, we follow the assign-through semantics because it is
         // easier to implement consistently without pessimizing the case of value types. Pure
@@ -501,33 +515,36 @@ namespace jkj {
 
             storage_wrapper<> wrapped_;
 
-            template <class Functor, std::size_t idx_count = 0>
+            template <auto discriminator_container = make_index_array<sizeof...(Types)>(),
+                      std::size_t discriminator_idx = 0, class Discriminator, class Functor>
             static constexpr decltype(auto)
-            visit_helper_helper(std::size_t current_idx, Functor&& f) noexcept(
+            visit_helper_helper(Discriminator current_alternative, Functor&& f) noexcept(
                 (noexcept(static_cast<Functor&&>(f).template operator()<Types>()) && ...)) {
-                if constexpr (idx_count == sizeof...(Types) - 1) {
-                    constexpr_assert<error_msgs::index_out_of_range>(current_idx == idx_count);
+                if constexpr (discriminator_idx == discriminator_container.size() - 1) {
+                    constexpr_assert<error_msgs::index_out_of_range>(
+                        current_alternative == discriminator_container[discriminator_idx]);
                     return static_cast<Functor&&>(f)
-                        .template operator()<tmp::get_type<idx_count, alternative_list>>();
+                        .template operator()<tmp::get_type<discriminator_idx, alternative_list>>();
                 }
                 else {
-                    if (current_idx == idx_count) {
-                        return static_cast<Functor&&>(f)
-                            .template operator()<tmp::get_type<idx_count, alternative_list>>();
+                    if (current_alternative == discriminator_container[discriminator_idx]) {
+                        return static_cast<Functor&&>(f).template
+                        operator()<tmp::get_type<discriminator_idx, alternative_list>>();
                     }
                     else {
-                        return visit_helper_helper<Functor, idx_count + 1>(
-                            current_idx, static_cast<Functor&&>(f));
+                        return visit_helper_helper<discriminator_container, discriminator_idx + 1>(
+                            current_alternative, static_cast<Functor&&>(f));
                     }
                 }
             }
 
-            template <class Self, class Functor>
+            template <auto discriminator_container = make_index_array<sizeof...(Types)>(),
+                      class Self, class Discriminator, class Functor>
             static constexpr decltype(auto)
-            visit_helper(Self&& self, std::size_t current_idx, Functor&& f) noexcept(
+            visit_helper(Self&& self, Discriminator current_alternative, Functor&& f) noexcept(
                 (noexcept(static_cast<Functor&&>(f)(std::declval<Types>())) && ...)) {
-                return visit_helper_helper(
-                    current_idx,
+                return visit_helper_helper<discriminator_container>(
+                    current_alternative,
                     [&self, &f]<class T>() noexcept(noexcept(static_cast<Functor>(f)(
                         static_cast<Self&&>(self).template get<T>()))) -> decltype(auto) {
                         return static_cast<Functor>(f)(static_cast<Self&&>(self).template get<T>());
@@ -587,35 +604,53 @@ namespace jkj {
                     *std::launder<T const>(reinterpret_cast<T const*>(wrapped_.data())));
             }
 
-            template <class Functor>
-            decltype(auto) visit(std::size_t current_idx, Functor&& f) & noexcept(
-                noexcept(visit_helper(*this, current_idx, static_cast<Functor&&>(f)))) {
-                return visit_helper(*this, current_idx, static_cast<Functor&&>(f));
+            template <auto discriminator_container = make_index_array<sizeof...(Types)>(),
+                      class Discriminator, class Functor>
+            decltype(auto) visit(Discriminator current_alternative, Functor&& f) & noexcept(
+                noexcept(visit_helper<discriminator_container>(*this, current_alternative,
+                                                               static_cast<Functor&&>(f)))) {
+                return visit_helper<discriminator_container>(*this, current_alternative,
+                                                             static_cast<Functor&&>(f));
             }
-            template <class Functor>
-            decltype(auto) visit(std::size_t current_idx, Functor&& f) const& noexcept(
-                noexcept(visit_helper(*this, current_idx, static_cast<Functor&&>(f)))) {
-                return visit_helper(*this, current_idx, static_cast<Functor&&>(f));
+            template <auto discriminator_container = make_index_array<sizeof...(Types)>(),
+                      class Discriminator, class Functor>
+            decltype(auto) visit(Discriminator current_alternative, Functor&& f) const& noexcept(
+                noexcept(visit_helper<discriminator_container>(*this, current_alternative,
+                                                               static_cast<Functor&&>(f)))) {
+                return visit_helper<discriminator_container>(*this, current_alternative,
+                                                             static_cast<Functor&&>(f));
             }
-            template <class Functor>
-            decltype(auto) visit(std::size_t current_idx, Functor&& f) && noexcept(
-                noexcept(visit_helper(static_cast<variant_storage&&>(*this), current_idx,
-                                      static_cast<Functor&&>(f)))) {
-                return visit_helper(*this, current_idx, static_cast<Functor&&>(f));
+            template <auto discriminator_container = make_index_array<sizeof...(Types)>(),
+                      class Discriminator, class Functor>
+            decltype(auto)
+            visit(Discriminator current_alternative, Functor&& f) && noexcept(noexcept(
+                visit_helper<discriminator_container>(static_cast<variant_storage&&>(*this),
+                                                      current_alternative,
+                                                      static_cast<Functor&&>(f)))) {
+                return visit_helper<discriminator_container>(*this, current_alternative,
+                                                             static_cast<Functor&&>(f));
             }
-            template <class Functor>
-            decltype(auto) visit(std::size_t current_idx, Functor&& f) const&& noexcept(
-                noexcept(visit_helper(static_cast<variant_storage const&&>(*this), current_idx,
-                                      static_cast<Functor&&>(f)))) {
-                return visit_helper(*this, current_idx, static_cast<Functor&&>(f));
+            template <auto discriminator_container = make_index_array<sizeof...(Types)>(),
+                      class Discriminator, class Functor>
+            decltype(auto)
+            visit(Discriminator current_alternative, Functor&& f) const&& noexcept(noexcept(
+                visit_helper<discriminator_container>(static_cast<variant_storage const&&>(*this),
+                                                      current_alternative,
+                                                      static_cast<Functor&&>(f)))) {
+                return visit_helper<discriminator_container>(*this, current_alternative,
+                                                             static_cast<Functor&&>(f));
             }
 
-            template <class T, class... Args>
-            T& emplace(std::size_t current_idx, Args&&... args) {
+            template <class T, auto discriminator_container = make_index_array<sizeof...(Types)>(),
+                      class Discriminator, class... Args>
+                requires(is_alternative<T>())
+            T& emplace(Discriminator current_alternative,
+                       Args&&... args) noexcept(std::is_nothrow_constructible_v<T, Args...>) {
                 // No-throw case is simple.
                 if constexpr (std::is_nothrow_constructible_v<T, Args...>) {
-                    visit_helper_helper(current_idx,
-                                        [this]<class Current>() noexcept { destroy<Current>(); });
+                    visit_helper_helper<discriminator_container>(
+                        current_alternative,
+                        [this]<class Current>() noexcept { destroy<Current>(); });
                     return construct<T>(static_cast<Args&&>(args)...);
                 }
                 // Throwing case.
@@ -630,8 +665,9 @@ namespace jkj {
                             reinterpret_cast<T*>(alt_storage_ptr), static_cast<Args&&>(args)...);
 
                         // Destroy the current object.
-                        visit_helper_helper(
-                            current_idx, [this]<class Current>() noexcept { destroy<Current>(); });
+                        visit_helper_helper<discriminator_container>(
+                            current_alternative,
+                            [this]<class Current>() noexcept { destroy<Current>(); });
 
                         // Swap the storage pointer.
                         using std::swap;
@@ -644,8 +680,9 @@ namespace jkj {
                         auto temp = T(static_cast<Args&&>(args)...);
 
                         // Destroy the current object.
-                        visit_helper_helper(
-                            current_idx, [this]<class Current>() noexcept { destroy<Current>(); });
+                        visit_helper_helper<discriminator_container>(
+                            current_alternative,
+                            [this]<class Current>() noexcept { destroy<Current>(); });
 
                         // Move the temporary object to the storage.
                         return construct<T>(std::move(temp));
@@ -653,18 +690,23 @@ namespace jkj {
                 }
             }
 
-            template <class AssignFrom>
+            template <auto discriminator_container = make_index_array<sizeof...(Types)>(),
+                      class Discriminator, class AssignFrom>
                 requires(
                     std::is_constructible_v<variant_init_type<AssignFrom, Types...>, AssignFrom> &&
                     std::is_assignable_v<variant_init_type<AssignFrom, Types...>&, AssignFrom>)
-            void assign_from(std::size_t current_idx, AssignFrom&& other) {
+            void assign_from(Discriminator current_alternative, AssignFrom&& other) noexcept(
+                std::is_nothrow_assignable_v<variant_init_type<AssignFrom, Types...>, AssignFrom> &&
+                std::is_nothrow_constructible_v<variant_init_type<AssignFrom, Types...>,
+                                                AssignFrom>) {
                 using init_type = variant_init_type<AssignFrom, Types...>;
                 constexpr auto init_index = variant_init_index<AssignFrom, Types...>;
-                if (current_idx == init_index) {
+                if (current_alternative == discriminator_container[init_index]) {
                     get<init_type>() = static_cast<AssignFrom&&>(other);
                 }
                 else {
-                    emplace<init_type>(current_idx, static_cast<AssignFrom&&>(other));
+                    emplace<init_type, discriminator_container>(current_alternative,
+                                                                static_cast<AssignFrom&&>(other));
                 }
             }
         };
