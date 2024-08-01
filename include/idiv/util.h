@@ -399,6 +399,17 @@ namespace jkj {
         // The predicate is evaluated in the form Predicate{}(std::type_identity<T>{}) on type T.
         template <class Typelist, class Predicate>
         using filter = decltype(detail::filter_impl<Predicate>(Typelist{}));
+
+        // Turn an array into std::integer_sequence.
+        namespace detail {
+            template <auto packed, std::size_t... I>
+            constexpr auto unpack_array_helper(std::index_sequence<I...>) noexcept {
+                return std::integer_sequence<typename decltype(packed)::value_type, packed[I]...>{};
+            }
+        }
+        template <auto packed>
+        using unpack_array = decltype(detail::unpack_array_helper<packed>(
+            std::make_index_sequence<packed.size()>{}));
     }
 
     namespace util {
