@@ -523,8 +523,9 @@ namespace jkj {
             visit_helper(Self&& self, std::size_t current_idx, Functor&& f) noexcept(
                 (noexcept(static_cast<Functor&&>(f)(std::declval<Types>())) && ...)) {
                 return visit_helper_helper(
-                    current_idx, [&self, &f]<class T>() noexcept(noexcept(static_cast<Functor>(f)(
-                                     static_cast<Self&&>(self).template get<T>()))) {
+                    current_idx,
+                    [&self, &f]<class T>() noexcept(noexcept(static_cast<Functor>(f)(
+                        static_cast<Self&&>(self).template get<T>()))) -> decltype(auto) {
                         return static_cast<Functor>(f)(static_cast<Self&&>(self).template get<T>());
                     });
             }
