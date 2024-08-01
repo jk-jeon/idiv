@@ -22,6 +22,34 @@
 #include <concepts>
 
 namespace jkj {
+    namespace detail {
+        template <auto itv_type>
+        class static_interval_base {
+            using itv_type_t = decltype(itv_type);
+            static constexpr itv_type_t allowed_interval_types_[1] = {itv_type};
+
+        public:
+            static constexpr auto const& allowed_interval_types() noexcept {
+                return allowed_interval_types_;
+            }
+            static constexpr bool is_allowed_interval_type(itv_type_t it) noexcept {
+                return it == itv_type;
+            }
+            template <std::size_t NOther>
+            static constexpr bool are_allowed_interval_types(
+                util::array<itv_type_t, NOther> const& allowed_interval_types_arg_other) noexcept {
+                for (std::size_t idx = 0; idx < NOther; ++idx) {
+                    if (!is_allowed_interval_type(allowed_interval_types_arg_other[idx])) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            static constexpr itv_type_t interval_type() noexcept { return itv_type; }
+        };
+    }
+
     enum class boundary_type_t : bool { open, closed };
 
     enum class interval_type_t {
@@ -41,7 +69,8 @@ namespace jkj {
     struct interval;
 
     template <std::totally_ordered Value>
-    struct interval<Value, interval_type_t::empty> {
+    struct interval<Value, interval_type_t::empty>
+        : public detail::static_interval_base<interval_type_t::empty> {
         using value_type = std::remove_cvref_t<Value>;
 
         template <class Functor>
@@ -58,7 +87,6 @@ namespace jkj {
             return false;
         }
 
-        static constexpr auto interval_type() noexcept { return interval_type_t::empty; }
         static constexpr auto left_boundary_type() noexcept { return boundary_type_t::open; }
         static constexpr auto right_boundary_type() noexcept { return boundary_type_t::open; }
 
@@ -74,11 +102,33 @@ namespace jkj {
         static constexpr bool contains(T const&) noexcept {
             return false;
         }
+
+        // Call success with lower_bound() if the current interval type supports lower_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        static constexpr decltype(auto) with_lower_bound([[maybe_unused]] SuccessFunctor&& success,
+                                                         FailFunctor&& fail) {
+            return static_cast<FailFunctor&&>(fail)();
+        }
+        // Call success with upper_bound() if the current interval type supports upper_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        static constexpr decltype(auto) with_upper_bound([[maybe_unused]] SuccessFunctor&& success,
+                                                         FailFunctor&& fail) {
+            return static_cast<FailFunctor&&>(fail)();
+        }
     };
 
     template <std::totally_ordered Value>
-    struct interval<Value, interval_type_t::bounded_open> {
+    struct interval<Value, interval_type_t::bounded_open>
+        : public detail::static_interval_base<interval_type_t::bounded_open> {
         using value_type = std::remove_cvref_t<Value>;
+
+        template <class T, class U>
+            requires(std::is_constructible_v<Value, T> && std::is_constructible_v<Value, U>)
+        explicit constexpr interval(T&& lower_bound, U&& upper_bound)
+            : lower_bound_{static_cast<T&&>(lower_bound)},
+              upper_bound_{static_cast<U&&>(upper_bound)} {}
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
@@ -94,7 +144,6 @@ namespace jkj {
             return false;
         }
 
-        static constexpr auto interval_type() noexcept { return interval_type_t::bounded_open; }
         static constexpr auto left_boundary_type() noexcept { return boundary_type_t::open; }
         static constexpr auto right_boundary_type() noexcept { return boundary_type_t::open; }
 
@@ -105,26 +154,42 @@ namespace jkj {
         constexpr auto const& upper_bound() const& noexcept { return upper_bound_; }
         constexpr auto& upper_bound() & noexcept { return upper_bound_; }
         constexpr auto&& upper_bound() && noexcept { return static_cast<Value&&>(upper_bound_); }
-
-        template <class T, class U>
-            requires(std::is_constructible_v<Value, T> && std::is_constructible_v<Value, U>)
-        explicit constexpr interval(T&& lower_bound, U&& upper_bound)
-            : lower_bound_{static_cast<T&&>(lower_bound)},
-              upper_bound_{static_cast<U&&>(upper_bound)} {}
 
         template <class T>
         constexpr bool contains(T const& x) const {
             return lower_bound_ < x && x < upper_bound_;
         }
 
+        // Call success with lower_bound() if the current interval type supports lower_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        constexpr decltype(auto) with_lower_bound(SuccessFunctor&& success,
+                                                  [[maybe_unused]] FailFunctor&& fail) const {
+            return static_cast<SuccessFunctor&&>(success)(lower_bound());
+        }
+        // Call success with upper_bound() if the current interval type supports upper_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        constexpr decltype(auto) with_upper_bound(SuccessFunctor&& success,
+                                                  [[maybe_unused]] FailFunctor&& fail) const {
+            return static_cast<SuccessFunctor&&>(success)(upper_bound());
+        }
+
     private:
         Value lower_bound_;
         Value upper_bound_;
     };
 
     template <std::totally_ordered Value>
-    struct interval<Value, interval_type_t::bounded_left_open_right_closed> {
+    struct interval<Value, interval_type_t::bounded_left_open_right_closed>
+        : public detail::static_interval_base<interval_type_t::bounded_left_open_right_closed> {
         using value_type = std::remove_cvref_t<Value>;
+
+        template <class T, class U>
+            requires(std::is_constructible_v<Value, T> && std::is_constructible_v<Value, U>)
+        explicit constexpr interval(T&& lower_bound, U&& upper_bound)
+            : lower_bound_{static_cast<T&&>(lower_bound)},
+              upper_bound_{static_cast<U&&>(upper_bound)} {}
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
@@ -140,9 +205,6 @@ namespace jkj {
             return false;
         }
 
-        static constexpr auto interval_type() noexcept {
-            return interval_type_t::bounded_left_open_right_closed;
-        }
         static constexpr auto left_boundary_type() noexcept { return boundary_type_t::open; }
         static constexpr auto right_boundary_type() noexcept { return boundary_type_t::closed; }
 
@@ -153,26 +215,42 @@ namespace jkj {
         constexpr auto const& upper_bound() const& noexcept { return upper_bound_; }
         constexpr auto& upper_bound() & noexcept { return upper_bound_; }
         constexpr auto&& upper_bound() && noexcept { return static_cast<Value&&>(upper_bound_); }
-
-        template <class T, class U>
-            requires(std::is_constructible_v<Value, T> && std::is_constructible_v<Value, U>)
-        explicit constexpr interval(T&& lower_bound, U&& upper_bound)
-            : lower_bound_{static_cast<T&&>(lower_bound)},
-              upper_bound_{static_cast<U&&>(upper_bound)} {}
 
         template <class T>
         constexpr bool contains(T const& x) const {
             return lower_bound_ < x && x <= upper_bound_;
         }
 
+        // Call success with lower_bound() if the current interval type supports lower_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        constexpr decltype(auto) with_lower_bound(SuccessFunctor&& success,
+                                                  [[maybe_unused]] FailFunctor&& fail) const {
+            return static_cast<SuccessFunctor&&>(success)(lower_bound());
+        }
+        // Call success with upper_bound() if the current interval type supports upper_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        constexpr decltype(auto) with_upper_bound(SuccessFunctor&& success,
+                                                  [[maybe_unused]] FailFunctor&& fail) const {
+            return static_cast<SuccessFunctor&&>(success)(upper_bound());
+        }
+
     private:
         Value lower_bound_;
         Value upper_bound_;
     };
 
     template <std::totally_ordered Value>
-    struct interval<Value, interval_type_t::bounded_left_closed_right_open> {
+    struct interval<Value, interval_type_t::bounded_left_closed_right_open>
+        : public detail::static_interval_base<interval_type_t::bounded_left_closed_right_open> {
         using value_type = std::remove_cvref_t<Value>;
+
+        template <class T, class U>
+            requires(std::is_constructible_v<Value, T> && std::is_constructible_v<Value, U>)
+        explicit constexpr interval(T&& lower_bound, U&& upper_bound)
+            : lower_bound_{static_cast<T&&>(lower_bound)},
+              upper_bound_{static_cast<U&&>(upper_bound)} {}
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
@@ -188,9 +266,6 @@ namespace jkj {
             return false;
         }
 
-        static constexpr auto interval_type() noexcept {
-            return interval_type_t::bounded_left_closed_right_open;
-        }
         static constexpr auto left_boundary_type() noexcept { return boundary_type_t::closed; }
         static constexpr auto right_boundary_type() noexcept { return boundary_type_t::open; }
 
@@ -201,52 +276,36 @@ namespace jkj {
         constexpr auto const& upper_bound() const& noexcept { return upper_bound_; }
         constexpr auto& upper_bound() & noexcept { return upper_bound_; }
         constexpr auto&& upper_bound() && noexcept { return static_cast<Value&&>(upper_bound_); }
-
-        template <class T, class U>
-            requires(std::is_constructible_v<Value, T> && std::is_constructible_v<Value, U>)
-        explicit constexpr interval(T&& lower_bound, U&& upper_bound)
-            : lower_bound_{static_cast<T&&>(lower_bound)},
-              upper_bound_{static_cast<U&&>(upper_bound)} {}
 
         template <class T>
         constexpr bool contains(T const& x) const {
             return lower_bound_ <= x && x < upper_bound_;
         }
 
+        // Call success with lower_bound() if the current interval type supports lower_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        constexpr decltype(auto) with_lower_bound(SuccessFunctor&& success,
+                                                  [[maybe_unused]] FailFunctor&& fail) const {
+            return static_cast<SuccessFunctor&&>(success)(lower_bound());
+        }
+        // Call success with upper_bound() if the current interval type supports upper_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        constexpr decltype(auto) with_upper_bound(SuccessFunctor&& success,
+                                                  [[maybe_unused]] FailFunctor&& fail) const {
+            return static_cast<SuccessFunctor&&>(success)(upper_bound());
+        }
+
     private:
         Value lower_bound_;
         Value upper_bound_;
     };
 
     template <std::totally_ordered Value>
-    struct interval<Value, interval_type_t::bounded_closed> {
+    struct interval<Value, interval_type_t::bounded_closed>
+        : public detail::static_interval_base<interval_type_t::bounded_closed> {
         using value_type = std::remove_cvref_t<Value>;
-
-        template <class Functor>
-        constexpr decltype(auto) visit(Functor&& f) const {
-            return static_cast<Functor&&>(f)(*this);
-        }
-        // Returns true if the visitation was successful.
-        template <interval_type_t it, class Functor>
-        constexpr bool visit_if(Functor&& f) const {
-            if constexpr (it == interval_type()) {
-                static_cast<Functor&&>(f)(*this);
-                return true;
-            }
-            return false;
-        }
-
-        static constexpr auto interval_type() noexcept { return interval_type_t::bounded_closed; }
-        static constexpr auto left_boundary_type() noexcept { return boundary_type_t::closed; }
-        static constexpr auto right_boundary_type() noexcept { return boundary_type_t::closed; }
-
-        constexpr auto const& lower_bound() const& noexcept { return lower_bound_; }
-        constexpr auto& lower_bound() & noexcept { return lower_bound_; }
-        constexpr auto&& lower_bound() && noexcept { return static_cast<Value&&>(lower_bound_); }
-
-        constexpr auto const& upper_bound() const& noexcept { return upper_bound_; }
-        constexpr auto& upper_bound() & noexcept { return upper_bound_; }
-        constexpr auto&& upper_bound() && noexcept { return static_cast<Value&&>(upper_bound_); }
 
         template <class T, class U>
             requires(std::is_constructible_v<Value, T> && std::is_constructible_v<Value, U>)
@@ -254,9 +313,49 @@ namespace jkj {
             : lower_bound_{static_cast<T&&>(lower_bound)},
               upper_bound_{static_cast<U&&>(upper_bound)} {}
 
+        template <class Functor>
+        constexpr decltype(auto) visit(Functor&& f) const {
+            return static_cast<Functor&&>(f)(*this);
+        }
+        // Returns true if the visitation was successful.
+        template <interval_type_t it, class Functor>
+        constexpr bool visit_if(Functor&& f) const {
+            if constexpr (it == interval_type()) {
+                static_cast<Functor&&>(f)(*this);
+                return true;
+            }
+            return false;
+        }
+
+        static constexpr auto left_boundary_type() noexcept { return boundary_type_t::closed; }
+        static constexpr auto right_boundary_type() noexcept { return boundary_type_t::closed; }
+
+        constexpr auto const& lower_bound() const& noexcept { return lower_bound_; }
+        constexpr auto& lower_bound() & noexcept { return lower_bound_; }
+        constexpr auto&& lower_bound() && noexcept { return static_cast<Value&&>(lower_bound_); }
+
+        constexpr auto const& upper_bound() const& noexcept { return upper_bound_; }
+        constexpr auto& upper_bound() & noexcept { return upper_bound_; }
+        constexpr auto&& upper_bound() && noexcept { return static_cast<Value&&>(upper_bound_); }
+
         template <class T>
         constexpr bool contains(T const& x) const {
             return lower_bound_ <= x && x <= upper_bound_;
+        }
+
+        // Call success with lower_bound() if the current interval type supports lower_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        constexpr decltype(auto) with_lower_bound(SuccessFunctor&& success,
+                                                  [[maybe_unused]] FailFunctor&& fail) const {
+            return static_cast<SuccessFunctor&&>(success)(lower_bound());
+        }
+        // Call success with upper_bound() if the current interval type supports upper_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        constexpr decltype(auto) with_upper_bound(SuccessFunctor&& success,
+                                                  [[maybe_unused]] FailFunctor&& fail) const {
+            return static_cast<SuccessFunctor&&>(success)(upper_bound());
         }
 
     private:
@@ -265,8 +364,14 @@ namespace jkj {
     };
 
     template <std::totally_ordered Value>
-    struct interval<Value, interval_type_t::bounded_below_open> {
+    struct interval<Value, interval_type_t::bounded_below_open>
+        : public detail::static_interval_base<interval_type_t::bounded_below_open> {
         using value_type = std::remove_cvref_t<Value>;
+
+        template <class T>
+            requires(!std::is_base_of_v<interval, T> && std::is_constructible_v<Value, T>)
+        explicit constexpr interval(T&& lower_bound)
+            : lower_bound_{static_cast<T&&>(lower_bound)} {}
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
@@ -282,9 +387,6 @@ namespace jkj {
             return false;
         }
 
-        static constexpr auto interval_type() noexcept {
-            return interval_type_t::bounded_below_open;
-        }
         static constexpr auto left_boundary_type() noexcept { return boundary_type_t::open; }
         static constexpr auto right_boundary_type() noexcept { return boundary_type_t::open; }
 
@@ -297,13 +399,23 @@ namespace jkj {
         constexpr auto&& upper_bound() && noexcept = delete;
 
         template <class T>
-            requires(!std::is_base_of_v<interval, T> && std::is_constructible_v<Value, T>)
-        explicit constexpr interval(T&& lower_bound)
-            : lower_bound_{static_cast<T&&>(lower_bound)} {}
-
-        template <class T>
         constexpr bool contains(T const& x) const {
             return lower_bound_ < x;
+        }
+
+        // Call success with lower_bound() if the current interval type supports lower_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        constexpr decltype(auto) with_lower_bound(SuccessFunctor&& success,
+                                                  [[maybe_unused]] FailFunctor&& fail) const {
+            return static_cast<SuccessFunctor&&>(success)(lower_bound());
+        }
+        // Call success with upper_bound() if the current interval type supports upper_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        static constexpr decltype(auto) with_upper_bound([[maybe_unused]] SuccessFunctor&& success,
+                                                         FailFunctor&& fail) {
+            return static_cast<FailFunctor&&>(fail)();
         }
 
     private:
@@ -311,8 +423,14 @@ namespace jkj {
     };
 
     template <std::totally_ordered Value>
-    struct interval<Value, interval_type_t::bounded_below_closed> {
+    struct interval<Value, interval_type_t::bounded_below_closed>
+        : public detail::static_interval_base<interval_type_t::bounded_below_closed> {
         using value_type = std::remove_cvref_t<Value>;
+
+        template <class T>
+            requires(!std::is_base_of_v<interval, T> && std::is_constructible_v<Value, T>)
+        explicit constexpr interval(T&& lower_bound)
+            : lower_bound_{static_cast<T&&>(lower_bound)} {}
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
@@ -328,9 +446,6 @@ namespace jkj {
             return false;
         }
 
-        static constexpr auto interval_type() noexcept {
-            return interval_type_t::bounded_below_closed;
-        }
         static constexpr auto left_boundary_type() noexcept { return boundary_type_t::closed; }
         static constexpr auto right_boundary_type() noexcept { return boundary_type_t::open; }
 
@@ -343,13 +458,23 @@ namespace jkj {
         constexpr auto&& upper_bound() && noexcept = delete;
 
         template <class T>
-            requires(!std::is_base_of_v<interval, T> && std::is_constructible_v<Value, T>)
-        explicit constexpr interval(T&& lower_bound)
-            : lower_bound_{static_cast<T&&>(lower_bound)} {}
-
-        template <class T>
         constexpr bool contains(T const& x) const {
             return lower_bound_ <= x;
+        }
+
+        // Call success with lower_bound() if the current interval type supports lower_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        constexpr decltype(auto) with_lower_bound(SuccessFunctor&& success,
+                                                  [[maybe_unused]] FailFunctor&& fail) const {
+            return static_cast<SuccessFunctor&&>(success)(lower_bound());
+        }
+        // Call success with upper_bound() if the current interval type supports upper_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        static constexpr decltype(auto) with_upper_bound([[maybe_unused]] SuccessFunctor&& success,
+                                                         FailFunctor&& fail) {
+            return static_cast<FailFunctor&&>(fail)();
         }
 
     private:
@@ -357,8 +482,14 @@ namespace jkj {
     };
 
     template <std::totally_ordered Value>
-    struct interval<Value, interval_type_t::bounded_above_open> {
+    struct interval<Value, interval_type_t::bounded_above_open>
+        : public detail::static_interval_base<interval_type_t::bounded_above_open> {
         using value_type = std::remove_cvref_t<Value>;
+
+        template <class T>
+            requires(!std::is_base_of_v<interval, T> && std::is_constructible_v<Value, T>)
+        explicit constexpr interval(T&& upper_bound)
+            : upper_bound_{static_cast<T&&>(upper_bound)} {}
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
@@ -374,9 +505,6 @@ namespace jkj {
             return false;
         }
 
-        static constexpr auto interval_type() noexcept {
-            return interval_type_t::bounded_above_open;
-        }
         static constexpr auto left_boundary_type() noexcept { return boundary_type_t::open; }
         static constexpr auto right_boundary_type() noexcept { return boundary_type_t::open; }
 
@@ -389,13 +517,23 @@ namespace jkj {
         constexpr auto&& upper_bound() && noexcept { return static_cast<Value&&>(upper_bound_); }
 
         template <class T>
-            requires(!std::is_base_of_v<interval, T> && std::is_constructible_v<Value, T>)
-        explicit constexpr interval(T&& upper_bound)
-            : upper_bound_{static_cast<T&&>(upper_bound)} {}
-
-        template <class T>
         constexpr bool contains(T const& x) const {
             return x < upper_bound_;
+        }
+
+        // Call success with lower_bound() if the current interval type supports lower_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        static constexpr decltype(auto) with_lower_bound([[maybe_unused]] SuccessFunctor&& success,
+                                                         FailFunctor&& fail) {
+            return static_cast<FailFunctor&&>(fail)();
+        }
+        // Call success with upper_bound() if the current interval type supports upper_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        constexpr decltype(auto) with_upper_bound(SuccessFunctor&& success,
+                                                  [[maybe_unused]] FailFunctor&& fail) const {
+            return static_cast<SuccessFunctor&&>(success)(upper_bound());
         }
 
     private:
@@ -403,8 +541,14 @@ namespace jkj {
     };
 
     template <std::totally_ordered Value>
-    struct interval<Value, interval_type_t::bounded_above_closed> {
+    struct interval<Value, interval_type_t::bounded_above_closed>
+        : public detail::static_interval_base<interval_type_t::bounded_above_closed> {
         using value_type = std::remove_cvref_t<Value>;
+
+        template <class T>
+            requires(!std::is_base_of_v<interval, T> && std::is_constructible_v<Value, T>)
+        explicit constexpr interval(T&& upper_bound)
+            : upper_bound_{static_cast<T&&>(upper_bound)} {}
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
@@ -420,9 +564,6 @@ namespace jkj {
             return false;
         }
 
-        static constexpr auto interval_type() noexcept {
-            return interval_type_t::bounded_above_closed;
-        }
         static constexpr auto left_boundary_type() noexcept { return boundary_type_t::open; }
         static constexpr auto right_boundary_type() noexcept { return boundary_type_t::closed; }
 
@@ -435,13 +576,23 @@ namespace jkj {
         constexpr auto&& upper_bound() && noexcept { return static_cast<Value&&>(upper_bound_); }
 
         template <class T>
-            requires(!std::is_base_of_v<interval, T> && std::is_constructible_v<Value, T>)
-        explicit constexpr interval(T&& upper_bound)
-            : upper_bound_{static_cast<T&&>(upper_bound)} {}
-
-        template <class T>
         constexpr bool contains(T const& x) const {
             return x <= upper_bound_;
+        }
+
+        // Call success with lower_bound() if the current interval type supports lower_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        static constexpr decltype(auto) with_lower_bound([[maybe_unused]] SuccessFunctor&& success,
+                                                         FailFunctor&& fail) {
+            return static_cast<FailFunctor&&>(fail)();
+        }
+        // Call success with upper_bound() if the current interval type supports upper_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        constexpr decltype(auto) with_upper_bound(SuccessFunctor&& success,
+                                                  [[maybe_unused]] FailFunctor&& fail) const {
+            return static_cast<SuccessFunctor&&>(success)(upper_bound());
         }
 
     private:
@@ -449,7 +600,8 @@ namespace jkj {
     };
 
     template <std::totally_ordered Value>
-    struct interval<Value, interval_type_t::entire> {
+    struct interval<Value, interval_type_t::entire>
+        : public detail::static_interval_base<interval_type_t::entire> {
         using value_type = std::remove_cvref_t<Value>;
 
         template <class Functor>
@@ -466,7 +618,6 @@ namespace jkj {
             return false;
         }
 
-        static constexpr auto interval_type() noexcept { return interval_type_t::entire; }
         static constexpr auto left_boundary_type() noexcept { return boundary_type_t::open; }
         static constexpr auto right_boundary_type() noexcept { return boundary_type_t::open; }
 
@@ -481,6 +632,21 @@ namespace jkj {
         template <class T>
         static constexpr bool contains(T const&) {
             return true;
+        }
+
+        // Call success with lower_bound() if the current interval type supports lower_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        static constexpr decltype(auto) with_lower_bound([[maybe_unused]] SuccessFunctor&& success,
+                                                         FailFunctor&& fail) {
+            return static_cast<FailFunctor&&>(fail)();
+        }
+        // Call success with upper_bound() if the current interval type supports upper_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        static constexpr decltype(auto) with_upper_bound([[maybe_unused]] SuccessFunctor&& success,
+                                                         FailFunctor&& fail) {
+            return static_cast<FailFunctor&&>(fail)();
         }
     };
 
@@ -503,7 +669,8 @@ namespace jkj {
     struct cyclic_interval;
 
     template <cyclically_ordered Value>
-    struct cyclic_interval<Value, cyclic_interval_type_t::empty> {
+    struct cyclic_interval<Value, cyclic_interval_type_t::empty>
+        : public detail::static_interval_base<cyclic_interval_type_t::empty> {
         using value_type = std::remove_cvref_t<Value>;
 
         template <class Functor>
@@ -520,7 +687,6 @@ namespace jkj {
             return false;
         }
 
-        static constexpr auto interval_type() noexcept { return cyclic_interval_type_t::empty; }
         static constexpr auto left_boundary_type() noexcept { return boundary_type_t::open; }
         static constexpr auto right_boundary_type() noexcept { return boundary_type_t::open; }
 
@@ -536,11 +702,31 @@ namespace jkj {
         static constexpr bool contains(T const&) noexcept {
             return false;
         }
+
+        // Call success with lower_bound() if the current interval type supports lower_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        static constexpr decltype(auto) with_lower_bound([[maybe_unused]] SuccessFunctor&& success,
+                                                         FailFunctor&& fail) {
+            return static_cast<FailFunctor&&>(fail)();
+        }
+        // Call success with upper_bound() if the current interval type supports upper_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        static constexpr decltype(auto) with_upper_bound([[maybe_unused]] SuccessFunctor&& success,
+                                                         FailFunctor&& fail) {
+            return static_cast<FailFunctor&&>(fail)();
+        }
     };
 
     template <cyclically_ordered Value>
-    struct cyclic_interval<Value, cyclic_interval_type_t::single_point> {
+    struct cyclic_interval<Value, cyclic_interval_type_t::single_point>
+        : public detail::static_interval_base<cyclic_interval_type_t::single_point> {
         using value_type = std::remove_cvref_t<Value>;
+
+        template <class T>
+            requires(!std::is_base_of_v<cyclic_interval, T> && std::is_constructible_v<Value, T>)
+        explicit constexpr cyclic_interval(T&& point) : point_{static_cast<T&&>(point)} {}
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
@@ -556,9 +742,6 @@ namespace jkj {
             return false;
         }
 
-        static constexpr auto interval_type() noexcept {
-            return cyclic_interval_type_t::single_point;
-        }
         static constexpr auto left_boundary_type() noexcept { return boundary_type_t::closed; }
         static constexpr auto right_boundary_type() noexcept { return boundary_type_t::closed; }
 
@@ -571,12 +754,23 @@ namespace jkj {
         constexpr auto&& upper_bound() && noexcept { return static_cast<Value&&>(point_); }
 
         template <class T>
-            requires(!std::is_base_of_v<cyclic_interval, T> && std::is_constructible_v<Value, T>)
-        explicit constexpr cyclic_interval(T&& point) : point_{static_cast<T&&>(point)} {}
-
-        template <class T>
         constexpr bool contains(T const& x) const {
             return x == point_;
+        }
+
+        // Call success with lower_bound() if the current interval type supports lower_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        constexpr decltype(auto) with_lower_bound(SuccessFunctor&& success,
+                                                  [[maybe_unused]] FailFunctor&& fail) const {
+            return static_cast<SuccessFunctor&&>(success)(lower_bound());
+        }
+        // Call success with upper_bound() if the current interval type supports upper_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        constexpr decltype(auto) with_upper_bound(SuccessFunctor&& success,
+                                                  [[maybe_unused]] FailFunctor&& fail) const {
+            return static_cast<SuccessFunctor&&>(success)(upper_bound());
         }
 
     private:
@@ -584,8 +778,15 @@ namespace jkj {
     };
 
     template <cyclically_ordered Value>
-    struct cyclic_interval<Value, cyclic_interval_type_t::open> {
+    struct cyclic_interval<Value, cyclic_interval_type_t::open>
+        : public detail::static_interval_base<cyclic_interval_type_t::open> {
         using value_type = std::remove_cvref_t<Value>;
+
+        template <class T, class U>
+            requires(std::is_constructible_v<Value, T> && std::is_constructible_v<Value, U>)
+        explicit constexpr cyclic_interval(T&& lower_bound, U&& upper_bound)
+            : lower_bound_{static_cast<T&&>(lower_bound)},
+              upper_bound_{static_cast<U&&>(upper_bound)} {}
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
@@ -601,7 +802,6 @@ namespace jkj {
             return false;
         }
 
-        static constexpr auto interval_type() noexcept { return cyclic_interval_type_t::open; }
         static constexpr auto left_boundary_type() noexcept { return boundary_type_t::open; }
         static constexpr auto right_boundary_type() noexcept { return boundary_type_t::open; }
 
@@ -613,15 +813,24 @@ namespace jkj {
         constexpr auto& upper_bound() & noexcept { return upper_bound_; }
         constexpr auto&& upper_bound() && noexcept { return static_cast<Value&&>(upper_bound_); }
 
-        template <class T, class U>
-            requires(std::is_constructible_v<Value, T> && std::is_constructible_v<Value, U>)
-        explicit constexpr cyclic_interval(T&& lower_bound, U&& upper_bound)
-            : lower_bound_{static_cast<T&&>(lower_bound)},
-              upper_bound_{static_cast<U&&>(upper_bound)} {}
-
         template <class T>
         constexpr bool contains(T const& x) const {
             return cyclic_order(lower_bound_, x, upper_bound_);
+        }
+
+        // Call success with lower_bound() if the current interval type supports lower_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        constexpr decltype(auto) with_lower_bound(SuccessFunctor&& success,
+                                                  [[maybe_unused]] FailFunctor&& fail) const {
+            return static_cast<SuccessFunctor&&>(success)(lower_bound());
+        }
+        // Call success with upper_bound() if the current interval type supports upper_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        constexpr decltype(auto) with_upper_bound(SuccessFunctor&& success,
+                                                  [[maybe_unused]] FailFunctor&& fail) const {
+            return static_cast<SuccessFunctor&&>(success)(upper_bound());
         }
 
     private:
@@ -630,8 +839,15 @@ namespace jkj {
     };
 
     template <cyclically_ordered Value>
-    struct cyclic_interval<Value, cyclic_interval_type_t::left_open_right_closed> {
+    struct cyclic_interval<Value, cyclic_interval_type_t::left_open_right_closed>
+        : public detail::static_interval_base<cyclic_interval_type_t::left_open_right_closed> {
         using value_type = std::remove_cvref_t<Value>;
+
+        template <class T, class U>
+            requires(std::is_constructible_v<Value, T> && std::is_constructible_v<Value, U>)
+        explicit constexpr cyclic_interval(T&& lower_bound, U&& upper_bound)
+            : lower_bound_{static_cast<T&&>(lower_bound)},
+              upper_bound_{static_cast<U&&>(upper_bound)} {}
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
@@ -647,9 +863,6 @@ namespace jkj {
             return false;
         }
 
-        static constexpr auto interval_type() noexcept {
-            return cyclic_interval_type_t::left_open_right_closed;
-        }
         static constexpr auto left_boundary_type() noexcept { return boundary_type_t::open; }
         static constexpr auto right_boundary_type() noexcept { return boundary_type_t::closed; }
 
@@ -661,15 +874,24 @@ namespace jkj {
         constexpr auto& upper_bound() & noexcept { return upper_bound_; }
         constexpr auto&& upper_bound() && noexcept { return static_cast<Value&&>(upper_bound_); }
 
-        template <class T, class U>
-            requires(std::is_constructible_v<Value, T> && std::is_constructible_v<Value, U>)
-        explicit constexpr cyclic_interval(T&& lower_bound, U&& upper_bound)
-            : lower_bound_{static_cast<T&&>(lower_bound)},
-              upper_bound_{static_cast<U&&>(upper_bound)} {}
-
         template <class T>
         constexpr bool contains(T const& x) const {
             return x == upper_bound_ || cyclic_order(lower_bound_, x, upper_bound_);
+        }
+
+        // Call success with lower_bound() if the current interval type supports lower_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        constexpr decltype(auto) with_lower_bound(SuccessFunctor&& success,
+                                                  [[maybe_unused]] FailFunctor&& fail) const {
+            return static_cast<SuccessFunctor&&>(success)(lower_bound());
+        }
+        // Call success with upper_bound() if the current interval type supports upper_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        constexpr decltype(auto) with_upper_bound(SuccessFunctor&& success,
+                                                  [[maybe_unused]] FailFunctor&& fail) const {
+            return static_cast<SuccessFunctor&&>(success)(upper_bound());
         }
 
     private:
@@ -678,8 +900,15 @@ namespace jkj {
     };
 
     template <cyclically_ordered Value>
-    struct cyclic_interval<Value, cyclic_interval_type_t::left_closed_right_open> {
+    struct cyclic_interval<Value, cyclic_interval_type_t::left_closed_right_open>
+        : public detail::static_interval_base<cyclic_interval_type_t::left_closed_right_open> {
         using value_type = std::remove_cvref_t<Value>;
+
+        template <class T, class U>
+            requires(std::is_constructible_v<Value, T> && std::is_constructible_v<Value, U>)
+        explicit constexpr cyclic_interval(T&& lower_bound, U&& upper_bound)
+            : lower_bound_{static_cast<T&&>(lower_bound)},
+              upper_bound_{static_cast<U&&>(upper_bound)} {}
 
         template <class Functor>
         constexpr decltype(auto) visit(Functor&& f) const {
@@ -695,9 +924,6 @@ namespace jkj {
             return false;
         }
 
-        static constexpr auto interval_type() noexcept {
-            return cyclic_interval_type_t::left_closed_right_open;
-        }
         static constexpr auto left_boundary_type() noexcept { return boundary_type_t::closed; }
         static constexpr auto right_boundary_type() noexcept { return boundary_type_t::open; }
 
@@ -709,15 +935,24 @@ namespace jkj {
         constexpr auto& upper_bound() & noexcept { return upper_bound_; }
         constexpr auto&& upper_bound() && noexcept { return static_cast<Value&&>(upper_bound_); }
 
-        template <class T, class U>
-            requires(std::is_constructible_v<Value, T> && std::is_constructible_v<Value, U>)
-        explicit constexpr cyclic_interval(T&& lower_bound, U&& upper_bound)
-            : lower_bound_{static_cast<T&&>(lower_bound)},
-              upper_bound_{static_cast<U&&>(upper_bound)} {}
-
         template <class T>
         constexpr bool contains(T const& x) const {
             return x == lower_bound_ || cyclic_order(lower_bound_, x, upper_bound_);
+        }
+
+        // Call success with lower_bound() if the current interval type supports lower_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        constexpr decltype(auto) with_lower_bound(SuccessFunctor&& success,
+                                                  [[maybe_unused]] FailFunctor&& fail) const {
+            return static_cast<SuccessFunctor&&>(success)(lower_bound());
+        }
+        // Call success with upper_bound() if the current interval type supports upper_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        constexpr decltype(auto) with_upper_bound(SuccessFunctor&& success,
+                                                  [[maybe_unused]] FailFunctor&& fail) const {
+            return static_cast<SuccessFunctor&&>(success)(upper_bound());
         }
 
     private:
@@ -726,7 +961,8 @@ namespace jkj {
     };
 
     template <cyclically_ordered Value>
-    struct cyclic_interval<Value, cyclic_interval_type_t::closed> {
+    struct cyclic_interval<Value, cyclic_interval_type_t::closed>
+        : public detail::static_interval_base<cyclic_interval_type_t::closed> {
         using value_type = std::remove_cvref_t<Value>;
 
         template <class Functor>
@@ -743,7 +979,6 @@ namespace jkj {
             return false;
         }
 
-        static constexpr auto interval_type() noexcept { return cyclic_interval_type_t::closed; }
         static constexpr auto left_boundary_type() noexcept { return boundary_type_t::closed; }
         static constexpr auto right_boundary_type() noexcept { return boundary_type_t::closed; }
 
@@ -767,13 +1002,29 @@ namespace jkj {
                    cyclic_order(lower_bound_, x, upper_bound_);
         }
 
+        // Call success with lower_bound() if the current interval type supports lower_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        constexpr decltype(auto) with_lower_bound(SuccessFunctor&& success,
+                                                  [[maybe_unused]] FailFunctor&& fail) const {
+            return static_cast<SuccessFunctor&&>(success)(lower_bound());
+        }
+        // Call success with upper_bound() if the current interval type supports upper_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        constexpr decltype(auto) with_upper_bound(SuccessFunctor&& success,
+                                                  [[maybe_unused]] FailFunctor&& fail) const {
+            return static_cast<SuccessFunctor&&>(success)(upper_bound());
+        }
+
     private:
         Value lower_bound_;
         Value upper_bound_;
     };
 
     template <cyclically_ordered Value>
-    struct cyclic_interval<Value, cyclic_interval_type_t::entire> {
+    struct cyclic_interval<Value, cyclic_interval_type_t::entire>
+        : public detail::static_interval_base<cyclic_interval_type_t::entire> {
         using value_type = std::remove_cvref_t<Value>;
 
         template <class Functor>
@@ -790,7 +1041,6 @@ namespace jkj {
             return false;
         }
 
-        static constexpr auto interval_type() noexcept { return cyclic_interval_type_t::entire; }
         static constexpr auto left_boundary_type() noexcept { return boundary_type_t::closed; }
         static constexpr auto right_boundary_type() noexcept { return boundary_type_t::closed; }
 
@@ -805,6 +1055,21 @@ namespace jkj {
         template <class T>
         static constexpr bool contains(T const&) noexcept {
             return true;
+        }
+
+        // Call success with lower_bound() if the current interval type supports lower_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        static constexpr decltype(auto) with_lower_bound([[maybe_unused]] SuccessFunctor&& success,
+                                                         FailFunctor&& fail) {
+            return static_cast<FailFunctor&&>(fail)();
+        }
+        // Call success with upper_bound() if the current interval type supports upper_bound(),
+        // and call fail otherwise.
+        template <class SuccessFunctor, class FailFunctor>
+        static constexpr decltype(auto) with_upper_bound([[maybe_unused]] SuccessFunctor&& success,
+                                                         FailFunctor&& fail) {
+            return static_cast<FailFunctor&&>(fail)();
         }
     };
 
@@ -902,9 +1167,6 @@ namespace jkj {
             }
 
         public:
-            template <class, class Enum_, template <class, Enum_> class, auto>
-            friend class variable_shape_interval_impl;
-
             static constexpr auto const& allowed_interval_types() noexcept {
                 return allowed_interval_types_;
             }
@@ -926,6 +1188,8 @@ namespace jkj {
                 }
                 return true;
             }
+
+            constexpr Enum interval_type() const noexcept { return interval_type_; }
 
             using value_type = std::remove_cvref_t<Value>;
 
@@ -1068,13 +1332,25 @@ namespace jkj {
                 return false;
             }
 
-            constexpr Enum interval_type() const noexcept { return interval_type_; }
             constexpr auto left_boundary_type() const noexcept {
                 return visit([](auto&& itv) { return itv.left_boundary_type(); });
             }
             constexpr auto right_boundary_type() const noexcept {
                 return visit([](auto&& itv) { return itv.right_boundary_type(); });
             }
+
+            constexpr value_type const& lower_bound() const noexcept
+                requires(lower_bound_exists())
+            {
+                return visit([&](auto&& itv) -> decltype(auto) { return itv.lower_bound(); });
+            }
+
+            constexpr value_type const& upper_bound() const noexcept
+                requires(upper_bound_exists())
+            {
+                return visit([&](auto&& itv) -> decltype(auto) { return itv.upper_bound(); });
+            }
+
             template <class T>
             constexpr bool contains(T const& x) const {
                 return visit([&x](auto&& itv) { return itv.contains(x); });
@@ -1117,23 +1393,12 @@ namespace jkj {
                     }
                 });
             }
-
-            constexpr value_type const& lower_bound() const noexcept
-                requires(lower_bound_exists())
-            {
-                return visit([&](auto&& itv) -> decltype(auto) { return itv.lower_bound(); });
-            }
-
-            constexpr value_type const& upper_bound() const noexcept
-                requires(upper_bound_exists())
-            {
-                return visit([&](auto&& itv) -> decltype(auto) { return itv.upper_bound(); });
-            }
         };
     }
 
     // Variable shape intervals. Possible interval types can be specified. If no type is specified,
-    // any type is allowed.
+    // any type is allowed. If only one type is specified, then the corresponding static shape
+    // interval is used.
     template <std::totally_ordered Value, interval_type_t... allowed_interval_types>
     using variable_shape_interval = std::conditional_t<
         sizeof...(allowed_interval_types) == 0,
@@ -1146,12 +1411,17 @@ namespace jkj {
                 interval_type_t::bounded_below_open, interval_type_t::bounded_below_closed,
                 interval_type_t::bounded_above_open, interval_type_t::bounded_above_closed,
                 interval_type_t::entire}>,
-        detail::variable_shape_interval_impl<
-            Value, interval_type_t, interval,
-            detail::sort_and_remove_duplication<interval_type_t, allowed_interval_types...>()>>;
+        std::conditional_t<
+            sizeof...(allowed_interval_types) == 1,
+            interval<Value, interval_type_t((std::size_t(allowed_interval_types) + ...))>,
+            detail::variable_shape_interval_impl<
+                Value, interval_type_t, interval,
+                detail::sort_and_remove_duplication<interval_type_t,
+                                                    allowed_interval_types...>()>>>;
 
     // Variable shape cyclic intervals. Possible cyclic interval types can be specified. If no type
-    // is specified, any type is allowed.
+    // is specified, any type is allowed. If only one type is specified, then the corresponding
+    // static shape cyclic interval is used.
     template <cyclically_ordered Value, cyclic_interval_type_t... allowed_interval_types>
     using variable_shape_cyclic_interval = std::conditional_t<
         sizeof...(allowed_interval_types) == 0,
@@ -1162,10 +1432,13 @@ namespace jkj {
                 cyclic_interval_type_t::open, cyclic_interval_type_t::left_closed_right_open,
                 cyclic_interval_type_t::left_closed_right_open, cyclic_interval_type_t::closed,
                 cyclic_interval_type_t::entire}>,
-        detail::variable_shape_interval_impl<
-            Value, cyclic_interval_type_t, cyclic_interval,
-            detail::sort_and_remove_duplication<cyclic_interval_type_t,
-                                                allowed_interval_types...>()>>;
+        std::conditional_t<sizeof...(allowed_interval_types) == 1,
+                           cyclic_interval<Value, cyclic_interval_type_t(
+                                                      (std::size_t(allowed_interval_types) + ...))>,
+                           detail::variable_shape_interval_impl<
+                               Value, cyclic_interval_type_t, cyclic_interval,
+                               detail::sort_and_remove_duplication<cyclic_interval_type_t,
+                                                                   allowed_interval_types...>()>>>;
 }
 
 #endif
