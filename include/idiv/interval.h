@@ -884,17 +884,6 @@ namespace jkj {
             Enum interval_type_;
             storage_type storage_;
 
-            // Find the variant index from interval_type_.
-            constexpr std::size_t variant_index() const noexcept {
-                std::size_t idx = 0;
-                for (; idx < allowed_interval_types_.size(); ++idx) {
-                    if (allowed_interval_types_[idx] == interval_type_) {
-                        break;
-                    }
-                }
-                return idx;
-            }
-
             // Check if all the alternatives provide lower_bound().
             static constexpr bool lower_bound_exists() noexcept {
                 return []<std::size_t... I>(std::index_sequence<I...>) {
@@ -1004,15 +993,17 @@ namespace jkj {
 
             constexpr variable_shape_interval_impl&
             operator=(variable_shape_interval_impl const& itv) {
-                itv.visit(
-                    [this](auto const& itv_) { storage_.assign_from(variant_index(), itv_); });
+                itv.visit([this](auto const& itv_) {
+                    storage_.template assign_from<allowed_interval_types_>(interval_type_, itv_);
+                });
                 interval_type_ = itv.interval_type();
                 return *this;
             }
 
             constexpr variable_shape_interval_impl& operator=(variable_shape_interval_impl&& itv) {
                 itv.visit([this](auto&& itv_) {
-                    storage_.assign_from(variant_index(), std::move(itv_));
+                    storage_.template assign_from<allowed_interval_types_>(interval_type_,
+                                                                           std::move(itv_));
                 });
                 interval_type_ = itv.interval_type();
                 return *this;
@@ -1023,7 +1014,8 @@ namespace jkj {
             constexpr variable_shape_interval_impl& operator=(StaticIntervalTemplate<T, it> itv) {
                 static_assert(is_allowed_interval_type(it),
                               "specified interval type is not allowed");
-                storage_.assign_from(variant_index(), std::move(itv));
+                storage_.template assign_from<allowed_interval_types_>(interval_type_,
+                                                                       std::move(itv));
                 interval_type_ = itv.interval_type();
                 return *this;
             }
@@ -1036,8 +1028,9 @@ namespace jkj {
                                                    allowed_interval_types_arg_other> const& itv) {
                 static_assert(are_allowed_interval_types(allowed_interval_types_arg_other),
                               "one of the possible interval type is not allowed");
-                itv.visit(
-                    [this](auto const& itv_) { storage_.assign_from(variant_index(), itv_); });
+                itv.visit([this](auto const& itv_) {
+                    storage_.template assign_from<allowed_interval_types_>(interval_type_, itv_);
+                });
                 interval_type_ = itv.interval_type();
                 return *this;
             }
@@ -1051,7 +1044,8 @@ namespace jkj {
                 static_assert(are_allowed_interval_types(allowed_interval_types_arg_other),
                               "one of the possible interval type is not allowed");
                 itv.visit([this](auto&& itv_) {
-                    storage_.assign_from(variant_index(), std::move(itv_));
+                    storage_.template assign_from<allowed_interval_types_>(interval_type_,
+                                                                           std::move(itv_));
                 });
                 interval_type_ = itv.interval_type();
                 return *this;
@@ -1059,7 +1053,8 @@ namespace jkj {
 
             template <class Functor>
             constexpr decltype(auto) visit(Functor&& f) const {
-                return storage_.visit(variant_index(), static_cast<Functor&&>(f));
+                return storage_.template visit<allowed_interval_types_>(interval_type_,
+                                                                        static_cast<Functor&&>(f));
             }
 
             // Returns true if the visitation was successful.
