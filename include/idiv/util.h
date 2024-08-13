@@ -199,7 +199,7 @@ namespace jkj {
         private:
             value_type* ptr_;
             std::size_t size_;
-        };        
+        };
 
         // Some utilities for dealing with primitive integer types.
         enum class sign_t : bool { positive = false, negative = true };
@@ -542,8 +542,8 @@ namespace jkj {
         template <class T, class UInt>
         constexpr T pow_uint(T base, UInt exp) {
             auto y = [] {
-                if constexpr (std::is_convertible_v<int, T>) {
-                    return T(1);
+                if constexpr (requires { T{1}; }) {
+                    return T{1};
                 }
                 else {
                     return T(1u);
