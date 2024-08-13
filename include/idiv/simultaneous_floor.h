@@ -260,7 +260,7 @@ namespace jkj {
             auto const& pstar = x_info.best_below.numerator;
             auto const& q = x_info.mod_inv;
 
-            using gosper_coefficients = cntfrc::bilinear_fractional_transform<
+            using gosper_coefficients = cntfrc::bilinear_fractional_mapping<
                 bigint::int_var, bigint::int_var, bigint::int_var, bigint::int_var, bigint::int_var,
                 bigint::int_var, bigint::int_var, bigint::int_var>;
 

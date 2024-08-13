@@ -249,7 +249,7 @@ struct daw::json::json_data_contract<
 
 template <>
 struct daw::json::json_data_contract<
-    jkj::cntfrc::linear_fractional_transform<jkj::bigint::int_var>> {
+    jkj::cntfrc::linear_fractional_mapping<jkj::bigint::int_var>> {
     using type = json_tuple_member_list<std::int_least64_t, std::int_least64_t, std::int_least64_t,
                                         std::int_least64_t>;
 };
@@ -260,12 +260,12 @@ struct daw::json::json_data_contract<
     using type = json_member_list<
         json_class<"x", continued_fraction_generator>,
         json_class<"coefficients",
-                   ::jkj::cntfrc::linear_fractional_transform<::jkj::bigint::int_var>>>;
+                   ::jkj::cntfrc::linear_fractional_mapping<::jkj::bigint::int_var>>>;
 };
 
 template <>
 struct daw::json::json_data_contract<
-    jkj::cntfrc::bilinear_fractional_transform<jkj::bigint::int_var>> {
+    jkj::cntfrc::bilinear_fractional_mapping<jkj::bigint::int_var>> {
     using type = json_tuple_member_list<std::int_least64_t, std::int_least64_t, std::int_least64_t,
                                         std::int_least64_t, std::int_least64_t, std::int_least64_t,
                                         std::int_least64_t, std::int_least64_t>;
@@ -278,7 +278,7 @@ struct daw::json::json_data_contract<
         json_class<"x", continued_fraction_generator>,
         json_class<"y", continued_fraction_generator>,
         json_class<"coefficients",
-                   ::jkj::cntfrc::bilinear_fractional_transform<::jkj::bigint::int_var>>>;
+                   ::jkj::cntfrc::bilinear_fractional_mapping<::jkj::bigint::int_var>>>;
 };
 
 template <>

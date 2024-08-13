@@ -216,7 +216,7 @@ namespace jkj {
         };
 
         template <class NumNum, class DenNum = NumNum, class NumDen = NumNum, class DenDen = NumNum>
-        class linear_fractional_transform {
+        class linear_fractional_mapping {
         protected:
             // (ax+b)/(cx+d)
             NumNum num_to_num_; // a
@@ -226,7 +226,7 @@ namespace jkj {
 
         public:
             template <class NumNum_, class DenNum_, class NumDen_, class DenDen_>
-            constexpr linear_fractional_transform(NumNum_&& a, DenNum_&& b, NumDen_&& c,
+            constexpr linear_fractional_mapping(NumNum_&& a, DenNum_&& b, NumDen_&& c,
                                                   DenDen_&& d)
                 : num_to_num_{static_cast<NumNum_&&>(a)}, den_to_num_{static_cast<DenNum_&&>(b)},
                   num_to_den_{static_cast<NumDen_&&>(c)}, den_to_den_{static_cast<DenDen_&&>(d)} {
@@ -269,13 +269,13 @@ namespace jkj {
         // This class is supposed to be used both as a temporary and as a stored lvalue, so we
         // do not strip off the lvalue reference.
         template <class NumNum, class DenNum, class NumDen, class DenDen>
-        linear_fractional_transform(NumNum&&, DenNum&&, NumDen&&, DenDen&&)
-            -> linear_fractional_transform<NumNum, DenNum, NumDen, DenDen>;
+        linear_fractional_mapping(NumNum&&, DenNum&&, NumDen&&, DenDen&&)
+            -> linear_fractional_mapping<NumNum, DenNum, NumDen, DenDen>;
 
         template <class Num, class Den = unity>
         constexpr auto linear_fractional_translation(Num&& numerator,
                                                      Den&& denominator = Den{unity{}}) {
-            return linear_fractional_transform{denominator, static_cast<Num&&>(numerator), zero{},
+            return linear_fractional_mapping{denominator, static_cast<Num&&>(numerator), zero{},
                                                denominator};
         }
 
@@ -283,7 +283,7 @@ namespace jkj {
                   class XDenYNumNum = XNumYNumNum, class XDenYDenNum = XNumYNumNum,
                   class XNumYNumDen = XNumYNumNum, class XNumYDenDen = XNumYNumNum,
                   class XDenYNumDen = XNumYNumNum, class XDenYDenDen = XNumYNumNum>
-        class bilinear_fractional_transform {
+        class bilinear_fractional_mapping {
         protected:
             // (axy+bx+cy+d)/(exy+fx+gy+h)
             XNumYNumNum xnum_ynum_to_num_; // a
@@ -299,7 +299,7 @@ namespace jkj {
             template <class XNumYNumNum_, class XNumYDenNum_, class XDenYNumNum_,
                       class XDenYDenNum_, class XNumYNumDen_, class XNumYDenDen_,
                       class XDenYNumDen_, class XDenYDenDen_>
-            constexpr bilinear_fractional_transform(XNumYNumNum_&& a, XNumYDenNum_&& b,
+            constexpr bilinear_fractional_mapping(XNumYNumNum_&& a, XNumYDenNum_&& b,
                                                     XDenYNumNum_&& c, XDenYDenNum_&& d,
                                                     XNumYNumDen_&& e, XNumYDenDen_&& f,
                                                     XDenYNumDen_&& g, XDenYDenDen_&& h)
@@ -382,7 +382,7 @@ namespace jkj {
 
             template <class XNum, class XDen>
             constexpr auto specialize_x(projective_rational<XNum, XDen> const& x) const {
-                return linear_fractional_transform{
+                return linear_fractional_mapping{
                     xnum_ynum_to_num() * x.numerator + xden_ynum_to_num() * x.denominator,
                     xnum_yden_to_num() * x.numerator + xden_yden_to_num() * x.denominator,
                     xnum_ynum_to_den() * x.numerator + xden_ynum_to_den() * x.denominator,
@@ -391,7 +391,7 @@ namespace jkj {
 
             template <class YNum, class YDen>
             constexpr auto specialize_y(projective_rational<YNum, YDen> const& y) const {
-                return linear_fractional_transform{
+                return linear_fractional_mapping{
                     xnum_ynum_to_num() * y.numerator + xnum_yden_to_num() * y.denominator,
                     xden_ynum_to_num() * y.numerator + xden_yden_to_num() * y.denominator,
                     xnum_ynum_to_den() * y.numerator + xnum_yden_to_den() * y.denominator,
@@ -402,9 +402,9 @@ namespace jkj {
         // do not strip off the lvalue reference.
         template <class XNumYNumNum, class XNumYDenNum, class XDenYNumNum, class XDenYDenNum,
                   class XNumYNumDen, class XNumYDenDen, class XDenYNumDen, class XDenYDenDen>
-        bilinear_fractional_transform(XNumYNumNum&&, XNumYDenNum&&, XDenYNumNum&&, XDenYDenNum&&,
+        bilinear_fractional_mapping(XNumYNumNum&&, XNumYDenNum&&, XDenYNumNum&&, XDenYDenNum&&,
                                       XNumYNumDen&&, XNumYDenDen&&, XDenYNumDen&&, XDenYDenDen&&)
-            -> bilinear_fractional_transform<XNumYNumNum, XNumYDenNum, XDenYNumNum, XDenYDenNum,
+            -> bilinear_fractional_mapping<XNumYNumNum, XNumYDenNum, XDenYNumNum, XDenYDenNum,
                                              XNumYNumDen, XNumYDenDen, XDenYNumDen, XDenYDenDen>;
     }
 }

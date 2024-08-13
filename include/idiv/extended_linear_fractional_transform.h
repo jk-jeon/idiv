@@ -15,8 +15,8 @@
 // is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 // KIND, either express or implied.
 
-#ifndef JKJ_HEADER_EXTENDED_LINEAR_FRACTIONAL_TRANSFORM
-#define JKJ_HEADER_EXTENDED_LINEAR_FRACTIONAL_TRANSFORM
+#ifndef JKJ_HEADER_EXTENDED_LINEAR_FRACTIONAL_MAPPING
+#define JKJ_HEADER_EXTENDED_LINEAR_FRACTIONAL_MAPPING
 
 #include "interval.h"
 #include "projective_rational.h"
@@ -27,7 +27,7 @@ namespace jkj {
             // Find the kernel of a rank-1 linear fractional transform.
             template <class Value, class NumNum, class DenNum, class NumDen, class DenDen>
             static constexpr projective_rational<Value, Value> kernel_of_rank1_transform(
-                linear_fractional_transform<NumNum, DenNum, NumDen, DenDen> const& transform) {
+                linear_fractional_mapping<NumNum, DenNum, NumDen, DenDen> const& transform) {
                 return util::is_zero(transform.num_to_num()) &&
                                util::is_zero(transform.den_to_num())
                            ? projective_rational{Value{-transform.den_to_den()},
@@ -37,7 +37,7 @@ namespace jkj {
             }
             template <class Value, class NumNum, class DenNum, class NumDen, class DenDen>
             static constexpr projective_rational<Value, Value> kernel_of_rank1_transform(
-                linear_fractional_transform<NumNum, DenNum, NumDen, DenDen>&& transform) {
+                linear_fractional_mapping<NumNum, DenNum, NumDen, DenDen>&& transform) {
                 return util::is_zero(transform.num_to_num()) &&
                                util::is_zero(transform.den_to_num())
                            ? projective_rational{Value{-std::move(transform).den_to_den()},
@@ -48,7 +48,7 @@ namespace jkj {
             // Find the range of a rank-1 linear fractional transform.
             template <class Value, class NumNum, class DenNum, class NumDen, class DenDen>
             static constexpr projective_rational<Value, Value> range_of_rank1_transform(
-                linear_fractional_transform<NumNum, DenNum, NumDen, DenDen> const& transform) {
+                linear_fractional_mapping<NumNum, DenNum, NumDen, DenDen> const& transform) {
                 return util::is_zero(transform.num_to_num()) &&
                                util::is_zero(transform.num_to_den())
                            ? projective_rational{Value{transform.den_to_num()},
@@ -58,7 +58,7 @@ namespace jkj {
             }
             template <class Value, class NumNum, class DenNum, class NumDen, class DenDen>
             static constexpr projective_rational<Value, Value> range_of_rank1_transform(
-                linear_fractional_transform<NumNum, DenNum, NumDen, DenDen>&& transform) {
+                linear_fractional_mapping<NumNum, DenNum, NumDen, DenDen>&& transform) {
                 return util::is_zero(transform.num_to_num()) &&
                                util::is_zero(transform.num_to_den())
                            ? projective_rational{Value{std::move(transform).den_to_num()},
@@ -70,8 +70,8 @@ namespace jkj {
 
         template <class Value>
             requires(std::is_object_v<Value>)
-        class extended_linear_fractional_transform : private linear_fractional_transform<Value> {
-            using base_type = linear_fractional_transform<Value>;
+        class extended_linear_fractional_mapping : private linear_fractional_mapping<Value> {
+            using base_type = linear_fractional_mapping<Value>;
             int determinant_sign_;
 
             template <cyclic_interval_type_t... allowed_interval_types_>
@@ -171,7 +171,7 @@ namespace jkj {
             enum class kind_t { generic, constant };
 
             template <class NumNum, class DenNum, class NumDen, class DenDen>
-            constexpr extended_linear_fractional_transform(NumNum&& a, DenNum&& b, NumDen&& c,
+            constexpr extended_linear_fractional_mapping(NumNum&& a, DenNum&& b, NumDen&& c,
                                                            DenDen&& d)
                 : base_type{static_cast<NumNum&&>(a), static_cast<DenNum&&>(b),
                             static_cast<NumDen&&>(c), static_cast<DenDen&&>(d)},
@@ -186,15 +186,15 @@ namespace jkj {
             }
 
             template <class NumNum, class DenNum, class NumDen, class DenDen>
-            constexpr extended_linear_fractional_transform(
-                linear_fractional_transform<NumNum, DenNum, NumDen, DenDen> const& lft)
-                : extended_linear_fractional_transform(lft.num_to_num(), lft.den_to_num(),
+            constexpr extended_linear_fractional_mapping(
+                linear_fractional_mapping<NumNum, DenNum, NumDen, DenDen> const& lft)
+                : extended_linear_fractional_mapping(lft.num_to_num(), lft.den_to_num(),
                                                        lft.num_to_den(), lft.den_to_den()) {}
 
             template <class NumNum, class DenNum, class NumDen, class DenDen>
-            constexpr extended_linear_fractional_transform(
-                linear_fractional_transform<NumNum, DenNum, NumDen, DenDen>&& lft)
-                : extended_linear_fractional_transform(
+            constexpr extended_linear_fractional_mapping(
+                linear_fractional_mapping<NumNum, DenNum, NumDen, DenDen>&& lft)
+                : extended_linear_fractional_mapping(
                       std::move(lft).num_to_num(), std::move(lft).den_to_num(),
                       std::move(lft).num_to_den(), std::move(lft).den_to_den()) {}
 
@@ -347,8 +347,8 @@ namespace jkj {
         
         template <class Value>
             requires(std::is_object_v<Value>)
-        class extended_bilinear_fractional_transform
-            : private bilinear_fractional_transform<Value> {
+        class extended_bilinear_fractional_mapping
+            : private bilinear_fractional_mapping<Value> {
         public:
             enum class kind_t {
                 generic,
@@ -358,7 +358,7 @@ namespace jkj {
             };
 
         private:
-            using base_type = linear_fractional_transform<Value>;
+            using base_type = linear_fractional_mapping<Value>;
 
             // L1 = B^T R A - A^T R B.
             // L2 = B R A^T - A R B^T.
@@ -873,7 +873,7 @@ namespace jkj {
         public:
             template <class XNumYNumNum, class XNumYDenNum, class XDenYNumNum, class XDenYDenNum,
                       class XNumYNumDen, class XNumYDenDen, class XDenYNumDen, class XDenYDenDen>
-            constexpr extended_bilinear_fractional_transform(XNumYNumNum&& a, XNumYDenNum&& b,
+            constexpr extended_bilinear_fractional_mapping(XNumYNumNum&& a, XNumYDenNum&& b,
                                                              XDenYNumNum&& c, XDenYDenNum&& d,
                                                              XNumYNumDen&& e, XNumYDenDen&& f,
                                                              XDenYNumDen&& g, XDenYDenDen&& h)
@@ -882,11 +882,11 @@ namespace jkj {
                             static_cast<XNumYNumDen&&>(e), static_cast<XNumYDenDen&&>(f),
                             static_cast<XDenYNumDen&&>(g), static_cast<XDenYDenDen&&>(h)},
                   numerator_determinant_sign_{
-                      linear_fractional_transform{xnum_ynum_to_num(), xnum_yden_to_num(),
+                      linear_fractional_mapping{xnum_ynum_to_num(), xnum_yden_to_num(),
                                                   xden_ynum_to_num(), xden_yden_to_num()}
                           .determinant_sign()},
                   denominator_determinant_sign_{
-                      linear_fractional_transform{xnum_ynum_to_den(), xnum_yden_to_den(),
+                      linear_fractional_mapping{xnum_ynum_to_den(), xnum_yden_to_den(),
                                                   xden_ynum_to_den(), xden_yden_to_den()}
                           .determinant_sign()} {
                 // Determine the kind and the number of points in the indeterminacy locus.
@@ -1034,22 +1034,22 @@ namespace jkj {
 
             template <class XNumYNumNum, class XNumYDenNum, class XDenYNumNum, class XDenYDenNum,
                       class XNumYNumDen, class XNumYDenDen, class XDenYNumDen, class XDenYDenDen>
-            constexpr extended_bilinear_fractional_transform(
-                bilinear_fractional_transform<XNumYNumNum, XNumYDenNum, XDenYNumNum, XDenYDenNum,
+            constexpr extended_bilinear_fractional_mapping(
+                bilinear_fractional_mapping<XNumYNumNum, XNumYDenNum, XDenYNumNum, XDenYDenNum,
                                               XNumYNumDen, XNumYDenDen, XDenYNumDen,
                                               XDenYDenDen> const& blft)
-                : extended_bilinear_fractional_transform(
+                : extended_bilinear_fractional_mapping(
                       blft.xnum_ynum_to_num(), blft.xnum_yden_to_num(), blft.xden_ynum_to_num(),
                       blft.xden_yden_to_num(), blft.xnum_ynum_to_den(), blft.xnum_yden_to_den(),
                       blft.xden_ynum_to_den(), blft.xden_yden_to_den()) {}
 
             template <class XNumYNumNum, class XNumYDenNum, class XDenYNumNum, class XDenYDenNum,
                       class XNumYNumDen, class XNumYDenDen, class XDenYNumDen, class XDenYDenDen>
-            constexpr extended_bilinear_fractional_transform(
-                bilinear_fractional_transform<XNumYNumNum, XNumYDenNum, XDenYNumNum, XDenYDenNum,
+            constexpr extended_bilinear_fractional_mapping(
+                bilinear_fractional_mapping<XNumYNumNum, XNumYDenNum, XDenYNumNum, XDenYDenNum,
                                               XNumYNumDen, XNumYDenDen, XDenYNumDen, XDenYDenDen>&&
                     blft)
-                : extended_bilinear_fractional_transform(
+                : extended_bilinear_fractional_mapping(
                       std::move(blft).xnum_ynum_to_num(), std::move(blft).xnum_yden_to_num(),
                       std::move(blft).xden_ynum_to_num(), std::move(blft).xden_yden_to_num(),
                       std::move(blft).xnum_ynum_to_den(), std::move(blft).xnum_yden_to_den(),
@@ -1074,12 +1074,12 @@ namespace jkj {
                     using enum kind_t;
                 case nonconstant_unary_function_of_x:
                     return projective_rational<Value, Value>{
-                        linear_fractional_transform{xnum_ynum_to_num(), xden_ynum_to_num(),
+                        linear_fractional_mapping{xnum_ynum_to_num(), xden_ynum_to_num(),
                                                     xnum_ynum_to_den(), xden_yden_to_den()}(x)};
 
                 case nonconstant_unary_function_of_y:
                     return projective_rational<Value, Value>{
-                        linear_fractional_transform{xnum_ynum_to_num(), xnum_yden_to_num(),
+                        linear_fractional_mapping{xnum_ynum_to_num(), xnum_yden_to_num(),
                                                     xnum_ynum_to_den(), xnum_yden_to_den()}(x)};
 
                 case constant:
@@ -1170,13 +1170,13 @@ namespace jkj {
                 else {
                     // T_{A^-1 R}[I] if A is invertible, T_{B^-1 R}[I] otherwise.
                     auto transformed_itv_x =
-                        extended_linear_fractional_transform<Value>{
+                        extended_linear_fractional_mapping<Value>{
                             numerator_determinant_sign_ != 0
-                                ? linear_fractional_transform{-xnum_yden_to_num(),
+                                ? linear_fractional_mapping{-xnum_yden_to_num(),
                                                               -xden_yden_to_num(),
                                                               xnum_ynum_to_num(),
                                                               xden_ynum_to_num()}
-                                : linear_fractional_transform{-xnum_yden_to_den(),
+                                : linear_fractional_mapping{-xnum_yden_to_den(),
                                                               -xden_yden_to_den(),
                                                               xnum_ynum_to_den(),
                                                               xden_ynum_to_den()}}
@@ -1529,13 +1529,13 @@ namespace jkj {
                     }
                 }
                 else if (kind_ == kind_t::nonconstant_unary_function_of_x) {
-                    return extended_linear_fractional_transform<Value>{
+                    return extended_linear_fractional_mapping<Value>{
                         xnum_ynum_to_num(), xden_ynum_to_num(), xnum_ynum_to_den(),
                         xden_ynum_to_den()}
                         .map_cyclic_interval(itv_x);
                 }
                 else if (kind_ == kind_t::nonconstant_unary_function_of_y) {
-                    return extended_linear_fractional_transform<Value>{
+                    return extended_linear_fractional_mapping<Value>{
                         xnum_ynum_to_num(), xnum_yden_to_num(), xnum_ynum_to_den(),
                         xnum_yden_to_den()}
                         .map_cyclic_interval(itv_y);
@@ -1616,7 +1616,7 @@ namespace jkj {
                                         detail::range_of_rank1_transform<Value>(
                                             base_type::specialize_y(itv_y_.lower_bound()));
                                     auto inverse_image = detail::kernel_of_rank1_transform<
-                                        Value>(linear_fractional_transform{
+                                        Value>(linear_fractional_mapping{
                                         potentially_removed_point.denominator * xnum_ynum_to_num() -
                                             potentially_removed_point.numerator *
                                                 xnum_ynum_to_den(),
@@ -1654,7 +1654,7 @@ namespace jkj {
                                         detail::range_of_rank1_transform<Value>(
                                             base_type::specialize_x(itv_x_.lower_bound()));
                                     auto inverse_image = detail::kernel_of_rank1_transform<
-                                        Value>(linear_fractional_transform{
+                                        Value>(linear_fractional_mapping{
                                         potentially_removed_point.denominator * xnum_ynum_to_num() -
                                             potentially_removed_point.numerator *
                                                 xnum_ynum_to_den(),
@@ -1730,7 +1730,7 @@ namespace jkj {
                                 auto append_bottom_edge =
                                     [&](auto const& append_right_edge, auto const& append_top_edge,
                                         auto const& append_left_edge) -> closed_cyclic_interval {
-                                    auto specialized = extended_linear_fractional_transform<Value>{
+                                    auto specialized = extended_linear_fractional_mapping<Value>{
                                         base_type::specialize_y(itv_y_.lower_bound())};
 
                                     if (!util::is_zero(specialized.determinant_sign())) {
@@ -1831,7 +1831,7 @@ namespace jkj {
                                         auto&& start, auto&& end, auto&& edge_union,
                                         auto const& append_top_edge,
                                         auto const& append_left_edge) -> closed_cyclic_interval {
-                                    auto specialized = extended_linear_fractional_transform<Value>{
+                                    auto specialized = extended_linear_fractional_mapping<Value>{
                                         base_type::specialize_x(itv_x_.upper_bound())};
 
                                     if (util::is_zero(specialized.determinant_sign())) {
@@ -1880,7 +1880,7 @@ namespace jkj {
                                     [this, &itv_x_, &itv_y_, &append_to_right, &append_to_left](
                                         auto&& start, auto&& end, auto&& edge_union,
                                         auto const& append_left_edge) -> closed_cyclic_interval {
-                                    auto specialized = extended_linear_fractional_transform<Value>{
+                                    auto specialized = extended_linear_fractional_mapping<Value>{
                                         base_type::specialize_y(itv_y_.upper_bound())};
 
                                     int edge_direction = specialized.determinant_sign();
@@ -1983,7 +1983,7 @@ namespace jkj {
                                     [this, &itv_x_, &itv_y_, &append_to_right,
                                      &append_to_left](auto&& start, auto&& end,
                                                       auto&& edge_union) -> closed_cyclic_interval {
-                                    auto specialized = extended_linear_fractional_transform<Value>{
+                                    auto specialized = extended_linear_fractional_mapping<Value>{
                                         base_type::specialize_x(itv_x_.lower_bound())};
 
                                     if (util::is_zero(specialized.determinant_sign())) {

@@ -30,7 +30,7 @@ namespace jkj {
                     // Find the kernel of a rank-1 linear fractional transform.
                     template <class NumNum, class DenNum, class NumDen, class DenDen>
                     static constexpr projective_rational<Int, Int> kernel_of_rank1_transform(
-                        linear_fractional_transform<NumNum, DenNum, NumDen, DenDen> const&
+                        linear_fractional_mapping<NumNum, DenNum, NumDen, DenDen> const&
                             transform) {
                         return util::is_zero(transform.num_to_num) &&
                                        util::is_zero(transform.den_to_num)
@@ -42,7 +42,7 @@ namespace jkj {
                     // Find the range of a rank-1 linear fractional transform.
                     template <class NumNum, class DenNum, class NumDen, class DenDen>
                     static constexpr projective_rational<Int, Int>
-                    range_of_rank1_transform(linear_fractional_transform<NumNum, DenNum, NumDen,
+                    range_of_rank1_transform(linear_fractional_mapping<NumNum, DenNum, NumDen,
                                                                          DenDen> const& transform) {
                         return util::is_zero(transform.num_to_num) &&
                                        util::is_zero(transform.num_to_den)
@@ -100,7 +100,7 @@ namespace jkj {
 
             private:
                 internal_continued_fraction_generator_type cf_;
-                linear_fractional_transform<int_type> coeff_;
+                linear_fractional_mapping<int_type> coeff_;
                 int determinant_sign_ = 0;
                 bool is_first_ = true;
 
@@ -113,7 +113,7 @@ namespace jkj {
                 }
 
                 constexpr unary_gosper(internal_continued_fraction_generator_type cf,
-                                       linear_fractional_transform<int_type> coeff)
+                                       linear_fractional_mapping<int_type> coeff)
                     : cf_{static_cast<internal_continued_fraction_generator_type&&>(cf)},
                       coeff_{std::move(coeff)} {
                     determinant_sign_ = coeff_.determinant_sign();
@@ -321,7 +321,7 @@ namespace jkj {
 
             template <class ContinuedFractionGenerator>
             unary_gosper(ContinuedFractionGenerator,
-                         linear_fractional_transform<
+                         linear_fractional_mapping<
                              decltype(ContinuedFractionGenerator::convergent_type::numerator)>)
                 -> unary_gosper<ContinuedFractionGenerator, unity>;
 
@@ -368,7 +368,7 @@ namespace jkj {
             private:
                 first_internal_continued_fraction_generator_type xcf_;
                 second_internal_continued_fraction_generator_type ycf_;
-                bilinear_fractional_transform<int_type> coeff_;
+                bilinear_fractional_mapping<int_type> coeff_;
                 bool is_first_ = true;
 
                 // Precondition: itv is contained in the domain of transform.
@@ -378,7 +378,7 @@ namespace jkj {
                     projective_rational<int_type, int_type>, cyclic_interval_type_t::single_point,
                     cyclic_interval_type_t::closed, cyclic_interval_type_t::entire>
                 map_cyclic_interval(
-                    linear_fractional_transform<NumNum, DenNum, NumDen, DenDen> const& transform,
+                    linear_fractional_mapping<NumNum, DenNum, NumDen, DenDen> const& transform,
                     InputIntervalType const& vitv, int determinant_sign) {
                     using return_type =
                         variable_shape_cyclic_interval<projective_rational<int_type, int_type>,
@@ -565,7 +565,7 @@ namespace jkj {
 
                 constexpr binary_gosper(first_internal_continued_fraction_generator_type xcf,
                                         second_internal_continued_fraction_generator_type ycf,
-                                        bilinear_fractional_transform<int_type> coeff)
+                                        bilinear_fractional_mapping<int_type> coeff)
                     : xcf_{static_cast<first_internal_continued_fraction_generator_type&&>(xcf)},
                       ycf_{static_cast<second_internal_continued_fraction_generator_type&&>(ycf)},
                       coeff_{std::move(coeff)} {
@@ -703,7 +703,7 @@ namespace jkj {
                             return check_intersection(
                                 ycf_.current_interval(),
                                 map_cyclic_interval(
-                                    linear_fractional_transform{
+                                    linear_fractional_mapping{
                                         coeff_.xnum_yden_to_num, coeff_.xden_yden_to_num,
                                         -coeff_.xnum_ynum_to_num, -coeff_.xden_ynum_to_num},
                                     xcf_.current_interval(), det_sign_num_bilinear_form),
@@ -716,7 +716,7 @@ namespace jkj {
                             return check_intersection(
                                 ycf_.current_interval(),
                                 map_cyclic_interval(
-                                    linear_fractional_transform{
+                                    linear_fractional_mapping{
                                         coeff_.xnum_yden_to_den, coeff_.xden_yden_to_den,
                                         -coeff_.xnum_ynum_to_den, -coeff_.xden_ynum_to_den},
                                     xcf_.current_interval(), det_sign_den_bilinear_form),
@@ -729,14 +729,14 @@ namespace jkj {
                             return detail::gosper_util<int_type>::contains_in_closure(
                                        xcf_.current_interval(),
                                        detail::gosper_util<int_type>::range_of_rank1_transform(
-                                           linear_fractional_transform{
+                                           linear_fractional_mapping{
                                                coeff_.xden_ynum_to_den, coeff_.xden_yden_to_den,
                                                -coeff_.xnum_ynum_to_den,
                                                -coeff_.xnum_yden_to_den})) ||
                                    detail::gosper_util<int_type>::contains_in_closure(
                                        ycf_.current_interval(),
                                        detail::gosper_util<int_type>::kernel_of_rank1_transform(
-                                           linear_fractional_transform{
+                                           linear_fractional_mapping{
                                                coeff_.xnum_ynum_to_den, coeff_.xnum_yden_to_den,
                                                coeff_.xden_ynum_to_den, coeff_.xden_yden_to_den}));
                         }
@@ -747,14 +747,14 @@ namespace jkj {
                             return detail::gosper_util<int_type>::contains_in_closure(
                                        xcf_.current_interval(),
                                        detail::gosper_util<int_type>::range_of_rank1_transform(
-                                           linear_fractional_transform{
+                                           linear_fractional_mapping{
                                                coeff_.xden_ynum_to_num, coeff_.xden_yden_to_num,
                                                -coeff_.xnum_ynum_to_num,
                                                -coeff_.xnum_yden_to_num})) ||
                                    detail::gosper_util<int_type>::contains_in_closure(
                                        ycf_.current_interval(),
                                        detail::gosper_util<int_type>::kernel_of_rank1_transform(
-                                           linear_fractional_transform{
+                                           linear_fractional_mapping{
                                                coeff_.xnum_ynum_to_num, coeff_.xnum_yden_to_num,
                                                coeff_.xden_ynum_to_num, coeff_.xden_yden_to_num}));
                         }
@@ -767,7 +767,7 @@ namespace jkj {
                             if (detail::gosper_util<int_type>::contains_in_closure(
                                     xcf_.current_interval(),
                                     detail::gosper_util<int_type>::range_of_rank1_transform(
-                                        linear_fractional_transform{
+                                        linear_fractional_mapping{
                                             coeff_.xden_ynum_to_num, coeff_.xden_yden_to_num,
                                             -coeff_.xnum_ynum_to_num, -coeff_.xnum_yden_to_num}))) {
                                 // The second interval is the entire RP1.
@@ -775,7 +775,7 @@ namespace jkj {
                                 if (detail::gosper_util<int_type>::contains_in_closure(
                                         xcf_.current_interval(),
                                         detail::gosper_util<int_type>::range_of_rank1_transform(
-                                            linear_fractional_transform{
+                                            linear_fractional_mapping{
                                                 coeff_.xden_ynum_to_den, coeff_.xden_yden_to_den,
                                                 -coeff_.xnum_ynum_to_den,
                                                 -coeff_.xnum_yden_to_den}))) {
@@ -790,7 +790,7 @@ namespace jkj {
                                                         cyclic_interval_type_t::single_point>{
                                             detail::gosper_util<int_type>::
                                                 kernel_of_rank1_transform(
-                                                    linear_fractional_transform{
+                                                    linear_fractional_mapping{
                                                         coeff_.xnum_ynum_to_den,
                                                         coeff_.xnum_yden_to_den,
                                                         coeff_.xden_ynum_to_den,
@@ -804,7 +804,7 @@ namespace jkj {
                                 if (detail::gosper_util<int_type>::contains_in_closure(
                                         xcf_.current_interval(),
                                         detail::gosper_util<int_type>::range_of_rank1_transform(
-                                            linear_fractional_transform{
+                                            linear_fractional_mapping{
                                                 coeff_.xden_ynum_to_den, coeff_.xden_yden_to_den,
                                                 -coeff_.xnum_ynum_to_den,
                                                 -coeff_.xnum_yden_to_den}))) {
@@ -815,7 +815,7 @@ namespace jkj {
                                                         cyclic_interval_type_t::single_point>{
                                             detail::gosper_util<int_type>::
                                                 kernel_of_rank1_transform(
-                                                    linear_fractional_transform{
+                                                    linear_fractional_mapping{
                                                         coeff_.xnum_ynum_to_num,
                                                         coeff_.xnum_yden_to_num,
                                                         coeff_.xden_ynum_to_num,
@@ -826,12 +826,12 @@ namespace jkj {
                                     // The third interval is also a single point.
                                     auto first_pt =
                                         detail::gosper_util<int_type>::kernel_of_rank1_transform(
-                                            linear_fractional_transform{
+                                            linear_fractional_mapping{
                                                 coeff_.xnum_ynum_to_num, coeff_.xnum_yden_to_num,
                                                 coeff_.xden_ynum_to_num, coeff_.xden_yden_to_num});
                                     auto second_pt =
                                         detail::gosper_util<int_type>::kernel_of_rank1_transform(
-                                            linear_fractional_transform{
+                                            linear_fractional_mapping{
                                                 coeff_.xnum_ynum_to_den, coeff_.xnum_yden_to_den,
                                                 coeff_.xden_ynum_to_den, coeff_.xden_yden_to_den});
 
@@ -964,7 +964,7 @@ namespace jkj {
                             int const edge_directions[4] = {
                                 // bottom
                                 (x_itv.interval_type() == single_point ? 0 : 1) *
-                                    linear_fractional_transform{
+                                    linear_fractional_mapping{
                                         coeff_.xnum_ynum_to_num * y_itv.lower_bound().numerator +
                                             coeff_.xnum_yden_to_num *
                                                 y_itv.lower_bound().denominator,
@@ -980,7 +980,7 @@ namespace jkj {
                                         .determinant_sign(),
                                 // right
                                 (y_itv.interval_type() == single_point ? 0 : 1) *
-                                    linear_fractional_transform{
+                                    linear_fractional_mapping{
                                         coeff_.xnum_ynum_to_num * x_itv.upper_bound().numerator +
                                             coeff_.xden_ynum_to_num *
                                                 x_itv.upper_bound().denominator,
@@ -996,7 +996,7 @@ namespace jkj {
                                         .determinant_sign(),
                                 // top
                                 (x_itv.interval_type() == single_point ? 0 : -1) *
-                                    linear_fractional_transform{
+                                    linear_fractional_mapping{
                                         coeff_.xnum_ynum_to_num * y_itv.upper_bound().numerator +
                                             coeff_.xnum_yden_to_num *
                                                 y_itv.upper_bound().denominator,
@@ -1012,7 +1012,7 @@ namespace jkj {
                                         .determinant_sign(),
                                 // left
                                 (y_itv.interval_type() == single_point ? 0 : -1) *
-                                    linear_fractional_transform{
+                                    linear_fractional_mapping{
                                         coeff_.xnum_ynum_to_num * x_itv.lower_bound().numerator +
                                             coeff_.xden_ynum_to_num *
                                                 x_itv.lower_bound().denominator,
@@ -1187,7 +1187,7 @@ namespace jkj {
 
             template <class ContinuedFractionGeneratorX, class ContinuedFractionGeneratorY>
             binary_gosper(ContinuedFractionGeneratorX, ContinuedFractionGeneratorY,
-                          bilinear_fractional_transform<
+                          bilinear_fractional_mapping<
                               decltype(ContinuedFractionGeneratorX::convergent_type::numerator)>)
                 -> binary_gosper<ContinuedFractionGeneratorX, ContinuedFractionGeneratorY, unity>;
         }
@@ -1196,7 +1196,7 @@ namespace jkj {
         template <class ContinuedFractionImpl, class Unity = unity>
         constexpr auto make_unary_gosper_from_impl(
             ContinuedFractionImpl impl,
-            linear_fractional_transform<decltype(ContinuedFractionImpl::convergent_type::numerator)>
+            linear_fractional_mapping<decltype(ContinuedFractionImpl::convergent_type::numerator)>
                 coeff) {
             return impl::unary_gosper{
                 make_generator<interval_tracker>(static_cast<ContinuedFractionImpl&&>(impl)),
@@ -1205,7 +1205,7 @@ namespace jkj {
         template <class ContinuedFractionImplX, class ContinuedFractionImplY, class Unity = unity>
         constexpr auto make_binary_gosper_from_impl(
             ContinuedFractionImplX impl_x, ContinuedFractionImplY impl_y,
-            bilinear_fractional_transform<
+            bilinear_fractional_mapping<
                 decltype(ContinuedFractionImplX::convergent_type::numerator)>
                 coeff) {
             return impl::binary_gosper{

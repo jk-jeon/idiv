@@ -21,7 +21,7 @@ add_library(idiv_idiv INTERFACE
 	include/idiv/bigint.h
 	include/idiv/caching_generator.h
 	include/idiv/continued_fraction.h
-	include/idiv/extended_linear_fractional_transform.h
+	include/idiv/extended_linear_fractional_mapping.h
 	include/idiv/frac.h
 	include/idiv/fractional_part_extremizer.h
 	include/idiv/gosper_continued_fraction.h
