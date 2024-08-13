@@ -607,7 +607,7 @@ namespace jkj {
                     });
                 }
 
-                // Refine the current interval estimate, possibly without proceeding to the next
+                // Refine the current interval estimate, with or without proceeding to the next
                 // partial fraction. Returns true if the generator has proceeded to the next partial
                 // fraction in order to refine the interval, and returns false otherwise.
                 constexpr bool refine_interval() {
@@ -615,7 +615,7 @@ namespace jkj {
                     // special support for refining the interval estimate.
                     return update_impl([this](callback_type& callback) {
                         if constexpr (requires(callback_type& callback_) {
-                                          impl_.with_next_interval(callback_);
+                                          impl_.refine_interval();
                                       }) {
                             impl_.with_next_interval(callback);
                         }
@@ -652,137 +652,256 @@ namespace jkj {
             return generator<std::remove_cvref_t<Impl>, Mixins...>{static_cast<Impl&&>(impl)};
         }
 
+        // Since variadic friend declaration is only possible since C++26, we use the following
+        // workaround.
+        template <class Mixin, auto member_function_ptr, class Generator>
+        constexpr decltype(auto) access_engine(Generator&& gen) {
+            using reference_removed = std::remove_reference_t<Generator>;
+            using cvref_removed = std::remove_cv_t<reference_removed>;
+            using engine_type = typename cvref_removed::engine_type;
+            using tracking_data = typename Mixin::template tracking_data<engine_type, cvref_removed>;
+            using cv_added = std::conditional_t<
+                std::is_const_v<reference_removed>,
+                std::conditional_t<std::is_volatile_v<reference_removed>,
+                                   tracking_data const volatile, tracking_data const>,
+                std::conditional_t<std::is_volatile_v<reference_removed>, tracking_data volatile,
+                                   tracking_data>>;
+            
+        }
+
         // Mixin: stores the current index of the continued fraction expansion.
-        template <class Impl, class Generator>
-        class index_tracker {
-            using partial_fraction_type = typename Impl::partial_fraction_type;
-            int current_index_ = -1;
+        struct index_tracker {
+            template <class Proxy>
+            struct proxy_mixin {
+                constexpr int current_index() const noexcept {
+                    return static_cast<Proxy const&>(*this)
+                        .template tracking_data<index_tracker>()
+                        .current_index();
+                }
+            };
 
-            friend Generator;
+            template <class Engine, class Generator>
+            class tracking_data {
+                using partial_fraction_type = typename Engine::partial_fraction_type;
+                int current_index_ = -1;
 
-            explicit constexpr index_tracker(Impl const&) noexcept {}
+                friend Generator;
+                template <class Proxy>
+                friend struct proxy_mixin;
 
-            constexpr void on_next_partial_fraction(partial_fraction_type const&,
-                                                    Impl const&) noexcept {
-                ++current_index_;
-            }
+                explicit constexpr tracking_data(Engine const&) noexcept {}
 
-        public:
-            constexpr int current_index() const noexcept { return current_index_; }
+                constexpr void on_next_partial_fraction(partial_fraction_type const&,
+                                                        Engine const&) noexcept {
+                    ++current_index_;
+                }
+
+                constexpr int current_index() const noexcept { return current_index_; }
+            };
         };
 
         // Mixin: stores the current partial fraction of the continued fraction expansion.
-        template <class Impl, class Generator>
-        class partial_fraction_tracker {
-            using partial_fraction_type = typename Impl::partial_fraction_type;
+        struct partial_fraction_tracker {
+            template <class Proxy>
+            struct proxy_mixin {
+                constexpr int current_partial_fraction() const noexcept {
+                    return static_cast<Proxy const&>(*this)
+                        .template tracking_data<partial_fraction_tracker>()
+                        .current_partial_fraction();
+                }
+            };
 
-            partial_fraction_type current_partial_fraction_;
+            template <class Engine, class Generator>
+            class tracking_data {
+                using partial_fraction_type = typename Engine::partial_fraction_type;
 
-            friend Generator;
+                partial_fraction_type current_partial_fraction_;
 
-            explicit constexpr partial_fraction_tracker(Impl const& impl)
-                : current_partial_fraction_{impl.initial_partial_fraction()} {}
+                friend Generator;
+                template <class Proxy>
+                friend struct proxy_mixin;
 
-            constexpr void
-            on_next_partial_fraction(partial_fraction_type const& next_partial_fraction,
-                                     Impl const&) {
-                current_partial_fraction_ = next_partial_fraction;
-            }
+                explicit constexpr tracking_data(Engine const& engine)
+                    : current_partial_fraction_{engine.initial_partial_fraction()} {}
 
-        public:
-            constexpr partial_fraction_type const& current_partial_fraction() const noexcept {
-                return current_partial_fraction_;
-            }
+                constexpr void
+                on_next_partial_fraction(partial_fraction_type const& next_partial_fraction,
+                                         Engine const&) {
+                    current_partial_fraction_ = next_partial_fraction;
+                }
+
+                constexpr partial_fraction_type const& current_partial_fraction() const noexcept {
+                    return current_partial_fraction_;
+                }
+            };
         };
 
         // Mixin: stores the previous and the current convergents of the continued fraction
         // expansion.
-        template <class Impl, class Generator>
-        class convergent_tracker {
-            using partial_fraction_type = typename Impl::partial_fraction_type;
-            using convergent_type = typename Impl::convergent_type;
+        struct convergent_tracker {
+            template <class Proxy>
+            struct proxy_mixin {
+                using convergent_type = typename Proxy::engine_type::convergent_type;
 
-            convergent_type current_convergent_{1, 0u};
-            convergent_type previous_convergent_{0, 1u};
+                constexpr convergent_type const& current_convergent() const noexcept {
+                    return static_cast<Proxy const&>(*this)
+                        .template tracking_data<convergent_tracker>()
+                        .current_convergent();
+                }
+                constexpr auto const& current_convergent_numerator() const noexcept {
+                    return current_convergent().numerator;
+                }
+                constexpr auto const& current_convergent_denominator() const noexcept {
+                    return current_convergent().denominator;
+                }
 
-            friend Generator;
+                constexpr convergent_type const& previous_convergent() const noexcept {
+                    return static_cast<Proxy const&>(*this)
+                        .template tracking_data<convergent_tracker>()
+                        .previous_convergent();
+                }
+                constexpr auto const& previous_convergent_numerator() const noexcept {
+                    return previous_convergent().numerator;
+                }
+                constexpr auto const& previous_convergent_denominator() const noexcept {
+                    return previous_convergent().denominator;
+                }
+            };
 
-            explicit constexpr convergent_tracker(Impl const&) noexcept {}
+            template <class Engine, class Generator>
+            class tracking_data {
+                using partial_fraction_type = typename Engine::partial_fraction_type;
+                using convergent_type = typename Engine::convergent_type;
 
-            constexpr void
-            on_next_partial_fraction(partial_fraction_type const& next_partial_fraction,
-                                     Impl const&) {
-                auto next_numerator =
-                    next_partial_fraction.denominator * current_convergent_numerator() +
-                    next_partial_fraction.numerator * previous_convergent_numerator();
-                auto next_denominator =
-                    next_partial_fraction.denominator * current_convergent_denominator() +
-                    next_partial_fraction.numerator * previous_convergent_denominator();
+                convergent_type current_convergent_{1, 0u};
+                convergent_type previous_convergent_{0, 1u};
 
-                previous_convergent_ = std::move(current_convergent_);
-                current_convergent_ = convergent_type{std::move(next_numerator),
-                                                      util::abs(std::move(next_denominator))};
-            }
+                friend Generator;
+                template <class Proxy>
+                friend struct proxy_mixin;
 
-        public:
-            constexpr convergent_type const& current_convergent() const noexcept {
-                return current_convergent_;
-            }
-            constexpr auto const& current_convergent_numerator() const noexcept {
-                return current_convergent().numerator;
-            }
-            constexpr auto const& current_convergent_denominator() const noexcept {
-                return current_convergent().denominator;
-            }
+                explicit constexpr tracking_data(Engine const&) noexcept {}
 
-            constexpr convergent_type const& previous_convergent() const noexcept {
-                return previous_convergent_;
-            }
-            constexpr auto const& previous_convergent_numerator() const noexcept {
-                return previous_convergent().numerator;
-            }
-            constexpr auto const& previous_convergent_denominator() const noexcept {
-                return previous_convergent().denominator;
-            }
+                constexpr void
+                on_next_partial_fraction(partial_fraction_type const& next_partial_fraction,
+                                         Engine const&) {
+                    auto next_numerator =
+                        next_partial_fraction.denominator * current_convergent_numerator() +
+                        next_partial_fraction.numerator * previous_convergent_numerator();
+                    auto next_denominator =
+                        next_partial_fraction.denominator * current_convergent_denominator() +
+                        next_partial_fraction.numerator * previous_convergent_denominator();
+
+                    previous_convergent_ = std::move(current_convergent_);
+                    current_convergent_ = convergent_type{std::move(next_numerator),
+                                                          util::abs(std::move(next_denominator))};
+                }
+
+                constexpr convergent_type const& current_convergent() const noexcept {
+                    return current_convergent_;
+                }
+                constexpr convergent_type const& previous_convergent() const noexcept {
+                    return previous_convergent_;
+                }
+            };
         };
 
         // Mixin: stores the previous previous convergent of the continued fraction expansion.
         // Depends on convergent_tracker's presence, so including this mixin results in tracking the
         // last three convergents.
-        template <class Impl, class Generator>
-        class previous_previous_convergent_tracker {
-            using partial_fraction_type = typename Impl::partial_fraction_type;
-            using convergent_type = typename Impl::convergent_type;
+        struct previous_previous_convergent_tracker {
+            template <class Proxy>
+            struct proxy_mixin {
+                using convergent_type = typename Proxy::engine_type::convergent_type;
 
-            convergent_type previous_previous_convergent_{1, 0u};
+                constexpr convergent_type const& previous_previous_convergent() const noexcept {
+                    return static_cast<Proxy const&>(*this)
+                        .template tracking_data<previous_previous_convergent_tracker>()
+                        .current_convergent();
+                }
+                constexpr auto const& previous_previous_convergent_numerator() const noexcept {
+                    return previous_previous_convergent().numerator;
+                }
+                constexpr auto const& previous_previous_convergent_denominator() const noexcept {
+                    return previous_previous_convergent().denominator;
+                }
+            };
 
-            friend Generator;
+            template <class Engine, class Generator>
+            class tracking_data {
+                using partial_fraction_type = typename Engine::partial_fraction_type;
+                using convergent_type = typename Engine::convergent_type;
 
-            explicit constexpr previous_previous_convergent_tracker(Impl const&) noexcept {}
+                convergent_type previous_previous_convergent_{1, 0u};
 
-            constexpr void on_next_partial_fraction(partial_fraction_type const&, Impl const&) {
-                previous_previous_convergent_ =
-                    static_cast<Generator const&>(*this).previous_convergent();
-            }
+                friend Generator;
+                template <class Proxy>
+                friend struct proxy_mixin;
 
-        public:
-            constexpr convergent_type const& previous_previous_convergent() const noexcept {
-                return previous_previous_convergent_;
-            }
-            constexpr auto const& previous_previous_convergent_numerator() const noexcept {
-                return previous_previous_convergent().numerator;
-            }
-            constexpr auto const& previous_previous_convergent_denominator() const noexcept {
-                return previous_previous_convergent().denominator;
-            }
+                explicit constexpr tracking_data(Engine const&) noexcept {}
+
+                constexpr void on_next_partial_fraction(partial_fraction_type const&,
+                                                        Engine const&) {
+                    previous_previous_convergent_ =
+                        static_cast<Generator const&>(*this).current_state().previous_convergent();
+                }
+
+                constexpr convergent_type const& previous_previous_convergent() const noexcept {
+                    return previous_previous_convergent_;
+                }
+            };
+
+            template <class Engine>
+            struct traits {
+                using required_mixins = mixin_list<convergent_tracker>;
+                using before_than = mixin_list<convergent_tracker>;
+            };
         };
-        template <>
-        struct mixin_traits<previous_previous_convergent_tracker> {
-            using required_mixins = mixin_list<convergent_tracker>;
-            using before_than = mixin_list<convergent_tracker>;
+
+        // Mixin: provides interface to treat the generator as an interval estimate provider.
+        struct interval_estimate_provider {
+            template <class Engine, class Generator>
+            class tracking_data {
+                using partial_fraction_type = typename Engine::partial_fraction_type;
+                using convergent_type = typename Engine::convergent_type;
+                using interval_type = typename Engine::interval_type;
+
+                interval_type current_interval_;
+
+                friend Generator;
+
+                explicit constexpr tracking_data(Engine const& engine)
+                    : current_interval_{engine.initial_interval()} {}
+
+                class callback_type : public Generator::callback_type {
+                    tracking_data& data_;
+
+                public:
+                    constexpr void on_next_interval(interval_type const& next_interval) {
+                        data_.current_interval_ = next_interval;
+                    }
+                };
+
+            public:
+                constexpr void refine_interval() {
+                    if constexpr (requires(Engine engine, callback_type callback) {
+                                      engine.refine_interval(callback);
+                                  }) {
+                    }
+                }
+
+                constexpr interval_type const& current_interval() const noexcept {
+                    return current_interval_;
+                }
+            };
+
+            template <class Engine>
+            struct traits {
+                using required_mixins = mixin_list<index_tracker, convergent_tracker>;
+                using after_than = mixin_list<index_tracker, convergent_tracker>;
+            };
         };
 
-        // Mixin: stores the current estimate of an interval where the true value should be in.
         template <class Impl, class Generator>
         class interval_tracker {
             using partial_fraction_type = typename Impl::partial_fraction_type;
