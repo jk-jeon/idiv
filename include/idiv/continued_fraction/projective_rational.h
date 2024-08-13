@@ -15,10 +15,10 @@
 // is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 // KIND, either express or implied.
 
-#ifndef JKJ_HEADER_PROJECTIVE_RATIONAL
-#define JKJ_HEADER_PROJECTIVE_RATIONAL
+#ifndef JKJ_HEADER_IDIV_CONTINUED_FRACTION_PROJECTIVE_RATIONAL
+#define JKJ_HEADER_IDIV_CONTINUED_FRACTION_PROJECTIVE_RATIONAL
 
-#include "frac.h"
+#include "../frac.h"
 
 namespace jkj {
     namespace cntfrc {

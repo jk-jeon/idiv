@@ -18,7 +18,7 @@
 #ifndef JKJ_HEADER_EXTENDED_LINEAR_FRACTIONAL_MAPPING
 #define JKJ_HEADER_EXTENDED_LINEAR_FRACTIONAL_MAPPING
 
-#include "interval.h"
+#include "../interval.h"
 #include "projective_rational.h"
 
 namespace jkj {

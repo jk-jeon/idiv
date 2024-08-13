@@ -15,10 +15,10 @@
 // is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 // KIND, either express or implied.
 
-#ifndef JKJ_HEADER_CONTINUED_FRACTION
-#define JKJ_HEADER_CONTINUED_FRACTION
+#ifndef JKJ_HEADER_IDIV_CONTINUED_FRACTION_GENERATOR
+#define JKJ_HEADER_IDIV_CONTINUED_FRACTION_GENERATOR
 
-#include "interval.h"
+#include "../interval.h"
 #include "projective_rational.h"
 
 namespace jkj {

@@ -15,14 +15,11 @@
 // is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 // KIND, either express or implied.
 
-#ifndef JKJ_HEADER_IDIV_BIG_UINT
-#define JKJ_HEADER_IDIV_BIG_UINT
+#ifndef JKJ_HEADER_IDIV_BIG_INT
+#define JKJ_HEADER_IDIV_BIG_INT
 
 #include "wuint.h"
-#include <bit>
 #include <compare>
-#include <concepts>
-#include <limits>
 #include <vector>
 
 namespace jkj {

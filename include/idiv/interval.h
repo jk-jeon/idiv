@@ -15,10 +15,10 @@
 // is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 // KIND, either express or implied.
 
-#ifndef JKJ_HEADER_INTERVAL
-#define JKJ_HEADER_INTERVAL
+#ifndef JKJ_HEADER_IDIV_INTERVAL
+#define JKJ_HEADER_IDIV_INTERVAL
 
-#include "util.h"
+#include "variant_storage.h"
 #include <concepts>
 
 namespace jkj {

@@ -15,7 +15,7 @@
 // is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 // KIND, either express or implied.
 
-#include <idiv/continued_fraction.h>
+#include <idiv/continued_fraction/generator.h>
 #include <boost/ut.hpp>
 
 void continued_fraction_mixin_metaprogramming_test() {
