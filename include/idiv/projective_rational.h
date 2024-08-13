@@ -106,6 +106,7 @@ namespace jkj {
             constexpr zero operator*(T&&) const noexcept {
                 return {};
             }
+            constexpr zero& operator*=(zero) noexcept { return *this; }
             template <class T>
             constexpr zero& operator*=(T&&) noexcept {
                 return *this;
@@ -113,6 +114,12 @@ namespace jkj {
             template <class T>
             friend constexpr zero operator*(T&&, zero) noexcept {
                 return {};
+            }
+            template <class T>
+                requires(
+                    requires { T(0); } || requires { T(0u); })
+            friend constexpr T& operator*=(T& x, zero) noexcept {
+                return x = static_cast<T>(zero{});
             }
             template <class T>
             constexpr zero operator/(T&&) const noexcept {
@@ -153,6 +160,7 @@ namespace jkj {
                        : util::is_zero(x)            ? std::strong_ordering::equal
                                                      : std::strong_ordering::less;
             }
+            friend constexpr bool is_zero(zero) noexcept { return true; }
 
             template <class T>
                 requires requires { T{0}; }
@@ -192,6 +200,7 @@ namespace jkj {
             friend constexpr T& operator/=(T& x, unity) noexcept {
                 return x;
             }
+            friend constexpr bool is_zero(unity) noexcept { return false; }
 
             template <class T>
                 requires requires { T{1}; }
@@ -207,44 +216,58 @@ namespace jkj {
         };
 
         template <class NumNum, class DenNum = NumNum, class NumDen = NumNum, class DenDen = NumNum>
-        struct linear_fractional_transform {
+        class linear_fractional_transform {
+        protected:
             // (ax+b)/(cx+d)
-            NumNum num_to_num; // a
-            DenNum den_to_num; // b
-            NumDen num_to_den; // c
-            DenDen den_to_den; // d
+            NumNum num_to_num_; // a
+            DenNum den_to_num_; // b
+            NumDen num_to_den_; // c
+            DenDen den_to_den_; // d
+
+        public:
+            template <class NumNum_, class DenNum_, class NumDen_, class DenDen_>
+            constexpr linear_fractional_transform(NumNum_&& a, DenNum_&& b, NumDen_&& c,
+                                                  DenDen_&& d)
+                : num_to_num_{static_cast<NumNum_&&>(a)}, den_to_num_{static_cast<DenNum_&&>(b)},
+                  num_to_den_{static_cast<NumDen_&&>(c)}, den_to_den_{static_cast<DenDen_&&>(d)} {
+                // The degenerate case a = b = c = d = 0 is disallowed.
+                util::constexpr_assert(
+                    !util::is_zero(num_to_num()) || !util::is_zero(den_to_num()) ||
+                    !util::is_zero(num_to_den()) || !util::is_zero(den_to_den()));
+            }
+
+            constexpr NumNum const& num_to_num() const& noexcept { return num_to_num_; }
+            constexpr DenNum const& den_to_num() const& noexcept { return den_to_num_; }
+            constexpr NumDen const& num_to_den() const& noexcept { return num_to_den_; }
+            constexpr DenDen const& den_to_den() const& noexcept { return den_to_den_; }
+
+            constexpr NumNum&& num_to_num() && noexcept {
+                return static_cast<NumNum&&>(num_to_num_);
+            }
+            constexpr DenNum&& den_to_num() && noexcept {
+                return static_cast<DenNum&&>(den_to_num_);
+            }
+            constexpr NumDen&& num_to_den() && noexcept {
+                return static_cast<NumDen&&>(num_to_den_);
+            }
+            constexpr DenDen&& den_to_den() && noexcept {
+                return static_cast<DenDen&&>(den_to_den_);
+            }
 
             template <class Num, class Den>
             constexpr auto operator()(projective_rational<Num, Den> const& x) const {
-                return projective_rational{num_to_num * x.numerator + den_to_num * x.denominator,
-                                           num_to_den * x.numerator + den_to_den * x.denominator};
+                return projective_rational{
+                    num_to_num() * x.numerator + den_to_num() * x.denominator,
+                    num_to_den() * x.numerator + den_to_den() * x.denominator};
             }
 
             constexpr int determinant_sign() const {
-                return util::strong_order_to_int(num_to_num * den_to_den <=>
-                                                 den_to_num * num_to_den);
-            }
-
-            // Multiply the matrix (t s \\ 0 t) from left for a number s/t.
-            template <class Num, class Den = unity>
-            constexpr void translate(Num&& numerator, Den&& denominator = Den{unity{}}) {
-                num_to_num *= denominator;
-                num_to_num += numerator * num_to_den;
-                den_to_num *= denominator;
-                den_to_num += numerator * den_to_den;
-                num_to_den *= denominator;
-                den_to_den *= denominator;
-            }
-
-            // Multiply the matrix (0 1 \\ 1 0) from left.
-            constexpr void reflect() {
-                using std::swap;
-                swap(num_to_num, num_to_den);
-                swap(den_to_num, den_to_den);
+                return util::strong_order_to_int(num_to_num_ * den_to_den_ <=>
+                                                 den_to_num_ * num_to_den_);
             }
         };
         // This class is supposed to be used both as a temporary and as a stored lvalue, so we
-        // do not strip off the reference.
+        // do not strip off the lvalue reference.
         template <class NumNum, class DenNum, class NumDen, class DenDen>
         linear_fractional_transform(NumNum&&, DenNum&&, NumDen&&, DenDen&&)
             -> linear_fractional_transform<NumNum, DenNum, NumDen, DenDen>;
@@ -260,57 +283,123 @@ namespace jkj {
                   class XDenYNumNum = XNumYNumNum, class XDenYDenNum = XNumYNumNum,
                   class XNumYNumDen = XNumYNumNum, class XNumYDenDen = XNumYNumNum,
                   class XDenYNumDen = XNumYNumNum, class XDenYDenDen = XNumYNumNum>
-        struct bilinear_fractional_transform {
-            XNumYNumNum xnum_ynum_to_num;
-            XNumYDenNum xnum_yden_to_num;
-            XDenYNumNum xden_ynum_to_num;
-            XDenYDenNum xden_yden_to_num;
-            XNumYNumDen xnum_ynum_to_den;
-            XNumYDenDen xnum_yden_to_den;
-            XDenYNumDen xden_ynum_to_den;
-            XDenYDenDen xden_yden_to_den;
+        class bilinear_fractional_transform {
+        protected:
+            // (axy+bx+cy+d)/(exy+fx+gy+h)
+            XNumYNumNum xnum_ynum_to_num_; // a
+            XNumYDenNum xnum_yden_to_num_; // b
+            XDenYNumNum xden_ynum_to_num_; // c
+            XDenYDenNum xden_yden_to_num_; // d
+            XNumYNumDen xnum_ynum_to_den_; // e
+            XNumYDenDen xnum_yden_to_den_; // f
+            XDenYNumDen xden_ynum_to_den_; // g
+            XDenYDenDen xden_yden_to_den_; // h
+
+        public:
+            template <class XNumYNumNum_, class XNumYDenNum_, class XDenYNumNum_,
+                      class XDenYDenNum_, class XNumYNumDen_, class XNumYDenDen_,
+                      class XDenYNumDen_, class XDenYDenDen_>
+            constexpr bilinear_fractional_transform(XNumYNumNum_&& a, XNumYDenNum_&& b,
+                                                    XDenYNumNum_&& c, XDenYDenNum_&& d,
+                                                    XNumYNumDen_&& e, XNumYDenDen_&& f,
+                                                    XDenYNumDen_&& g, XDenYDenDen_&& h)
+                : xnum_ynum_to_num_{static_cast<XNumYNumNum_&&>(a)},
+                  xnum_yden_to_num_{static_cast<XNumYDenNum_&&>(b)},
+                  xden_ynum_to_num_{static_cast<XDenYNumNum_&&>(c)},
+                  xden_yden_to_num_{static_cast<XDenYDenNum_&&>(d)},
+                  xnum_ynum_to_den_{static_cast<XNumYNumDen_&&>(e)},
+                  xnum_yden_to_den_{static_cast<XNumYDenDen_&&>(f)},
+                  xden_ynum_to_den_{static_cast<XDenYNumDen_&&>(g)},
+                  xden_yden_to_den_{static_cast<XDenYDenDen_&&>(h)} {
+                // The degenerate case a = b = c = d = e = f = g = h = 0 is disallowed.
+                util::constexpr_assert(
+                    !util::is_zero(num_to_num()) || !util::is_zero(den_to_num()) ||
+                    !util::is_zero(num_to_den()) || !util::is_zero(den_to_den()));
+            }
+
+            constexpr XNumYNumNum const& xnum_ynum_to_num() const& noexcept {
+                return xnum_ynum_to_num_;
+            }
+            constexpr XNumYDenNum const& xnum_yden_to_num() const& noexcept {
+                return xnum_yden_to_num_;
+            }
+            constexpr XDenYNumNum const& xden_ynum_to_num() const& noexcept {
+                return xden_ynum_to_num_;
+            }
+            constexpr XDenYDenNum const& xden_yden_to_num() const& noexcept {
+                return xden_yden_to_num_;
+            }
+            constexpr XNumYNumDen const& xnum_ynum_to_den() const& noexcept {
+                return xnum_ynum_to_den_;
+            }
+            constexpr XNumYDenDen const& xnum_yden_to_den() const& noexcept {
+                return xnum_yden_to_den_;
+            }
+            constexpr XDenYNumDen const& xden_ynum_to_den() const& noexcept {
+                return xden_ynum_to_den_;
+            }
+            constexpr XDenYDenDen const& xden_yden_to_den() const& noexcept {
+                return xden_yden_to_den_;
+            }
+
+            constexpr XNumYNumNum&& xnum_ynum_to_num() && noexcept {
+                return static_cast<XNumYNumNum&&>(xnum_ynum_to_num_);
+            }
+            constexpr XNumYDenNum&& xnum_yden_to_num() && noexcept {
+                return static_cast<XNumYDenNum&&>(xnum_yden_to_num_);
+            }
+            constexpr XDenYNumNum&& xden_ynum_to_num() && noexcept {
+                return static_cast<XDenYNumNum&&>(xden_ynum_to_num_);
+            }
+            constexpr XDenYDenNum&& xden_yden_to_num() && noexcept {
+                return static_cast<XDenYDenNum&&>(xden_yden_to_num_);
+            }
+            constexpr XNumYNumDen&& xnum_ynum_to_den() && noexcept {
+                return static_cast<XNumYNumDen&&>(xnum_ynum_to_den_);
+            }
+            constexpr XNumYDenDen&& xnum_yden_to_den() && noexcept {
+                return static_cast<XNumYDenDen&&>(xnum_yden_to_den_);
+            }
+            constexpr XDenYNumDen&& xden_ynum_to_den() && noexcept {
+                return static_cast<XDenYNumDen&&>(xden_ynum_to_den_);
+            }
+            constexpr XDenYDenDen&& xden_yden_to_den() && noexcept {
+                return static_cast<XDenYDenDen&&>(xden_yden_to_den_);
+            }
 
             template <class XNum, class XDen, class YNum, class YDen>
             constexpr auto operator()(projective_rational<XNum, XDen> const& x,
                                       projective_rational<YNum, YDen> const& y) const {
-                return projective_rational{xnum_ynum_to_num * x.numerator * y.numerator +
-                                               xnum_yden_to_num * x.numerator * y.denominator +
-                                               xden_ynum_to_num * x.denominator * y.numerator +
-                                               xden_yden_to_num * x.denominator * y.denominator,
-                                           xnum_ynum_to_den * x.numerator * y.numerator +
-                                               xnum_yden_to_den * x.numerator * y.denominator +
-                                               xden_ynum_to_den * x.denominator * y.numerator +
-                                               xden_yden_to_den * x.denominator * y.denominator};
+                return projective_rational{xnum_ynum_to_num() * x.numerator * y.numerator +
+                                               xnum_yden_to_num() * x.numerator * y.denominator +
+                                               xden_ynum_to_num() * x.denominator * y.numerator +
+                                               xden_yden_to_num() * x.denominator * y.denominator,
+                                           xnum_ynum_to_den() * x.numerator * y.numerator +
+                                               xnum_yden_to_den() * x.numerator * y.denominator +
+                                               xden_ynum_to_den() * x.denominator * y.numerator +
+                                               xden_yden_to_den() * x.denominator * y.denominator};
             }
 
-            // Multiply the matrix (t s \\ 0 t) from left for a number s/t.
-            template <class Num, class Den = unity>
-            constexpr void translate(Num&& numerator, Den&& denominator = Den{unity{}}) {
-                xnum_ynum_to_num *= denominator;
-                xnum_ynum_to_num += numerator * xnum_ynum_to_den;
-                xnum_yden_to_num *= denominator;
-                xnum_yden_to_num += numerator * xnum_yden_to_den;
-                xden_ynum_to_num *= denominator;
-                xden_ynum_to_num += numerator * xden_ynum_to_den;
-                xden_yden_to_num *= denominator;
-                xden_yden_to_num += numerator * xden_yden_to_den;
-                xnum_ynum_to_den *= denominator;
-                xnum_yden_to_den *= denominator;
-                xden_ynum_to_den *= denominator;
-                xden_yden_to_den *= denominator;
+            template <class XNum, class XDen>
+            constexpr auto specialize_x(projective_rational<XNum, XDen> const& x) const {
+                return linear_fractional_transform{
+                    xnum_ynum_to_num() * x.numerator + xden_ynum_to_num() * x.denominator,
+                    xnum_yden_to_num() * x.numerator + xden_yden_to_num() * x.denominator,
+                    xnum_ynum_to_den() * x.numerator + xden_ynum_to_den() * x.denominator,
+                    xnum_yden_to_den() * x.numerator + xden_yden_to_den() * x.denominator};
             }
 
-            // Multiply the matrix (0 1 \\ 1 0) from left.
-            constexpr void reflect() {
-                using std::swap;
-                swap(xnum_ynum_to_num, xnum_ynum_to_den);
-                swap(xnum_yden_to_num, xnum_yden_to_den);
-                swap(xden_ynum_to_num, xden_ynum_to_den);
-                swap(xden_yden_to_num, xden_yden_to_den);
+            template <class YNum, class YDen>
+            constexpr auto specialize_y(projective_rational<YNum, YDen> const& y) const {
+                return linear_fractional_transform{
+                    xnum_ynum_to_num() * y.numerator + xnum_yden_to_num() * y.denominator,
+                    xden_ynum_to_num() * y.numerator + xden_yden_to_num() * y.denominator,
+                    xnum_ynum_to_den() * y.numerator + xnum_yden_to_den() * y.denominator,
+                    xden_ynum_to_den() * y.numerator + xden_yden_to_den() * y.denominator};
             }
         };
         // This class is supposed to be used both as a temporary and as a stored lvalue, so we
-        // do not strip off the reference.
+        // do not strip off the lvalue reference.
         template <class XNumYNumNum, class XNumYDenNum, class XDenYNumNum, class XDenYDenNum,
                   class XNumYNumDen, class XNumYDenDen, class XDenYNumDen, class XDenYDenDen>
         bilinear_fractional_transform(XNumYNumNum&&, XNumYDenNum&&, XDenYNumNum&&, XDenYDenNum&&,
