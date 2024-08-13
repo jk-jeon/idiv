@@ -23,6 +23,20 @@
 namespace jkj {
     // Some metaprogramming utilities.
     namespace tmp {
+        // Copy reference/cv-qualifiers from From to To.
+        template <class From, class To>
+        using forward_reference =
+            std::conditional_t<std::is_lvalue_reference_v<From>, To&,
+                               std::conditional_t<std::is_rvalue_reference_v<From>, To&&, To>>;
+        template <class From, class To>
+        using forward_cv = std::conditional_t<
+            std::is_const_v<From>,
+            std::conditional_t<std::is_volatile_v<From>, To const volatile, To const>,
+            std::conditional_t<std::is_volatile_v<From>, To volatile, To>>;
+        template <class From, class To>
+        using forward_cvref =
+            forward_reference<From, forward_cv<std::remove_reference_t<From>, To>>;
+
         template <class... Types>
         struct typelist {
             static constexpr std::size_t size = sizeof...(Types);
