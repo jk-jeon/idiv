@@ -18,15 +18,16 @@
 #ifndef JKJ_HEADER_IDIV_INTERVAL
 #define JKJ_HEADER_IDIV_INTERVAL
 
-#include "variant_storage.h"
+#include "util.h"
 #include <concepts>
+#include <variant>
 
 namespace jkj {
     namespace detail {
         template <auto itv_type, class Impl>
         class static_interval_base {
             using itv_type_t = decltype(itv_type);
-            static constexpr itv_type_t allowed_interval_types_[1] = {itv_type};
+            static constexpr util::array<itv_type_t, 1> allowed_interval_types_{itv_type};
 
         public:
             static constexpr auto const& allowed_interval_types() noexcept {
@@ -66,32 +67,6 @@ namespace jkj {
             template <class Functor>
             constexpr decltype(auto) visit(Functor&& f) && {
                 return static_cast<Functor&&>(f)(static_cast<Impl&&>(*this));
-            }
-
-            // Returns true if the visitation was successful.
-            template <itv_type_t it, class Functor>
-            constexpr bool visit_if(Functor&& f) & {
-                if constexpr (it == interval_type()) {
-                    static_cast<Functor&&>(f)(static_cast<Impl&>(*this));
-                    return true;
-                }
-                return false;
-            }
-            template <itv_type_t it, class Functor>
-            constexpr bool visit_if(Functor&& f) const& {
-                if constexpr (it == interval_type()) {
-                    static_cast<Functor&&>(f)(static_cast<Impl const&>(*this));
-                    return true;
-                }
-                return false;
-            }
-            template <itv_type_t it, class Functor>
-            constexpr bool visit_if(Functor&& f) && {
-                if constexpr (it == interval_type()) {
-                    static_cast<Functor&&>(f)(static_cast<Impl&&>(*this));
-                    return true;
-                }
-                return false;
             }
         };
     }
@@ -970,37 +945,41 @@ namespace jkj {
         template <class Enum, std::size_t N>
         constexpr util::array<Enum, N>
         sort_and_remove_duplication_impl(util::array<Enum, N> arr) noexcept {
-            using underlying = std::underlying_type_t<Enum>;
-            std::size_t size = N;
-            for (std::size_t i = 0; i < size; ++i) {
-                // Find the smallest element.
-                std::size_t min_idx = i;
-                for (std::size_t j = i + 1; j < size; ++j) {
-                    if (static_cast<underlying>(arr[min_idx]) > static_cast<underlying>(arr[j])) {
-                        min_idx = j;
+            if constexpr (N != 0) {
+                using underlying = std::underlying_type_t<Enum>;
+                std::size_t size = N;
+                for (std::size_t i = 0; i < size; ++i) {
+                    // Find the smallest element.
+                    std::size_t min_idx = i;
+                    for (std::size_t j = i + 1; j < size; ++j) {
+                        if (static_cast<underlying>(arr[min_idx]) >
+                            static_cast<underlying>(arr[j])) {
+                            min_idx = j;
+                        }
                     }
-                }
 
-                // Swap that smallest element with the pivot.
-                using std::swap;
-                swap(arr[i], arr[min_idx]);
+                    // Swap that smallest element with the pivot.
+                    using std::swap;
+                    swap(arr[i], arr[min_idx]);
 
-                // Send all duplicates of that smallest element to the end of the list.
-                for (std::size_t j = i + 1; j < size; ++j) {
-                    if (static_cast<underlying>(arr[i]) == static_cast<underlying>(arr[j])) {
-                        swap(arr[j], arr[size - 1]);
-                        --size;
+                    // Send all duplicates of that smallest element to the end of the list.
+                    for (std::size_t j = i + 1; j < size; ++j) {
+                        if (static_cast<underlying>(arr[i]) == static_cast<underlying>(arr[j])) {
+                            swap(arr[j], arr[size - 1]);
+                            --size;
+                        }
                     }
                 }
             }
-
             return arr;
         }
         template <class Enum, std::size_t N>
         constexpr std::size_t count_without_duplicates(util::array<Enum, N> sorted) noexcept {
-            for (std::size_t i = 1; i < N; ++i) {
-                if (sorted[i - 1] >= sorted[i]) {
-                    return i;
+            if constexpr (N != 0) {
+                for (std::size_t i = 1; i < N; ++i) {
+                    if (sorted[i - 1] >= sorted[i]) {
+                        return i;
+                    }
                 }
             }
             return N;
@@ -1013,8 +992,10 @@ namespace jkj {
             constexpr auto size = count_without_duplicates(sorted);
 
             util::array<Enum, size> return_value{};
-            for (std::size_t i = 0; i < size; ++i) {
-                return_value[i] = sorted[i];
+            if constexpr (size != 0) {
+                for (std::size_t i = 0; i < size; ++i) {
+                    return_value[i] = sorted[i];
+                }
             }
             return return_value;
         }
@@ -1032,12 +1013,10 @@ namespace jkj {
             static_assert(allowed_interval_types_.size() != 0,
                           "no allowed interval type is specified.");
 
-            using storage_type = decltype([]<std::size_t... I>(std::index_sequence<I...>) {
-                return util::variant_storage<
-                    StaticIntervalTemplate<Value, allowed_interval_types_[I]>...>{};
-            }(std::make_index_sequence<allowed_interval_types_.size()>{}));
-
-            Enum interval_type_;
+            using storage_type = typename decltype([]<std::size_t... I>(std::index_sequence<I...>) {
+                return std::type_identity<
+                    std::variant<StaticIntervalTemplate<Value, allowed_interval_types_[I]>...>>{};
+            }(std::make_index_sequence<allowed_interval_types_.size()>{}))::type;
             storage_type storage_;
 
             // Check if all the alternatives provide lower_bound().
@@ -1057,17 +1036,21 @@ namespace jkj {
                 }(std::make_index_sequence<N>{});
             }
 
+            static constexpr std::size_t interval_type_to_index(Enum it) noexcept {
+                for (std::size_t idx = 0; idx < allowed_interval_types_.size(); ++idx) {
+                    if (it == allowed_interval_types_[idx]) {
+                        return idx;
+                    }
+                }
+                return allowed_interval_types_.size();
+            }
+
         public:
             static constexpr auto const& allowed_interval_types() noexcept {
                 return allowed_interval_types_;
             }
             static constexpr bool is_allowed_interval_type(Enum it) noexcept {
-                for (std::size_t idx = 0; idx < allowed_interval_types_.size(); ++idx) {
-                    if (it == allowed_interval_types_[idx]) {
-                        return true;
-                    }
-                }
-                return false;
+                return interval_type_to_index(it) < allowed_interval_types_.size();
             }
             template <std::size_t NOther>
             static constexpr bool are_allowed_interval_types(
@@ -1087,33 +1070,30 @@ namespace jkj {
                 return are_allowed_interval_types(util::array<Enum, sizeof...(T)>{its...});
             }
 
-            constexpr Enum interval_type() const noexcept { return interval_type_; }
+            // constexpr Enum interval_type() const noexcept { return interval_type_; }
+            constexpr Enum interval_type() const noexcept {
+                return allowed_interval_types_[storage_.index()];
+            }
 
             using value_type = std::remove_cvref_t<Value>;
 
-            constexpr variable_shape_interval_impl(variable_shape_interval_impl const& itv)
-                : interval_type_{itv.interval_type()} {
-                itv.visit([this](auto const& itv_) {
-                    storage_.template construct<std::remove_cvref_t<decltype(itv_)>>(itv_);
-                });
-            }
+            constexpr variable_shape_interval_impl(variable_shape_interval_impl const&) = default;
+            constexpr variable_shape_interval_impl(variable_shape_interval_impl&&) = default;
 
-            constexpr variable_shape_interval_impl(variable_shape_interval_impl&& itv)
-                : interval_type_{itv.interval_type()} {
-                itv.visit([this](auto&& itv_) {
-                    storage_.template construct<std::remove_cvref_t<decltype(itv_)>>(
-                        std::move(itv_));
-                });
+            template <class T, Enum it>
+                requires std::is_constructible_v<Value, T>
+            constexpr variable_shape_interval_impl(StaticIntervalTemplate<T, it> const& itv)
+                : storage_{std::in_place_index_t<interval_type_to_index(it)>{}, itv} {
+                static_assert(is_allowed_interval_type(it),
+                              "specified interval type is not allowed");
             }
 
             template <class T, Enum it>
                 requires std::is_constructible_v<Value, T>
-            constexpr variable_shape_interval_impl(StaticIntervalTemplate<T, it> itv)
-                : interval_type_{it} {
+            constexpr variable_shape_interval_impl(StaticIntervalTemplate<T, it>&& itv)
+                : storage_{std::in_place_index_t<interval_type_to_index(it)>{}, std::move(itv)} {
                 static_assert(is_allowed_interval_type(it),
-                              "specified interval type not is allowed");
-                storage_.template construct<
-                    StaticIntervalTemplate<Value, decltype(itv)::interval_type()>>(std::move(itv));
+                              "specified interval type is not allowed");
             }
 
             template <class T, std::size_t NOther,
@@ -1122,14 +1102,13 @@ namespace jkj {
             constexpr variable_shape_interval_impl(
                 variable_shape_interval_impl<T, Enum, StaticIntervalTemplate,
                                              allowed_interval_types_arg_other> const& itv)
-                : interval_type_{itv.interval_type()} {
+                : storage_{itv.visit([this](auto const& itv_) {
+                      using itv_type = std::remove_cvref_t<decltype(itv_)>;
+                      return storage_type{
+                          StaticIntervalTemplate<Value, itv_type::interval_type()>{itv_}};
+                  })} {
                 static_assert(are_allowed_interval_types(allowed_interval_types_arg_other),
                               "one of the possible interval type is not allowed");
-
-                itv.visit([this](auto const& itv_) {
-                    storage_.template construct<StaticIntervalTemplate<
-                        Value, std::remove_cvref_t<decltype(itv_)>::interval_type()>>(itv_);
-                });
             }
 
             template <class T, std::size_t NOther,
@@ -1138,47 +1117,37 @@ namespace jkj {
             constexpr variable_shape_interval_impl(
                 variable_shape_interval_impl<T, Enum, StaticIntervalTemplate,
                                              allowed_interval_types_arg_other>&& itv)
-                : interval_type_{itv.interval_type()} {
+                : storage_{std::move(itv).visit([](auto&& itv_) {
+                      using itv_type = std::remove_cvref_t<decltype(itv_)>;
+                      return storage_type{StaticIntervalTemplate<Value, itv_type::interval_type()>{
+                          std::move(itv_)}};
+                  })} {
                 static_assert(are_allowed_interval_types(allowed_interval_types_arg_other),
                               "one of the possible interval type is not allowed");
-
-                itv.visit([this](auto&& itv_) {
-                    storage_.template construct<StaticIntervalTemplate<
-                        Value, std::remove_cvref_t<decltype(itv_)>::interval_type()>>(
-                        std::move(itv_));
-                });
-            }
-
-            constexpr ~variable_shape_interval_impl() {
-                visit([](auto&& itv) { std::destroy_at(&itv); });
             }
 
             constexpr variable_shape_interval_impl&
-            operator=(variable_shape_interval_impl const& itv) {
-                itv.visit([this](auto const& itv_) {
-                    storage_.template assign_from<allowed_interval_types_>(interval_type_, itv_);
-                });
-                interval_type_ = itv.interval_type();
-                return *this;
-            }
+            operator=(variable_shape_interval_impl const&) = default;
 
-            constexpr variable_shape_interval_impl& operator=(variable_shape_interval_impl&& itv) {
-                itv.visit([this](auto&& itv_) {
-                    storage_.template assign_from<allowed_interval_types_>(interval_type_,
-                                                                           std::move(itv_));
-                });
-                interval_type_ = itv.interval_type();
+            constexpr variable_shape_interval_impl&
+            operator=(variable_shape_interval_impl&&) = default;
+
+            template <class T, Enum it>
+                requires std::is_constructible_v<Value, T>
+            constexpr variable_shape_interval_impl&
+            operator=(StaticIntervalTemplate<T, it> const& itv) {
+                static_assert(is_allowed_interval_type(it),
+                              "specified interval type is not allowed");
+                storage_ = itv;
                 return *this;
             }
 
             template <class T, Enum it>
                 requires std::is_constructible_v<Value, T>
-            constexpr variable_shape_interval_impl& operator=(StaticIntervalTemplate<T, it> itv) {
+            constexpr variable_shape_interval_impl& operator=(StaticIntervalTemplate<T, it>&& itv) {
                 static_assert(is_allowed_interval_type(it),
                               "specified interval type is not allowed");
-                storage_.template assign_from<allowed_interval_types_>(interval_type_,
-                                                                       std::move(itv));
-                interval_type_ = itv.interval_type();
+                storage_ = std::move(itv);
                 return *this;
             }
 
@@ -1190,10 +1159,7 @@ namespace jkj {
                                                    allowed_interval_types_arg_other> const& itv) {
                 static_assert(are_allowed_interval_types(allowed_interval_types_arg_other),
                               "one of the possible interval type is not allowed");
-                itv.visit([this](auto const& itv_) {
-                    storage_.template assign_from<allowed_interval_types_>(interval_type_, itv_);
-                });
-                interval_type_ = itv.interval_type();
+                itv.visit([this](auto const& itv_) { storage_ = itv_; });
                 return *this;
             }
 
@@ -1205,57 +1171,21 @@ namespace jkj {
                                                    allowed_interval_types_arg_other>&& itv) {
                 static_assert(are_allowed_interval_types(allowed_interval_types_arg_other),
                               "one of the possible interval type is not allowed");
-                itv.visit([this](auto&& itv_) {
-                    storage_.template assign_from<allowed_interval_types_>(interval_type_,
-                                                                           std::move(itv_));
-                });
-                interval_type_ = itv.interval_type();
+                std::move(itv).visit([this](auto&& itv_) { storage_ = std::move(itv_); });
                 return *this;
             }
 
             template <class Functor>
             constexpr decltype(auto) visit(Functor&& f) & {
-                return storage_.template visit<allowed_interval_types_>(interval_type_,
-                                                                        static_cast<Functor&&>(f));
+                return std::visit(static_cast<Functor&&>(f), storage_);
             }
             template <class Functor>
             constexpr decltype(auto) visit(Functor&& f) const& {
-                return storage_.template visit<allowed_interval_types_>(interval_type_,
-                                                                        static_cast<Functor&&>(f));
+                return std::visit(static_cast<Functor&&>(f), storage_);
             }
             template <class Functor>
             constexpr decltype(auto) visit(Functor&& f) && {
-                return std::move(storage_).template visit<allowed_interval_types_>(
-                    interval_type_, static_cast<Functor&&>(f));
-            }
-
-            // Returns true if the visitation was successful.
-            template <Enum it, class Functor>
-            constexpr bool visit_if(Functor&& f) & {
-                if (interval_type_ == it) {
-                    static_cast<Functor&&>(f)(
-                        storage_.template get<StaticIntervalTemplate<Value, it>>());
-                    return true;
-                }
-                return false;
-            }
-            template <Enum it, class Functor>
-            constexpr bool visit_if(Functor&& f) const& {
-                if (interval_type_ == it) {
-                    static_cast<Functor&&>(f)(
-                        storage_.template get<StaticIntervalTemplate<Value, it>>());
-                    return true;
-                }
-                return false;
-            }
-            template <Enum it, class Functor>
-            constexpr bool visit_if(Functor&& f) && {
-                if (interval_type_ == it) {
-                    static_cast<Functor&&>(f)(
-                        std::move(storage_).template get<StaticIntervalTemplate<Value, it>>());
-                    return true;
-                }
-                return false;
+                return std::visit(static_cast<Functor&&>(f), std::move(storage_));
             }
 
             constexpr auto left_boundary_type() const noexcept {
@@ -1275,14 +1205,14 @@ namespace jkj {
             {
                 return visit([&](auto&& itv) -> decltype(auto) { return itv.lower_bound(); });
             }
-            constexpr value_type const& lower_bound() && noexcept
+            constexpr value_type&& lower_bound() && noexcept
                 requires(lower_bound_exists())
             {
                 return std::move(*this).visit(
                     [&](auto&& itv) -> decltype(auto) { return itv.lower_bound(); });
             }
 
-            constexpr value_type const& upper_bound() & noexcept
+            constexpr value_type& upper_bound() & noexcept
                 requires(upper_bound_exists())
             {
                 return visit([&](auto&& itv) -> decltype(auto) { return itv.upper_bound(); });
@@ -1292,7 +1222,7 @@ namespace jkj {
             {
                 return visit([&](auto&& itv) -> decltype(auto) { return itv.upper_bound(); });
             }
-            constexpr value_type const& upper_bound() && noexcept
+            constexpr value_type&& upper_bound() && noexcept
                 requires(upper_bound_exists())
             {
                 return std::move(*this).visit(
@@ -1361,7 +1291,7 @@ namespace jkj {
                 interval_type_t::entire}>,
         std::conditional_t<
             sizeof...(allowed_interval_types) == 1,
-            interval<Value, interval_type_t((std::size_t(allowed_interval_types) + ...))>,
+            interval<Value, interval_type_t((0 + ... + std::size_t(allowed_interval_types)))>,
             detail::variable_shape_interval_impl<
                 Value, interval_type_t, interval,
                 detail::sort_and_remove_duplication<interval_type_t,
@@ -1378,15 +1308,16 @@ namespace jkj {
             util::array<cyclic_interval_type_t, 8>{
                 cyclic_interval_type_t::empty, cyclic_interval_type_t::single_point,
                 cyclic_interval_type_t::open, cyclic_interval_type_t::left_closed_right_open,
-                cyclic_interval_type_t::left_closed_right_open, cyclic_interval_type_t::closed,
+                cyclic_interval_type_t::left_open_right_closed, cyclic_interval_type_t::closed,
                 cyclic_interval_type_t::single_complement, cyclic_interval_type_t::entire}>,
-        std::conditional_t<sizeof...(allowed_interval_types) == 1,
-                           cyclic_interval<Value, cyclic_interval_type_t(
-                                                      (std::size_t(allowed_interval_types) + ...))>,
-                           detail::variable_shape_interval_impl<
-                               Value, cyclic_interval_type_t, cyclic_interval,
-                               detail::sort_and_remove_duplication<cyclic_interval_type_t,
-                                                                   allowed_interval_types...>()>>>;
+        std::conditional_t<
+            sizeof...(allowed_interval_types) == 1,
+            cyclic_interval<Value, cyclic_interval_type_t(
+                                       (0 + ... + std::size_t(allowed_interval_types)))>,
+            detail::variable_shape_interval_impl<
+                Value, cyclic_interval_type_t, cyclic_interval,
+                detail::sort_and_remove_duplication<cyclic_interval_type_t,
+                                                    allowed_interval_types...>()>>>;
 }
 
 #endif
