@@ -1872,9 +1872,10 @@ namespace jkj {
             using base_type::xden_ynum_to_den;
             using base_type::xden_yden_to_den;
 
-            template <class Num, class Den>
+            template <class Num1, class Den1, class Num2, class Den2>
             constexpr projective_rational<Int, Int>
-            operator()(projective_rational<Num, Den> const& x) const {
+            operator()(projective_rational<Num1, Den1> const& x,
+                       projective_rational<Num2, Den2> const& y) const {
                 switch (kind_) {
                     using enum kind_t;
                 case nonconstant_unary_function_of_x:
@@ -1885,14 +1886,14 @@ namespace jkj {
                 case nonconstant_unary_function_of_y:
                     return projective_rational<Int, Int>{
                         linear_fractional_mapping{xnum_ynum_to_num(), xnum_yden_to_num(),
-                                                  xnum_ynum_to_den(), xnum_yden_to_den()}(x)};
+                                                  xnum_ynum_to_den(), xnum_yden_to_den()}(y)};
 
                 case constant:
                     return projective_rational<Int, Int>{xnum_ynum_to_num(), xnum_ynum_to_den()};
 
                 default:
                     util::constexpr_assert(kind_ == generic);
-                    return projective_rational<Int, Int>{base_type::operator()(x)};
+                    return projective_rational<Int, Int>{base_type::operator()(x, y)};
                 }
             }
 
