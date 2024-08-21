@@ -90,11 +90,11 @@ namespace jkj {
         }
         template <class Num, class Den>
         constexpr projective_rational<Num, Den> projectify(frac<Num, Den> const& x) {
-            return frac{x.numerator, x.denominator};
+            return projective_rational{x.numerator, x.denominator};
         }
         template <class Num, class Den>
         constexpr projective_rational<Num, Den> projectify(frac<Num, Den>&& x) {
-            return frac{std::move(x).numerator, std::move(x).denominator};
+            return projective_rational{std::move(x).numerator, std::move(x).denominator};
         }
 
         // May use this type to replace constant 0.
@@ -161,16 +161,21 @@ namespace jkj {
                                                      : std::strong_ordering::less;
             }
             friend constexpr bool is_zero(zero) noexcept { return true; }
+            friend constexpr bool is_even(zero) noexcept { return true; }
+            friend constexpr bool is_strictly_positive(zero) noexcept { return false; }
+            friend constexpr bool is_strictly_negative(zero) noexcept { return false; }
+            friend constexpr bool is_nonnegative(zero) noexcept { return true; }
+            friend constexpr bool is_nonpositive(zero) noexcept { return true; }
 
             template <class T>
                 requires requires { T{0}; }
-            explicit operator T() const noexcept {
+            explicit constexpr operator T() const noexcept {
                 return T{0};
             }
             template <class T>
                 requires(
                     requires { T{0u}; } && !requires { T{0}; })
-            explicit operator T() const noexcept {
+            explicit constexpr operator T() const noexcept {
                 return T{0u};
             }
         };
@@ -200,17 +205,30 @@ namespace jkj {
             friend constexpr T& operator/=(T& x, unity) noexcept {
                 return x;
             }
+            template <class T>
+            friend constexpr bool operator==(unity, unity) noexcept {
+                return true;
+            }
+            template <class T>
+            friend constexpr auto operator<=>(unity, unity) noexcept {
+                return std::strong_ordering::equal;
+            }
             friend constexpr bool is_zero(unity) noexcept { return false; }
+            friend constexpr bool is_even(unity) noexcept { return false; }
+            friend constexpr bool is_strictly_positive(unity) noexcept { return true; }
+            friend constexpr bool is_strictly_negative(unity) noexcept { return false; }
+            friend constexpr bool is_nonnegative(unity) noexcept { return true; }
+            friend constexpr bool is_nonpositive(unity) noexcept { return false; }
 
             template <class T>
                 requires requires { T{1}; }
-            explicit operator T() const noexcept {
+            explicit constexpr operator T() const noexcept {
                 return T{1};
             }
             template <class T>
                 requires(
                     requires { T{1u}; } && !requires { T{1}; })
-            explicit operator T() const noexcept {
+            explicit constexpr operator T() const noexcept {
                 return T{1u};
             }
         };
@@ -226,8 +244,7 @@ namespace jkj {
 
         public:
             template <class NumNum_, class DenNum_, class NumDen_, class DenDen_>
-            constexpr linear_fractional_mapping(NumNum_&& a, DenNum_&& b, NumDen_&& c,
-                                                  DenDen_&& d)
+            constexpr linear_fractional_mapping(NumNum_&& a, DenNum_&& b, NumDen_&& c, DenDen_&& d)
                 : num_to_num_{static_cast<NumNum_&&>(a)}, den_to_num_{static_cast<DenNum_&&>(b)},
                   num_to_den_{static_cast<NumDen_&&>(c)}, den_to_den_{static_cast<DenDen_&&>(d)} {
                 // The degenerate case a = b = c = d = 0 is disallowed.
@@ -276,7 +293,7 @@ namespace jkj {
         constexpr auto linear_fractional_translation(Num&& numerator,
                                                      Den&& denominator = Den{unity{}}) {
             return linear_fractional_mapping{denominator, static_cast<Num&&>(numerator), zero{},
-                                               denominator};
+                                             denominator};
         }
 
         template <class XNumYNumNum, class XNumYDenNum = XNumYNumNum,
@@ -300,9 +317,9 @@ namespace jkj {
                       class XDenYDenNum_, class XNumYNumDen_, class XNumYDenDen_,
                       class XDenYNumDen_, class XDenYDenDen_>
             constexpr bilinear_fractional_mapping(XNumYNumNum_&& a, XNumYDenNum_&& b,
-                                                    XDenYNumNum_&& c, XDenYDenNum_&& d,
-                                                    XNumYNumDen_&& e, XNumYDenDen_&& f,
-                                                    XDenYNumDen_&& g, XDenYDenDen_&& h)
+                                                  XDenYNumNum_&& c, XDenYDenNum_&& d,
+                                                  XNumYNumDen_&& e, XNumYDenDen_&& f,
+                                                  XDenYNumDen_&& g, XDenYDenDen_&& h)
                 : xnum_ynum_to_num_{static_cast<XNumYNumNum_&&>(a)},
                   xnum_yden_to_num_{static_cast<XNumYDenNum_&&>(b)},
                   xden_ynum_to_num_{static_cast<XDenYNumNum_&&>(c)},
@@ -313,8 +330,10 @@ namespace jkj {
                   xden_yden_to_den_{static_cast<XDenYDenDen_&&>(h)} {
                 // The degenerate case a = b = c = d = e = f = g = h = 0 is disallowed.
                 util::constexpr_assert(
-                    !util::is_zero(num_to_num()) || !util::is_zero(den_to_num()) ||
-                    !util::is_zero(num_to_den()) || !util::is_zero(den_to_den()));
+                    !util::is_zero(xnum_ynum_to_num()) || !util::is_zero(xnum_yden_to_num()) ||
+                    !util::is_zero(xden_ynum_to_num()) || !util::is_zero(xden_yden_to_num()) ||
+                    !util::is_zero(xnum_ynum_to_den()) || !util::is_zero(xnum_yden_to_den()) ||
+                    !util::is_zero(xden_ynum_to_den()) || !util::is_zero(xden_yden_to_den()));
             }
 
             constexpr XNumYNumNum const& xnum_ynum_to_num() const& noexcept {
@@ -403,9 +422,9 @@ namespace jkj {
         template <class XNumYNumNum, class XNumYDenNum, class XDenYNumNum, class XDenYDenNum,
                   class XNumYNumDen, class XNumYDenDen, class XDenYNumDen, class XDenYDenDen>
         bilinear_fractional_mapping(XNumYNumNum&&, XNumYDenNum&&, XDenYNumNum&&, XDenYDenNum&&,
-                                      XNumYNumDen&&, XNumYDenDen&&, XDenYNumDen&&, XDenYDenDen&&)
+                                    XNumYNumDen&&, XNumYDenDen&&, XDenYNumDen&&, XDenYDenDen&&)
             -> bilinear_fractional_mapping<XNumYNumNum, XNumYDenNum, XDenYNumNum, XDenYDenNum,
-                                             XNumYNumDen, XNumYDenDen, XDenYNumDen, XDenYDenDen>;
+                                           XNumYNumDen, XNumYDenDen, XDenYNumDen, XDenYDenDen>;
     }
 }
 
