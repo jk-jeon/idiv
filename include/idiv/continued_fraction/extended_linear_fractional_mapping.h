@@ -1364,7 +1364,8 @@ namespace jkj {
                                     append_top_edge, append_left_edge);
                             }
                             else {
-                                auto x0 = detail::kernel_of_rank1_transform<Int>(specialized);
+                                auto x0 = detail::kernel_of_rank1_transform<Int>(
+                                    specialized.coefficients());
                                 auto k1 = detail::range_of_rank1_transform<Int>(
                                     base_type::specialize_x(x0));
 
@@ -1404,7 +1405,7 @@ namespace jkj {
                                 else {
                                     auto vertical_sign = util::is_nonnegative(evaluate_det_form1(
                                         projective_rational<Int const&, Int const&>(
-                                            -itv_y.lower_bound().denominator,
+                                            -util::to_signed(itv_y.lower_bound().denominator),
                                             itv_y.lower_bound().numerator)));
                                     auto horizontal_sign = util::is_nonnegative(evaluate_det_form2(
                                         projective_rational<Int const&, Int const&>(-x0.denominator,
@@ -1439,7 +1440,8 @@ namespace jkj {
 
                         if (util::is_zero(specialized.determinant_sign())) {
                             if constexpr (!away_from_indeterminacy_locus) {
-                                auto const y0 = detail::kernel_of_rank1_transform<Int>(specialized);
+                                auto const y0 = detail::kernel_of_rank1_transform<Int>(
+                                    specialized.coefficients());
 
                                 if (cyclic_order(itv_y.lower_bound(), y0, itv_y.upper_bound())) {
                                     return cyclic_interval<projective_rational<Int, Int>, entire>{};
@@ -1490,7 +1492,8 @@ namespace jkj {
                                     static_cast<decltype(edge_union)&&>(edge_union));
                             }
                             else {
-                                auto x0 = detail::kernel_of_rank1_transform<Int>(specialized);
+                                auto x0 = detail::kernel_of_rank1_transform<Int>(
+                                    specialized.coefficients());
                                 auto k1 = detail::range_of_rank1_transform<Int>(
                                     base_type::specialize_x(x0));
 
@@ -1523,7 +1526,7 @@ namespace jkj {
                                 else {
                                     auto vertical_sign = util::is_nonnegative(evaluate_det_form1(
                                         projective_rational<Int const&, Int const&>(
-                                            -itv_y.upper_bound().denominator,
+                                            -util::to_signed(itv_y.upper_bound().denominator),
                                             itv_y.upper_bound().numerator)));
                                     auto horizontal_sign = util::is_nonnegative(evaluate_det_form2(
                                         projective_rational<Int const&, Int const&>(-x0.denominator,
@@ -1573,7 +1576,8 @@ namespace jkj {
 
                         if (util::is_zero(specialized.determinant_sign())) {
                             if constexpr (!away_from_indeterminacy_locus) {
-                                auto const y0 = detail::kernel_of_rank1_transform<Int>(specialized);
+                                auto const y0 = detail::kernel_of_rank1_transform<Int>(
+                                    specialized.coefficients());
 
                                 if (cyclic_order(itv_y.lower_bound(), y0, itv_y.upper_bound())) {
                                     return cyclic_interval<projective_rational<Int, Int>, entire>{};
