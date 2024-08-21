@@ -95,6 +95,32 @@ namespace jkj {
     template <std::totally_ordered Value, interval_type_t it>
     struct interval;
 
+    template <std::totally_ordered Value1, interval_type_t it1, std::totally_ordered Value2,
+              interval_type_t it2>
+    constexpr bool operator==(interval<Value1, it1> const& itv1,
+                              interval<Value2, it2> const& itv2) {
+        static_assert(
+            requires(Value1 v1, Value2 v2) { v1 == v2; },
+            "value_type's of two intervals not equality-comparable");
+
+        if constexpr (it1 != it2) {
+            return false;
+        }
+        else {
+            if constexpr (requires { itv1.lower_bound(); }) {
+                if (itv1.lower_bound() != itv2.lower_bound()) {
+                    return false;
+                }
+            }
+            if constexpr (requires { itv1.upper_bound(); }) {
+                if (itv1.upper_bound() != itv2.upper_bound()) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
     template <std::totally_ordered Value>
     struct interval<Value, interval_type_t::empty>
         : public detail::static_interval_base<interval_type_t::empty,
@@ -571,6 +597,31 @@ namespace jkj {
 
     template <cyclically_ordered Value, cyclic_interval_type_t it>
     struct cyclic_interval;
+
+    template <cyclically_ordered Value1, cyclic_interval_type_t it1, cyclically_ordered Value2,
+              cyclic_interval_type_t it2>
+    constexpr bool operator==(cyclic_interval<Value1, it1> const& itv1,
+                              cyclic_interval<Value2, it2> const& itv2) {
+        static_assert(
+            requires(Value1 v1, Value2 v2) { v1 == v2; },
+            "value_type's of two intervals not equality-comparable");
+
+        if constexpr (it1 != it2) {
+            return false;
+        }
+        else if constexpr (it1 == cyclic_interval_type_t::empty ||
+                           it1 == cyclic_interval_type_t::entire) {
+            return true;
+        }
+        else if constexpr (it1 == cyclic_interval_type_t::single_point ||
+                           it1 == cyclic_interval_type_t::single_complement) {
+            return itv1.lower_bound() == itv2.lower_bound();
+        }
+        else {
+            return itv1.lower_bound() == itv2.lower_bound() &&
+                   itv1.upper_bound() == itv2.upper_bound();
+        }
+    }
 
     template <cyclically_ordered Value>
     struct cyclic_interval<Value, cyclic_interval_type_t::empty>
@@ -1173,6 +1224,27 @@ namespace jkj {
                               "one of the possible interval type is not allowed");
                 std::move(itv).visit([this](auto&& itv_) { storage_ = std::move(itv_); });
                 return *this;
+            }
+
+            template <class T, Enum it>
+            constexpr bool operator==(StaticIntervalTemplate<T, it> const& itv) {
+                static_assert(
+                    requires(Value v1, T v2) { v1 == v2; },
+                    "value_type's of two intervals not equality-comparable");
+
+                return visit([&](auto const& self) { return self == itv; });
+            }
+
+            template <class T, std::size_t NOther,
+                      util::array<Enum, NOther> allowed_interval_types_arg_other>
+            constexpr bool
+            operator==(variable_shape_interval_impl<T, Enum, StaticIntervalTemplate,
+                                                    allowed_interval_types_arg_other> const& itv) {
+                static_assert(
+                    requires(Value v1, T v2) { v1 == v2; },
+                    "value_type's of two intervals not equality-comparable");
+
+                return visit([&](auto const& self) { return self == itv; });
             }
 
             template <class Functor>
