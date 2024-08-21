@@ -11,6 +11,7 @@ if (NOT TARGET daw_json_link)
           daw_json_link
           GIT_REPOSITORY https://github.com/beached/daw_json_link.git
           GIT_TAG        v3.27.1
+          GIT_SHALLOW    1
   )
   FetchContent_MakeAvailable(daw_json_link)
 endif()
