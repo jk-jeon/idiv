@@ -18,9 +18,6 @@
 #include <idiv/util.h>
 #include <boost/ut.hpp>
 
-#include <variant>
-#include <vector>
-
 void integer_util_test() {
     using namespace boost::ut;
     using namespace jkj;
