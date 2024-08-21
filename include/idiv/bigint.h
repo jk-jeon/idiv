@@ -15,8 +15,8 @@
 // is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 // KIND, either express or implied.
 
-#ifndef JKJ_HEADER_IDIV_BIG_INT
-#define JKJ_HEADER_IDIV_BIG_INT
+#ifndef JKJ_HEADER_IDIV_BIGINT
+#define JKJ_HEADER_IDIV_BIGINT
 
 #include "wuint.h"
 #include <compare>
@@ -2393,6 +2393,7 @@ namespace jkj {
         constexpr int_view to_signed(uint_view n) noexcept {
             return int_view{sign_t::positive, n.blocks()};
         };
+        constexpr int_view to_signed(int_view n) noexcept { return n; };
         constexpr int_view to_negative(uint_view n) noexcept {
             return int_view{n.is_zero() ? sign_t::positive : sign_t::negative, n.blocks()};
         };
@@ -2400,11 +2401,13 @@ namespace jkj {
         constexpr uint_view abs(int_view n) noexcept { return n.abs(); }
 
         constexpr int_var to_signed(uint_var const& n) { return int_var(n); }
+        constexpr int_var to_signed(int_var const& n) { return n; }
         constexpr int_var to_negative(uint_var const& n) { return int_var(sign_t::negative, n); }
         constexpr uint_var abs(uint_var const& n) { return n; }
         constexpr uint_var abs(int_var const& n) { return n.abs(); }
 
         constexpr int_var to_signed(uint_var&& n) noexcept { return int_var(std::move(n)); }
+        constexpr int_var to_signed(int_var&& n) noexcept { return std::move(n); }
         constexpr int_var to_negative(uint_var&& n) noexcept {
             return int_var{sign_t::negative, std::move(n)};
         }
@@ -2415,6 +2418,10 @@ namespace jkj {
             template <std::size_t N, static_block_holder<N> arr>
             constexpr int_const_impl<sign_t::positive, arr>
             to_signed(uint_const_impl<arr>) noexcept {
+                return {};
+            }
+            template <sign_t sign, std::size_t N, static_block_holder<N> arr>
+            constexpr int_const_impl<sign, arr> to_signed(int_const_impl<sign, arr>) noexcept {
                 return {};
             }
             template <std::size_t N, static_block_holder<N> arr>
