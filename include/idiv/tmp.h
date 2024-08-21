@@ -31,11 +31,24 @@ namespace jkj {
         template <class From, class To>
         using forward_cv = std::conditional_t<
             std::is_const_v<From>,
-            std::conditional_t<std::is_volatile_v<From>, To const volatile, To const>,
-            std::conditional_t<std::is_volatile_v<From>, To volatile, To>>;
+            std::conditional_t<std::is_volatile_v<From>, std::add_cv_t<To>, std::add_const_t<To>>,
+            std::conditional_t<std::is_volatile_v<From>, std::add_volatile_t<To>, To>>;
         template <class From, class To>
         using forward_cvref =
             forward_reference<From, forward_cv<std::remove_reference_t<From>, To>>;
+
+        // Check if Type is a specialization of Template.
+        // Only works when Template only takes type template paramters.
+        namespace detail {
+            template <template <class...> class Template, class... Args>
+            constexpr std::bool_constant<true> is_specialization_of_impl(Template<Args...>&&);
+            constexpr std::bool_constant<false> is_specialization_of_impl(...);
+        }
+        template <class Type, template <class...> class Template>
+        constexpr bool is_specialization_of() noexcept {
+            return decltype(detail::is_specialization_of_impl<Template>(
+                std::declval<Type>()))::value;
+        }
 
         template <class... Types>
         struct typelist {
@@ -43,8 +56,14 @@ namespace jkj {
         };
 
         template <class Type, class... Types>
-        constexpr std::size_t is_in(typelist<Types...>) noexcept {
+        constexpr bool is_in(typelist<Types...>) noexcept {
             return (... || std::is_same_v<Type, Types>);
+        }
+
+        // Is {LhsTypes...} a subset of {RhsTypes...}?
+        template <class... LhsTypes, class... RhsTypes>
+        constexpr bool is_contained_in(typelist<LhsTypes...>, typelist<RhsTypes...>) noexcept {
+            return (... && is_in<LhsTypes>(typelist<RhsTypes...>{}));
         }
 
         template <class Type, class... Types>
@@ -228,10 +247,21 @@ namespace jkj {
             }
         }
 
-        // Guranteed to preserve the order.
+        // Guaranteed to preserve the order.
         // The predicate is evaluated in the form Predicate{}(std::type_identity<T>{}) on type T.
         template <class Typelist, class Predicate>
         using filter = decltype(detail::filter_impl<Predicate>(Typelist{}));
+
+        namespace detail {
+            template <template <class...> class Map, class... BindParameters, class... T>
+            constexpr auto map_impl(tmp::typelist<T...>) noexcept {
+                return tmp::typelist<Map<T, BindParameters...>...>{};
+            }
+        }
+
+        // Apply Map< . , BindParameters...> into Typelist.
+        template <class Typelist, template <class...> class Map, class... BindParameters>
+        using map = decltype(detail::map_impl<Map, BindParameters...>(Typelist{}));
 
         // Turn an array into std::integer_sequence.
         namespace detail {
