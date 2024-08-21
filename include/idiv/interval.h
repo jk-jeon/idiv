@@ -1227,7 +1227,7 @@ namespace jkj {
             }
 
             template <class T, Enum it>
-            constexpr bool operator==(StaticIntervalTemplate<T, it> const& itv) {
+            constexpr bool operator==(StaticIntervalTemplate<T, it> const& itv) const {
                 static_assert(
                     requires(Value v1, T v2) { v1 == v2; },
                     "value_type's of two intervals not equality-comparable");
@@ -1237,9 +1237,9 @@ namespace jkj {
 
             template <class T, std::size_t NOther,
                       util::array<Enum, NOther> allowed_interval_types_arg_other>
-            constexpr bool
-            operator==(variable_shape_interval_impl<T, Enum, StaticIntervalTemplate,
-                                                    allowed_interval_types_arg_other> const& itv) {
+            constexpr bool operator==(
+                variable_shape_interval_impl<T, Enum, StaticIntervalTemplate,
+                                             allowed_interval_types_arg_other> const& itv) const {
                 static_assert(
                     requires(Value v1, T v2) { v1 == v2; },
                     "value_type's of two intervals not equality-comparable");
