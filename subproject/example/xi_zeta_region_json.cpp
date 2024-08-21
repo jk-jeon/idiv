@@ -16,8 +16,8 @@
 // KIND, either express or implied.
 
 #include <idiv/idiv.h>
-#include <idiv/log_continued_fraction.h>
-#include <idiv/type_erased_continued_fraction.h>
+#include <idiv/continued_fraction/engine/log.h>
+#include <idiv/continued_fraction/engine/type_erased.h>
 #include <daw/json/daw_json_link.h>
 #include <stdexcept>
 
@@ -199,64 +199,84 @@
 //   (91515 / 1) xi + (1525 / 1) <= zeta < (-76093 / 1) xi + (-1264 / 1)
 //
 
-using partial_fraction_type =
-    jkj::cntfrc::projective_rational<jkj::cntfrc::unity, jkj::bigint::int_var>;
-using convergent_type =
-    jkj::cntfrc::projective_rational<jkj::bigint::int_var, jkj::bigint::uint_var>;
-using interval_type =
-    jkj::variable_shape_cyclic_interval<convergent_type, jkj::cyclic_interval_type_t::single_point,
-                                        jkj::cyclic_interval_type_t::left_open_right_closed,
-                                        jkj::cyclic_interval_type_t::left_closed_right_open,
-                                        jkj::cyclic_interval_type_t::entire>;
+struct type_erased_caching_engine_traits {
+    using partial_fraction_type =
+        jkj::cntfrc::projective_rational<jkj::cntfrc::unity, jkj::bigint::int_var>;
 
-using continued_fraction_generator = jkj::cntfrc::generator<
-    jkj::cntfrc::impl::type_erased<partial_fraction_type, convergent_type, interval_type>,
-    jkj::cntfrc::previous_previous_convergent_tracker, jkj::cntfrc::interval_tracker>;
+    using required_mixins = jkj::tmp::typelist<>;
+
+    using convergent_type =
+        jkj::cntfrc::projective_rational<jkj::bigint::int_var, jkj::bigint::uint_var>;
+    using interval_type = jkj::variable_shape_cyclic_interval<
+        convergent_type, jkj::cyclic_interval_type_t::single_point,
+        jkj::cyclic_interval_type_t::open, jkj::cyclic_interval_type_t::left_closed_right_open,
+        jkj::cyclic_interval_type_t::left_open_right_closed, jkj::cyclic_interval_type_t::closed,
+        jkj::cyclic_interval_type_t::single_complement, jkj::cyclic_interval_type_t::entire>;
+
+    struct abstract_interface {
+        constexpr virtual interval_type initial_interval() const = 0;
+    };
+
+    template <class Base, class AbstractInterface>
+    struct interface_mixin : Base, AbstractInterface {
+        using convergent_type = convergent_type;
+        using interval_type = interval_type;
+
+        using Base::Base;
+
+        constexpr interval_type initial_interval() const {
+            return Base::implementation().initial_interval();
+        }
+    };
+};
+
+using continued_fraction_generator =
+    jkj::cntfrc::generator<jkj::cntfrc::engine::caching<
+                               jkj::cntfrc::engine::type_erased<type_erased_caching_engine_traits>>,
+                           jkj::cntfrc::index_tracker, jkj::cntfrc::convergent_tracker,
+                           jkj::cntfrc::interval_estimate_provider, jkj::cntfrc::rewinder>;
 
 template <>
 struct daw::json::json_data_contract<
-    jkj::cntfrc::impl::rational<jkj::bigint::int_var, jkj::bigint::uint_var>> {
+    jkj::cntfrc::engine::rational<jkj::bigint::int_var, jkj::bigint::uint_var>> {
     using type = json_member_list<json_number<"numerator", std::int_least64_t>,
                                   json_number<"denominator", std::uint_least64_t>>;
 };
 
 template <>
-struct daw::json::json_data_contract<jkj::frac<jkj::bigint::uint_var, jkj::bigint::uint_var>> {
+struct daw::json::json_data_contract<
+    jkj::cntfrc::projective_rational<jkj::bigint::uint_var, jkj::bigint::uint_var>> {
     using type = json_member_list<json_number<"numerator", std::uint_least64_t>,
                                   json_number<"denominator", std::uint_least64_t>>;
 };
 
 template <>
-struct daw::json::json_data_contract<jkj::frac<jkj::bigint::int_var, jkj::bigint::uint_var>> {
-    using type = json_member_list<json_number<"numerator", std::int_least64_t>,
-                                  json_number<"denominator", std::uint_least64_t>>;
-};
-
-template <>
 struct daw::json::json_data_contract<
-    jkj::cntfrc::impl::natural_log<jkj::bigint::int_var, jkj::bigint::uint_var>> {
+    jkj::cntfrc::engine::natural_log<jkj::bigint::int_var, jkj::bigint::uint_var>> {
     using type = json_member_list<
-        json_class<"number", ::jkj::frac<::jkj::bigint::uint_var, ::jkj::bigint::uint_var>>>;
+        json_class<"number", ::jkj::cntfrc::projective_rational<::jkj::bigint::uint_var,
+                                                                ::jkj::bigint::uint_var>>>;
 };
 
 template <>
 struct daw::json::json_data_contract<
-    jkj::cntfrc::impl::general_log<jkj::bigint::int_var, jkj::bigint::uint_var>> {
+    jkj::cntfrc::engine::general_log<jkj::bigint::int_var, jkj::bigint::uint_var>> {
     using type = json_member_list<
-        json_class<"base", ::jkj::frac<::jkj::bigint::uint_var, ::jkj::bigint::uint_var>>,
-        json_class<"number", ::jkj::frac<::jkj::bigint::uint_var, ::jkj::bigint::uint_var>>>;
+        json_class<"base", ::jkj::cntfrc::projective_rational<::jkj::bigint::uint_var,
+                                                              ::jkj::bigint::uint_var>>,
+        json_class<"number", ::jkj::cntfrc::projective_rational<::jkj::bigint::uint_var,
+                                                                ::jkj::bigint::uint_var>>>;
 };
 
 template <>
-struct daw::json::json_data_contract<
-    jkj::cntfrc::linear_fractional_mapping<jkj::bigint::int_var>> {
+struct daw::json::json_data_contract<jkj::cntfrc::linear_fractional_mapping<jkj::bigint::int_var>> {
     using type = json_tuple_member_list<std::int_least64_t, std::int_least64_t, std::int_least64_t,
                                         std::int_least64_t>;
 };
 
 template <>
 struct daw::json::json_data_contract<
-    jkj::cntfrc::impl::unary_gosper<continued_fraction_generator>> {
+    jkj::cntfrc::engine::unary_gosper<continued_fraction_generator>> {
     using type = json_member_list<
         json_class<"x", continued_fraction_generator>,
         json_class<"coefficients",
@@ -272,14 +292,21 @@ struct daw::json::json_data_contract<
 };
 
 template <>
-struct daw::json::json_data_contract<
-    jkj::cntfrc::impl::binary_gosper<continued_fraction_generator, continued_fraction_generator>> {
+struct daw::json::json_data_contract<jkj::cntfrc::engine::binary_gosper<
+    continued_fraction_generator, continued_fraction_generator>> {
     using type = json_member_list<
         json_class<"x", continued_fraction_generator>,
         json_class<"y", continued_fraction_generator>,
         json_class<"coefficients",
                    ::jkj::cntfrc::bilinear_fractional_mapping<::jkj::bigint::int_var>>>;
 };
+
+template <class Engine>
+continued_fraction_generator make_generator(Engine&& engine) {
+    return continued_fraction_generator{jkj::cntfrc::engine::caching{
+        jkj::cntfrc::engine::type_erased<type_erased_caching_engine_traits>{
+            static_cast<Engine&&>(engine)}}};
+}
 
 template <>
 struct daw::json::json_data_contract<continued_fraction_generator> {
@@ -290,30 +317,43 @@ struct daw::json::json_data_contract<continued_fraction_generator> {
         continued_fraction_generator operator()(std::string_view type,
                                                 std::string_view params_raw_json) const {
             if (type == "rational") {
-                return continued_fraction_generator{from_json<
-                    ::jkj::cntfrc::impl::rational<::jkj::bigint::int_var, ::jkj::bigint::uint_var>>(
-                    params_raw_json)};
+                return ::make_generator(
+                    from_json<::jkj::cntfrc::engine::rational<::jkj::bigint::int_var,
+                                                              ::jkj::bigint::uint_var>>(
+                        params_raw_json));
             }
             else if (type == "natural_log") {
-                return continued_fraction_generator{from_json<::jkj::cntfrc::impl::natural_log<
-                    ::jkj::bigint::int_var, ::jkj::bigint::uint_var>>(params_raw_json)};
+                return ::make_generator(
+                    from_json<::jkj::cntfrc::engine::natural_log<::jkj::bigint::int_var,
+                                                                 ::jkj::bigint::uint_var>>(
+                        params_raw_json));
             }
             else if (type == "general_log") {
-                return continued_fraction_generator{from_json<::jkj::cntfrc::impl::general_log<
-                    ::jkj::bigint::int_var, ::jkj::bigint::uint_var>>(params_raw_json)};
+                return ::make_generator(
+                    from_json<::jkj::cntfrc::engine::general_log<::jkj::bigint::int_var,
+                                                                 ::jkj::bigint::uint_var>>(
+                        params_raw_json));
             }
             else if (type == "unary_gosper") {
-                return continued_fraction_generator{
-                    from_json<::jkj::cntfrc::impl::unary_gosper<continued_fraction_generator>>(
-                        params_raw_json)};
+                return ::make_generator(
+                    from_json<::jkj::cntfrc::engine::unary_gosper<continued_fraction_generator>>(
+                        params_raw_json));
             }
             else if (type == "binary_gosper") {
-                return continued_fraction_generator{from_json<::jkj::cntfrc::impl::binary_gosper<
-                    continued_fraction_generator, continued_fraction_generator>>(params_raw_json)};
+                return ::make_generator(
+                    from_json<::jkj::cntfrc::engine::binary_gosper<continued_fraction_generator,
+                                                                   continued_fraction_generator>>(
+                        params_raw_json));
             }
             throw std::invalid_argument{"unknown type of continued fraction"};
         }
     };
+};
+
+template <>
+struct daw::json::json_data_contract<jkj::frac<jkj::bigint::int_var, jkj::bigint::uint_var>> {
+    using type = json_member_list<json_number<"numerator", std::int_least64_t>,
+                                  json_number<"denominator", std::uint_least64_t>>;
 };
 
 template <>

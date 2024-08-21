@@ -19,7 +19,9 @@
 #define JKJ_HEADER_IDIV_CONTINUED_FRACTION_GENERATOR
 
 #include "../interval.h"
+#include "../tmp.h"
 #include "projective_rational.h"
+#include <iterator>
 
 namespace jkj {
     // An interface for generalized continued fraction calculator for real numbers.
@@ -32,145 +34,473 @@ namespace jkj {
     // we call an/bn the nth "partial fraction", and also we call the fraction obtained by
     // truncating the continued fraction at the nth partial fraction as the nth "convergent".
 
-    // The main interface type is the generator class template. It takes a type parameter Impl and a
-    // list of template template parameters Mixins. A mixin is a small individual feature that the
-    // user wants to "mix-into" the generator instance. The generator gets the specified feature by
-    // deriving from the corresponding mixin type. There are several predefined mixin templates, but
-    // users can add their owns as well. The Impl parameter specifies the class with an actual
-    // continued fraction implementation which will be instantiated as a data member of the
-    // generator class.
+    // The main interface type is the generator class template. It takes a type parameter Engine and
+    // a list of type parameters Mixins. A mixin is a small individual feature that the user wants
+    // to "mix-into" the generator instance. There are several predefined mixin classes, but users
+    // can add their owns as well. The Engine parameter specifies "the engine class", the class with
+    // actual continued fraction implementation, which will be instantiated as a subobject of
+    // the generator class. The generator class only provides const access to this subobject.
     //
-    // When proceed_to_next_partial_fraction() member function of the generator class is called, the
-    // generator class calls the with_next_partial_fraction() member function of the implementation.
-    // This function is supposed to take one callback parameter by reference which has a member
-    // function on_next_partial_fraction() which will be called with the newly computed partial
-    // fraction. The callback parameter also has a member function get_generator() which returns a
-    // const reference to the containing generator object. Since the implementation class does not
-    // know about the containing generator class, the type of the callback should be a template
-    // parameter.
+    // Upon construction, the generator class interacts with the engine class and computes the 0th
+    // partial fraction. By keep calling proceed_to_next_partial_fraction() member function of the
+    // generator class, it moves to the next partial fraction one-by-one, until the expansion ends.
+    // If proceed_to_next_partial_fraction() fails to produce a new partial fraction (as the
+    // expansion reaches the end), it returns false. Otherwise, it returns true. Or, the user can
+    // call terminated() member function of the generator to check if the expansion is known to be
+    // ended, i.e., whether or not the last call to proceed_to_next_partial_fraction() produced a
+    // new partial fraction. Calling proceed_to_next_partial_fraction() when a previous call to it
+    // returned false has no side effect, and it just simply returns false again. By convention,
+    // infinity is considered to be the unique number with empty continued fraction expansion. In
+    // this case, terminated() always returns true and calling proceed_to_next_partial_fraction()
+    // has no effect.
     //
-    // When the on_next_partial_fraction() member function of the callback parameter is called
-    // inside with_next_partial_fraction() for the first time, it then calls the
-    // on_next_partial_fraction() member function of each of the mixins the generator is deriving
-    // from, with two arguments, one for the passed new partial fraction, and another for the
-    // reference to the instance of the implementation class. If the callback is called again, it
-    // does not do anything further and returns immediately. If with_next_partial_fraction() calls
-    // the callback at least once, the proceed_to_next_partial_fraction() function returns true.
+    // Alternatively, there are begin() and end() member functions which makes the generator class
+    // an input range. Note that incrementing any iterator obtained by begin() permanently modifies
+    // the generator. It is not a forward range, and generally the iteration can be done only once.
     //
-    // If with_next_partial_fraction() returns without calling on_next_partial_fraction() of the
-    // callback parameter, then the generator considers that there is no more partial fractions
-    // remaining and the continued fraction expansion is done. It then sets the termination flag so
-    // that now its terminated() member function returns true. Also, it calls the final_update()
-    // member function of each of the mixins with the reference to the implementation object. After
-    // that, the update() function returns false. Once termination flag is set, now calling update()
-    // does not do anything other than just returning false.
+    // The way newly computed partial fractions are reported back to the caller is through callback.
+    // The caller can provide possibly multiple callback arguments to
+    // proceed_to_next_partial_fraction(). When the generator succeeds in computing a new partial
+    // fraction, it will call on_next_partial_fraction() member function of the callback parameters,
+    // one-by-one, from the first callback parameter to the last callback parameter, in order,
+    // passing the newly computed partial fraction as the argument.
+    //
+    // Callback is also the way of communication between the generator and the engine. When the user
+    // calls proceed_to_next_partial_fraction() from the generator, the generator then calls
+    // with_next_partial_fraction() member function of its engine, with a callback argument. The
+    // engine is supposed to call on_next_partial_fraction() member function of this callback
+    // parameter, which then will eventually call the on_next_partial_fraction() member functions of
+    // the callback paramters the user supplied to proceed_to_next_partial_fraction(). If the engine
+    // does not call on_next_partial_fraction() member function of the callback parameter passed
+    // into with_next_partial_fraction() until it returns, the generator considers it as the end of
+    // the continued fraction expansion, thus it sets the termination flag. Note that this callback
+    // parameter of with_next_partial_fraction() member function must be a template paramter (so
+    // with_next_partial_fraction() must be a template function) because the engine does not know
+    // about the generator.
+    //
+    // By default, the generator does not do any state-keeping other than the termination flag and
+    // what the engine internally does. However, the user can add such a feature by specifying
+    // mixins. For instance, partial_fraction_tracker remembers the lastly computed partial fraction
+    // (with the convention that the (-1)st partial fraction is 0). Once partial_fraction_tracker is
+    // specified, now the generator has a member function current_partial_fraction() which retrieves
+    // this information. Similarly, convergent_tracker remembers two lastly computed convergents
+    // (with the convention that the (-1)st convergent is infinity and the (-2)nd convergent is 0).
+    // Specifying convergent_tracker results in the generator to have current_convergent() and
+    // previous_convergent() member functions (together with several others small helper functions),
+    // which retreives this information.
+    //
+    // A mixin is consisting of 5 parts: proxy mixin, callback mixin, generator mixin, tracking data
+    // and engine facade.
+    //
+    // The proxy is a lightweight reference object connected to the generator that exposes some
+    // selected state information of the generator. The proxy is constructed in two ways: by
+    // dereferencing the iterator, or by calling current_state() member function of the callback
+    // parameter passed into with_next_partial_fraction(). By default, terminated() is the only
+    // accessible member function of the proxy, but each mixin can add whatever additional member
+    // functions into the proxy by specifying them in its proxy mixin. The proxy class of the
+    // generator then inherts from all the proxy mixin classes of the specified mixins.
+    //
+    // Similarly, the callback object passed into with_next_partial_fraction() member function of
+    // the engine class inherits from all the callback mixins of the specified mixins. In this way
+    // mixins can add different kinds of communication channels between the generator and the
+    // engine. Finally, the generator class itself inherits from the generator mixin classes of the
+    // specified mixins. For some mixins (index_tracker, partial_fraction_tracker,
+    // convergent_tracker, previous_previous_convergent_tracker), the proxy mixin and the generator
+    // mixin are the same classes, which means the same information is provided either through the
+    // proxy or directly from the generator. But this is not mandatory and the mixin author can
+    // choose what to do.
+    //
+    // The tracking data of a mixin is the class that holds the actual state information that the
+    // mixin cares about. For instance, the tracking data for the convergent_tracker mixin stores
+    // the current and the previous convergent. The generator contains all of the tracking data
+    // associated to the specified mixins as its subobjects. Whenever on_next_partial_fraction()
+    // member function of the callback passed to with_next_partial_fraction() is called,
+    // on_next_partial_fraction() member function of each of the tracking data subobjects is called.
+    // On the other hand, if on_next_partial_fraction() is never called until
+    // with_next_partial_fraction() returns, then final_update() member function of each of the
+    // tracking data subobjects is called.
+    //
+    // Finally, the engine facade for a mixin is an interface between the engine and the mixin. The
+    // key point here is that obtaining the facade is the only way for a mixin to get a mutable
+    // access to the engine.
     //
     // Some mixins may properly function only when some other mixins coexist inside the same
     // generator. Such a dependency, if needed, is supposed to be specified by specializing a class
     // template mixin_traits. All the mixins required by the specified mixins are automatically and
-    // transitively added to the list of mixins the generator is deriving from, even if not
+    // transitively added to the list of mixins when the generator is instantiated, even if not
     // explicltly requested by the user. Some mixins may have ordering constraints; that is, to
-    // correctly function they may require certain constraints on the order of the calls to their
-    // update() member functions. Such a constraint is supposed to be also specified by specializing
-    // the template mixin_traits.
+    // correctly function they may require certain constraints on the order of the calls to
+    // on_next_partial_fraction()/final_update() member functions of the tracking data. Such a
+    // constraint is supposed to be also specified by specializing the template mixin_traits.
+    // For instance, mixin_traits for previous_previous_convergent_tracker specifies that
+    // convergent_tracker is required whenever previous_previous_convergent_tracker is used, and
+    // on_next_partial_fraction() of the tracking data associated to
+    // previous_previous_convergent_tracker must be called after that of convergent_tracker
+    // returned.
     //
-    // Each specialization of mixin_traits may have three member types: required_mixins, before_than
-    // and after_than. required_mixins specifies additional mixins required for the proper
-    // functioning of the mixin, and the other two specifies that the update() for the mixin should
-    // be called before/after the update() of all mixins specified there. Any list of mixins should
-    // be given by specializing the struct mixin_list. If a mixin appearing in
-    // before_than/after_than is not in the list of mixins the generator is actually deriving
-    // from, then it is silently ignored. Any of these three types required_mixins, before_than and
-    // after_than can be missing in the specialization of mixin_traits, which has the same effect as
-    // specifying an empty mixin_list.
-    //
-    // Also, some implementations may require some mixins to exist in the same generator. Such a
-    // dependency can be also specified if needed by defining a member type alias required_mixins in
-    // the implementation class. Any mixins specified there are automatically (and transitively)
-    // added to the list of mixins the generator is deriving from, even if not explicitly requested
-    // by the user. The implementation class can also specify an additional ordering constraint on
-    // mixins by defining a member type alias mixin_ordering_constraints. This alias should be
-    // a specialization of the type alias template mixin_ordering_constraint::constraint_list.
-    // There are several possible types of parameters for this template alias:
-    //   - mixin_ordering_constraint::before_after<Before, After>: the update() of the mixin Before
-    //   should be called before the update() of the mixin After.
-    //   - mixin_ordering_constraint::linear_chain<Mixin1, Mixin2, ... , MixinN>: the update() of
-    //   any mixin appearing first should be called before the update() of any other mixin appearing
-    //   after it.
-    //
+    // Also, some engine may require some mixins to exist in the same generator. Such a dependency
+    // can be also specified if needed by defining a member type alias required_mixins in the
+    // implementation class. Any mixins specified there are automatically (and transitively) added
+    // to the list of mixins when the generator is instantiated, even if not explicitly requested by
+    // the user. The implementation class can also specify an additional ordering constraint on
+    // mixins by defining a member type alias mixin_ordering_constraints. When the generator is
+    // instantiated, all of these ordering constraints are taken into account and it automatically
+    // sets up the proper order of calling on_next_partial_fraction() members of the tracking data.
     // Note that the ordering constraint should not form a cycle. In such a case, the compilation
     // will fail with a diagnostic.
 
     namespace cntfrc {
-        template <template <class, class> class... Mixins>
-        struct mixin_list {};
+        namespace detail {
+            template <class T>
+            struct decay_type_of_impl {
+                using type = std::remove_cvref_t<T>;
+            };
 
-        template <template <class, class> class Mixin>
-        struct mixin_traits {};
+            template <class T>
+                requires requires { typename T::decay_type; }
+            struct decay_type_of_impl<T> {
+                using type = typename T::decay_type;
+            };
+        }
+
+        template <class T>
+        using decay_type_of = typename detail::decay_type_of_impl<T>::type;
+
+        // Obtain proxy/callback/generator mixin class template specializations from a mixin class
+        // Mixin. When Mixin does not provide proxy/callback/generator mixins, then the
+        // specialization of the following template is returned instead.
+        template <class Mixin>
+        struct empty_mixin {};
 
         namespace detail {
-            // Template template parameters work not so nicely with metaprogramming, so we wrap
-            // mixins into a unique type.
-            template <template <class, class> class Mixin>
-            struct mixin_type_wrapper {};
+            template <class Mixin, class Engine, class Proxy>
+            struct proxy_mixin_of_impl;
+            template <class Mixin, class Engine, class Proxy>
+                requires requires { typename Mixin::template proxy_mixin<Engine, Proxy>; }
+            struct proxy_mixin_of_impl<Mixin, Engine, Proxy> {
+                using type = typename Mixin::template proxy_mixin<Engine, Proxy>;
+            };
+            template <class Mixin, class Engine, class Proxy>
+                requires(!requires { typename Mixin::template proxy_mixin<Engine, Proxy>; })
+            struct proxy_mixin_of_impl<Mixin, Engine, Proxy> {
+                using type = empty_mixin<Mixin>;
+            };
 
-            // Converts mixin_type_wrapper<Mixin> into the corresponding specialization of
-            // mixin_traits. Note that it is impossible for mixin_type_wrapper to expose its
-            // template template parameter to be usable from outside, so we need separate helper
-            // functions for each different usage of the template template parameter. In our case,
-            // the only such usage is to obtain the corresponding specialization of mixin_traits, so
-            // only one helper function is enough.
-            template <template <class, class> class Mixin>
-            constexpr mixin_traits<Mixin>
-            traits_from_wrapped_mixin_helper(mixin_type_wrapper<Mixin>) noexcept {
-                return {};
+            template <class Mixin, class Engine, class Callback>
+            struct callback_mixin_of_impl;
+            template <class Mixin, class Engine, class Callback>
+                requires requires { typename Mixin::template callback_mixin<Engine, Callback>; }
+            struct callback_mixin_of_impl<Mixin, Engine, Callback> {
+                using type = typename Mixin::template callback_mixin<Engine, Callback>;
+            };
+            template <class Mixin, class Engine, class Callback>
+                requires(!requires { typename Mixin::template callback_mixin<Engine, Callback>; })
+            struct callback_mixin_of_impl<Mixin, Engine, Callback> {
+                using type = empty_mixin<Mixin>;
+            };
+
+            template <class Mixin, class Engine, class Generator>
+            struct generator_mixin_of_impl;
+            template <class Mixin, class Engine, class Generator>
+                requires requires { typename Mixin::template generator_mixin<Engine, Generator>; }
+            struct generator_mixin_of_impl<Mixin, Engine, Generator> {
+                using type = typename Mixin::template generator_mixin<Engine, Generator>;
+            };
+            template <class Mixin, class Engine, class Generator>
+                requires(!requires { typename Mixin::template generator_mixin<Engine, Generator>; })
+            struct generator_mixin_of_impl<Mixin, Engine, Generator> {
+                using type = empty_mixin<Mixin>;
+            };
+        }
+        template <class Mixin, class Engine, class Proxy>
+        using proxy_mixin_of = typename detail::proxy_mixin_of_impl<Mixin, Engine, Proxy>::type;
+        template <class Mixin, class Engine, class Callback>
+        using callback_mixin_of =
+            typename detail::callback_mixin_of_impl<Mixin, Engine, Callback>::type;
+        template <class Mixin, class Engine, class Generator>
+        using generator_mixin_of =
+            typename detail::generator_mixin_of_impl<Mixin, Engine, Generator>::type;
+
+        // Inspect if std::remove_cvref_t<T> contains specified mixins.
+        // T can be either proxy, callback, or generator.
+        template <class T, class... QueriedMixins>
+        constexpr bool has_mixins() noexcept {
+            return tmp::is_contained_in(tmp::typelist<QueriedMixins...>{},
+                                        typename std::remove_cvref_t<T>::included_mixins{});
+        }
+        template <class T, class... QueriedMixins>
+        constexpr bool has_mixins(tmp::typelist<QueriedMixins...>) noexcept {
+            return has_mixins<T, QueriedMixins...>();
+        }
+
+        enum class callback_type_tag_t { normal, advancer };
+
+        template <class... Callbacks>
+        struct callback_ref_chain;
+
+        template <>
+        struct callback_ref_chain<> {
+            template <class PartialFraction>
+            constexpr void on_next_partial_fraction(PartialFraction const&) noexcept {}
+
+            constexpr void final_update() noexcept {}
+
+            template <class Callback>
+            constexpr callback_ref_chain<std::remove_reference_t<Callback>>
+            chain_front(Callback&& callback) const noexcept {
+                return {callback, *this};
             }
-            template <class WrappedMixin>
-            using traits_from_wrapped_mixin =
-                decltype(traits_from_wrapped_mixin_helper(WrappedMixin{}));
+        };
 
+        template <class FirstCallback, class... RemainingCallbacks>
+        struct callback_ref_chain<FirstCallback, RemainingCallbacks...>
+            : callback_ref_chain<RemainingCallbacks...> {
+        private:
+            FirstCallback& first_;
+
+        public:
+            constexpr callback_ref_chain(
+                FirstCallback& first, callback_ref_chain<RemainingCallbacks...> remaining) noexcept
+                : callback_ref_chain<RemainingCallbacks...>{remaining}, first_{first} {}
+
+            constexpr callback_ref_chain(FirstCallback& first,
+                                         RemainingCallbacks&... remaining) noexcept
+                : callback_ref_chain<RemainingCallbacks...>{remaining...}, first_{first} {}
+
+            constexpr callback_ref_chain(callback_ref_chain const&) noexcept = default;
+
+            template <class PartialFraction>
+            constexpr void on_next_partial_fraction(PartialFraction const& next_partial_fraction) {
+                if constexpr (requires {
+                                  first_.on_next_partial_fraction(next_partial_fraction);
+                              }) {
+                    first_.on_next_partial_fraction(next_partial_fraction);
+                }
+                callback_ref_chain<RemainingCallbacks...>::on_next_partial_fraction(
+                    next_partial_fraction);
+            }
+
+            constexpr void final_update() {
+                if constexpr (requires { first_.final_update(); }) {
+                    first_.final_update();
+                }
+                callback_ref_chain<RemainingCallbacks...>::final_update();
+            }
+
+            template <class Callback>
+            constexpr callback_ref_chain<std::remove_reference_t<Callback>, FirstCallback,
+                                         RemainingCallbacks...>
+            chain_front(Callback&& callback) const noexcept {
+                return {callback, *this};
+            }
+        };
+
+        using empty_callback = callback_ref_chain<>;
+
+        // Use this class if the mixin's tracking data does not have any data to track.
+        template <class Mixin, class Engine>
+        class empty_tracking_data {
+            using partial_fraction_type = typename Engine::partial_fraction_type;
+
+        public:
+            constexpr empty_tracking_data(Engine const&) noexcept {}
+        };
+
+        struct empty_facade {};
+
+        template <class Mixin, class Engine>
+        struct mixin_traits {
+            using tracking_data = typename Mixin::template default_tracking_data<Engine>;
+        };
+
+        namespace detail {
+            template <class Mixin, class Engine>
+            struct tracking_data_of_impl;
+            template <class Mixin, class Engine>
+                requires requires { typename mixin_traits<Mixin, Engine>::tracking_data; }
+            struct tracking_data_of_impl<Mixin, Engine> {
+                using type = typename mixin_traits<Mixin, Engine>::tracking_data;
+            };
+            template <class Mixin, class Engine>
+                requires(
+                    !requires { typename mixin_traits<Mixin, Engine>::tracking_data; } &&
+                    requires { typename Mixin::template default_tracking_data<Engine>; })
+            struct tracking_data_of_impl<Mixin, Engine> {
+                using type = typename Mixin::template default_tracking_data<Engine>;
+            };
+            template <class Mixin, class Engine>
+                requires(
+                    !requires { typename mixin_traits<Mixin, Engine>::tracking_data; } &&
+                    !requires { typename Mixin::template default_tracking_data<Engine>; })
+            struct tracking_data_of_impl<Mixin, Engine> {
+                using type = empty_tracking_data<Mixin, Engine>;
+            };
+
+            template <class Mixin, class Engine>
+            struct facade_of_impl;
+            template <class Mixin, class Engine>
+                requires requires { typename mixin_traits<Mixin, Engine>::facade; }
+            struct facade_of_impl<Mixin, Engine> {
+                using type = typename mixin_traits<Mixin, Engine>::facade;
+            };
+            template <class Mixin, class Engine>
+                requires(
+                    !requires { typename mixin_traits<Mixin, Engine>::facade; } &&
+                    requires { typename Mixin::template default_facade<Engine>; })
+            struct facade_of_impl<Mixin, Engine> {
+                using type = typename Mixin::template default_facade<Engine>;
+            };
+            template <class Mixin, class Engine>
+                requires(
+                    !requires { typename mixin_traits<Mixin, Engine>::facade; } &&
+                    !requires { typename Mixin::template default_facade<Engine>; })
+            struct facade_of_impl<Mixin, Engine> {
+                using type = empty_facade;
+            };
+        }
+        template <class Mixin, class Engine>
+        using tracking_data_of = typename detail::tracking_data_of_impl<Mixin, Engine>::type;
+        template <class Mixin, class Engine>
+        using facade_of = typename detail::facade_of_impl<Mixin, Engine>::type;
+
+        // Obtain the tracking data instance associated to Mixin from one of the mixins included in
+        // Derived. Derived must be one of proxy/callback/generator, and Base must be one of
+        // proxy_mixin/callback_mixin/generator_mixin included in Derived. This helper function can
+        // be used to access the tracking data associated to the mixin trying to access the data, or
+        // the one associated to other mixins included in Derived.
+        template <class Mixin>
+        struct tracking_data_accessor {
+            template <class Derived, class Base>
+            static constexpr decltype(auto) tracking_data(Base&& base) noexcept {
+                static_assert(has_mixins<Derived, Mixin>(),
+                              "the requested mixin is not present in Derived");
+
+                static_assert(
+                    tmp::is_in<std::remove_cvref_t<Base>>(
+                        tmp::map<typename Derived::included_mixins, proxy_mixin_of,
+                                 typename Derived::engine_type, Derived>{}) ||
+                        tmp::is_in<std::remove_cvref_t<Base>>(
+                            tmp::map<typename Derived::included_mixins, callback_mixin_of,
+                                     typename Derived::engine_type, Derived>{}) ||
+                        tmp::is_in<std::remove_cvref_t<Base>>(
+                            tmp::map<typename Derived::included_mixins, generator_mixin_of,
+                                     typename Derived::engine_type, Derived>{}),
+                    "the type trying to access the tracking data is not the "
+                    "proxy_mixin/callback_mixin/generator_mixin associated to one of the "
+                    "mixins included in Derived");
+
+
+                return static_cast<tmp::forward_cvref<Base&&, Derived>>(base)
+                    .template tracking_data<Mixin>();
+            }
+        };
+
+        struct generator_accessor {
+            template <class Derived, class Base>
+            static constexpr decltype(auto) generator(Base&& base) noexcept {
+                static_assert(
+                    tmp::is_in<std::remove_cvref_t<Base>>(
+                        tmp::map<typename Derived::included_mixins, proxy_mixin_of,
+                                 typename Derived::engine_type, Derived>{}) ||
+                        tmp::is_in<std::remove_cvref_t<Base>>(
+                            tmp::map<typename Derived::included_mixins, callback_mixin_of,
+                                     typename Derived::engine_type, Derived>{}) ||
+                        tmp::is_in<std::remove_cvref_t<Base>>(
+                            tmp::map<typename Derived::included_mixins, generator_mixin_of,
+                                     typename Derived::engine_type, Derived>{}),
+                    "the type trying to obtain the generator object is not the "
+                    "proxy_mixin/callback_mixin/generator_mixin associated to one of the "
+                    "mixins included in Derived");
+
+                return static_cast<tmp::forward_cvref<Base&&, Derived>>(base).generator();
+            }
+
+            template <class Mixin, class Generator, class GeneratorMixin>
+            static constexpr decltype(auto) engine_facade(GeneratorMixin&& base) noexcept {
+                static_assert(has_mixins<Generator, Mixin>(),
+                              "the requested mixin is not present in Generator");
+
+                static_assert(
+                    std::is_same_v<
+                        std::remove_cvref_t<GeneratorMixin>,
+                        generator_mixin_of<Mixin, typename Generator::engine_type, Generator>>,
+                    "the type trying to access the engine facade is not the "
+                    "generator_mixin associated to Mixin");
+
+                return static_cast<tmp::forward_cvref<GeneratorMixin&&, Generator>>(base)
+                    .template engine_facade<Mixin>();
+            }
+
+            template <class Generator, class GeneratorMixin, class... Callbacks>
+            static constexpr auto create_advancer(GeneratorMixin&& base,
+                                                  Callbacks&&... callbacks) noexcept {
+                static_assert(
+                    tmp::is_in<std::remove_cvref_t<GeneratorMixin>>(
+                        tmp::map<typename Generator::included_mixins, generator_mixin_of,
+                                 typename Generator::engine_type, Generator>{}),
+                    "the type trying to access the engine facade is not the "
+                    "generator_mixin associated to one of the mixins included in Generator");
+
+                return static_cast<Generator&>(base).create_advancer(
+                    static_cast<Callbacks&&>(callbacks)...);
+            }
+
+            template <class Generator, class GeneratorMixin>
+            static constexpr void reset_termination_flag(GeneratorMixin&& base) noexcept {
+                static_assert(
+                    tmp::is_in<std::remove_cvref_t<GeneratorMixin>>(
+                        tmp::map<typename Generator::included_mixins, generator_mixin_of,
+                                 typename Generator::engine_type, Generator>{}),
+                    "the type trying to access the engine facade is not the "
+                    "generator_mixin associated to one of the mixins included in Generator");
+
+                return static_cast<Generator&>(base).reset_termination_flag();
+            }
+        };
+
+        namespace detail {
             // A direct edge from Before to After representing a mixin ordering constraint.
-            template <template <class, class> class Before, template <class, class> class After>
+            template <class Before, class After>
             struct mixin_ordering_constraint_edge {};
 
             // First -> Second -> ... -> Last
-            template <class ConstraintList, template <class, class> class First>
+            template <class ConstraintList, class First>
             constexpr ConstraintList
             linear_chain_mixin_ordering_constraint_impl(ConstraintList,
-                                                        mixin_type_wrapper<First>) noexcept {
+                                                        std::type_identity<First>) noexcept {
                 return {};
             }
-            template <class ConstraintList, template <class, class> class First,
-                      template <class, class> class Second,
-                      template <class, class> class... Remaining>
+            template <class ConstraintList, class First, class Second, class... Remaining>
             constexpr auto
-            linear_chain_mixin_ordering_constraint_impl(ConstraintList, mixin_type_wrapper<First>,
-                                                        mixin_type_wrapper<Second>,
-                                                        mixin_type_wrapper<Remaining>...) noexcept {
+            linear_chain_mixin_ordering_constraint_impl(ConstraintList, std::type_identity<First>,
+                                                        std::type_identity<Second>,
+                                                        std::type_identity<Remaining>...) noexcept {
                 return linear_chain_mixin_ordering_constraint_impl(
                     tmp::push_back<ConstraintList, mixin_ordering_constraint_edge<First, Second>>{},
-                    mixin_type_wrapper<Second>{}, mixin_type_wrapper<Remaining>{}...);
+                    std::type_identity<Second>{}, std::type_identity<Remaining>{}...);
             }
         }
 
         namespace mixin_ordering_constraint {
-            // Before::update() should be called before After::update().
-            template <template <class, class> class Before, template <class, class> class After>
+            // Before::on_next_partial_fraction() should be called before
+            // After::on_next_partial_fraction().
+            template <class Before, class After>
             using before_after =
                 tmp::typelist<detail::mixin_ordering_constraint_edge<Before, After>>;
 
-            // First::update() and then Second::update() and then Remaining::update()...
-            template <template <class, class> class First, template <class, class> class Second,
-                      template <class, class> class... Remaining>
+            // First::on_next_partial_fraction() and then Second::on_next_partial_fraction() and
+            // then Remaining::on_next_partial_fraction()...
+            template <class First, class Second, class... Remaining>
             using linear_chain = decltype(detail::linear_chain_mixin_ordering_constraint_impl(
-                tmp::typelist<>{}, detail::mixin_type_wrapper<First>{},
-                detail::mixin_type_wrapper<Second>{}, detail::mixin_type_wrapper<Remaining>{}...));
+                tmp::typelist<>{}, std::type_identity<First>{}, std::type_identity<Second>{},
+                std::type_identity<Remaining>{}...));
 
             // E.g. mixin_ordering_constraints =
-            //                       constraint_list<before_after<index_tracker, interval_tracker>,
+            //                       constraint_list<before_after<index_tracker,
+            //                                                    interval_estimate_provider>,
             //                                       linear_chain<partial_fraction_tracker,
             //                                                    convergent_tracaker,
-            //                                                    interval_tracker>>;
+            //                                                    interval_estimate_provider>>;
             template <class... Constraints>
             using constraint_list = tmp::join<Constraints...>;
         }
@@ -291,7 +621,7 @@ namespace jkj {
             template <class T>
                 requires(!requires { typename T::required_mixins; })
             struct get_required_mixins<T> {
-                using type = mixin_list<>;
+                using type = tmp::typelist<>;
             };
 
             template <class T>
@@ -304,7 +634,7 @@ namespace jkj {
             template <class T>
                 requires(!requires { typename T::before_than; })
             struct get_before_than<T> {
-                using type = mixin_list<>;
+                using type = tmp::typelist<>;
             };
 
             template <class T>
@@ -317,7 +647,7 @@ namespace jkj {
             template <class T>
                 requires(!requires { typename T::after_than; })
             struct get_after_than<T> {
-                using type = mixin_list<>;
+                using type = tmp::typelist<>;
             };
 
             template <class T>
@@ -334,51 +664,45 @@ namespace jkj {
             };
 
             // Construct an array of graph_edge from a list of mixin_ordering_constraint_edge's.
-            template <class... WrappedMixins, class... Constraints>
+            template <class... Mixins, class... Constraints>
             constexpr auto
-            convert_local_mixin_ordering_constraints_list(tmp::typelist<WrappedMixins...>,
+            convert_local_mixin_ordering_constraints_list(tmp::typelist<Mixins...>,
                                                           tmp::typelist<Constraints...>) noexcept {
                 if constexpr (sizeof...(Constraints) == 0) {
                     return util::array<graph_edge, 0>{};
                 }
                 else {
-                    using list = tmp::typelist<WrappedMixins...>;
+                    using list = tmp::typelist<Mixins...>;
                     auto constraint_to_graph_edge =
-                        []<template <class, class> class Before,
-                           template <class, class> class After>(
+                        []<class Before, class After>(
                             mixin_ordering_constraint_edge<Before, After>) {
-                            return graph_edge{
-                                tmp::find_first_index<mixin_type_wrapper<Before>>(list{}),
-                                tmp::find_first_index<mixin_type_wrapper<After>>(list{})};
+                            return graph_edge{tmp::find_first_index<Before>(list{}),
+                                              tmp::find_first_index<After>(list{})};
                         };
                     return util::array<graph_edge, sizeof...(Constraints)>{
                         {constraint_to_graph_edge(Constraints{})...}};
                 }
             }
 
-            // Construct an array of graph_edge from the ordering constraints of WrappedTargetMixin
-            // specified in it's mixin_traits specialization.
-            template <class WrappedTargetMixin, class... WrappedMixins,
-                      template <class, class> class... Before,
-                      template <class, class> class... After>
-            constexpr auto convert_single_mixin_traits(tmp::typelist<WrappedMixins...>,
-                                                       mixin_list<Before...>,
-                                                       mixin_list<After...>) noexcept {
+            // Construct an array of graph_edge from the ordering constraints of TargetMixin
+            // specified in it's traits specialization.
+            template <class TargetMixin, class... Mixins, class... Before, class... After>
+            constexpr auto convert_single_mixin_traits(tmp::typelist<Mixins...>,
+                                                       tmp::typelist<Before...>,
+                                                       tmp::typelist<After...>) noexcept {
                 constexpr std::size_t total_size = sizeof...(Before) + sizeof...(After);
 
                 if constexpr (total_size == 0) {
                     return util::array<graph_edge, 0>{};
                 }
                 else {
-                    using list = tmp::typelist<WrappedMixins...>;
+                    using list = tmp::typelist<Mixins...>;
                     constexpr std::size_t idx_of_target =
-                        tmp::find_first_index<WrappedTargetMixin>(list{});
+                        tmp::find_first_index<TargetMixin>(list{});
 
                     return util::array<graph_edge, total_size>{
-                        {{idx_of_target,
-                          tmp::find_first_index<mixin_type_wrapper<Before>>(list{})}...,
-                         {tmp::find_first_index<mixin_type_wrapper<After>>(list{}),
-                          idx_of_target}...}};
+                        {{idx_of_target, tmp::find_first_index<Before>(list{})}...,
+                         {tmp::find_first_index<After>(list{}), idx_of_target}...}};
                 }
             }
 
@@ -398,355 +722,602 @@ namespace jkj {
             }
 
             // Construct an array of graph_edge from the ordering constraints of all mixins in
-            // WrappedMixins specified in their mixin_traits specializations.
-            template <class... WrappedMixins>
-            constexpr auto
-            convert_multiple_mixin_traits(tmp::typelist<WrappedMixins...> list) noexcept {
-                return merge_graphs(convert_single_mixin_traits<WrappedMixins>(
-                    list,
-                    typename get_before_than<traits_from_wrapped_mixin<WrappedMixins>>::type{},
-                    typename get_after_than<traits_from_wrapped_mixin<WrappedMixins>>::type{})...);
-            }
-
-            // Convert mixin_list<> into tmp::typelist<mixin_type_wrapper<>> for metaprogramming.
-            template <template <class, class> class... Mixins>
-            constexpr tmp::typelist<mixin_type_wrapper<Mixins>...>
-            wrap_mixin_list(mixin_list<Mixins...>) noexcept {
-                return {};
-            }
-
-            // Convert tmp::typelist<mixin_type_wrapper<>> back into mixin_list<>.
-            template <template <class, class> class... Mixins>
-            constexpr mixin_list<Mixins...>
-            unwrap_mixin_list(tmp::typelist<mixin_type_wrapper<Mixins>...>) noexcept {
-                return {};
+            // dMixins specified in their mixin_traits specializations.
+            template <class Engine, class... Mixins>
+            constexpr auto convert_multiple_mixin_traits(tmp::typelist<Mixins...> list) noexcept {
+                return merge_graphs(convert_single_mixin_traits<Mixins>(
+                    list, typename get_before_than<mixin_traits<Mixins, Engine>>::type{},
+                    typename get_after_than<mixin_traits<Mixins, Engine>>::type{})...);
             }
 
             // Find the transitive closure of required mixins.
-            template <class... WrappedMixins>
-            constexpr auto
-            get_transitive_required_mixin_list(tmp::typelist<WrappedMixins...>) noexcept {
-                using original_list = tmp::typelist<WrappedMixins...>;
-                using augmented_list = tmp::remove_duplicate<tmp::join<
-                    original_list, decltype(wrap_mixin_list(
-                                       typename get_required_mixins<
-                                           traits_from_wrapped_mixin<WrappedMixins>>::type{}))...>>;
+            template <class Engine, class... Mixins>
+            constexpr auto get_transitive_required_mixin_list(tmp::typelist<Mixins...>) noexcept {
+                using original_list = tmp::typelist<Mixins...>;
+                using augmented_list = tmp::remove_duplicate<
+                    tmp::join<original_list, decltype(typename get_required_mixins<
+                                                      mixin_traits<Mixins, Engine>>::type{})...>>;
 
                 if constexpr (std::is_same_v<augmented_list, original_list>) {
                     return augmented_list{};
                 }
                 else {
-                    return get_transitive_required_mixin_list(augmented_list{});
+                    return get_transitive_required_mixin_list<Engine>(augmented_list{});
                 }
             }
 
             // Main compile-time function for computing the mixin list.
-            template <class LocalConstraintList, template <class, class> class... RequiredMixins,
-                      template <class, class> class... AdditionalMixins>
-            constexpr auto find_sorted_mixin_list_impl(mixin_list<RequiredMixins...>,
-                                                       mixin_list<AdditionalMixins...>) noexcept {
+            template <class Engine, class LocalConstraintList, class... RequiredMixins,
+                      class... AdditionalMixins>
+            constexpr auto
+            find_sorted_required_mixin_list_impl(tmp::typelist<RequiredMixins...>,
+                                                 tmp::typelist<AdditionalMixins...>) noexcept {
                 // Collect all required mixins transitively.
-                using wrapped_mixin_list = decltype(get_transitive_required_mixin_list(
-                    tmp::remove_duplicate<tmp::typelist<mixin_type_wrapper<RequiredMixins>...,
-                                                        mixin_type_wrapper<AdditionalMixins>...>>{}
+                using mixin_list = decltype(get_transitive_required_mixin_list<Engine>(
+                    tmp::remove_duplicate<tmp::typelist<RequiredMixins..., AdditionalMixins...>>{}
 
                     ));
 
                 // Collect all ordering constraints and convert them into an array of graph_edge.
                 constexpr auto mixin_dependency_graph =
                     merge_graphs(convert_local_mixin_ordering_constraints_list(
-                                     wrapped_mixin_list{}, LocalConstraintList{}),
-                                 convert_multiple_mixin_traits(wrapped_mixin_list{}));
+                                     mixin_list{}, LocalConstraintList{}),
+                                 convert_multiple_mixin_traits<Engine>(mixin_list{}));
 
                 // Get a topologically sorted array of mixin indices pointing into
-                // wrapped_mixin_list. Any ordering constraint pointing from/to a mixin not included
-                // in wrapped_mixin_list is ignored.
+                // mixin_list. Any ordering constraint pointing from/to a mixin not
+                // included in mixin_list is ignored.
                 constexpr auto sorted_mixin_indices =
-                    topological_sort<wrapped_mixin_list::size>(mixin_dependency_graph);
+                    topological_sort<mixin_list::size>(mixin_dependency_graph);
 
                 static_assert(sorted_mixin_indices.succeed,
                               "mixin's ordering constraint should not form a cycle");
 
                 // Convert the index array into a tmp::typelist and return.
-                if constexpr (wrapped_mixin_list::size == 0) {
+                if constexpr (mixin_list::size == 0) {
                     return tmp::typelist<>{};
                 }
                 else {
                     return [&sorted_mixin_indices]<std::size_t... I>(std::index_sequence<I...>) {
-                        return tmp::typelist<tmp::get_type<sorted_mixin_indices.sorted_indices[I],
-                                                           wrapped_mixin_list>...>{};
-                    }(std::make_index_sequence<wrapped_mixin_list::size>{});
+                        return tmp::typelist<
+                            tmp::get_type<sorted_mixin_indices.sorted_indices[I], mixin_list>...>{};
+                    }(std::make_index_sequence<mixin_list::size>{});
                 }
             }
+        }
 
-            template <class Impl, template <class, class> class... AdditionalMixins>
-            constexpr auto find_sorted_mixin_list() noexcept {
-                return find_sorted_mixin_list_impl<
-                    typename get_mixin_ordering_constraints<Impl>::type>(
-                    typename get_required_mixins<Impl>::type{}, mixin_list<AdditionalMixins...>{});
-            }
+        // Find the transitive closure of required mixins of the engine and the provided list of
+        // mixins, without duplicate, topologically sorted the list according to the ordering
+        // constraints given between the mixins, and then return the resulting typelist.
+        template <class Engine, class... AdditionalMixins>
+        constexpr auto find_sorted_required_mixin_list() noexcept {
+            return detail::find_sorted_required_mixin_list_impl<
+                Engine, typename detail::get_mixin_ordering_constraints<Engine>::type>(
+                typename detail::get_required_mixins<Engine>::type{},
+                tmp::typelist<AdditionalMixins...>{});
+        }
 
-            template <class T>
-            struct get_decay_type_impl {
-                using type = std::remove_cvref_t<T>;
+        namespace detail {
+            template <class Engine>
+            class generator_base {
+                Engine engine_;
+
+            public:
+                constexpr generator_base(Engine&& engine)
+                    : engine_{static_cast<Engine&&>(engine)} {}
+
+                constexpr Engine& engine() & noexcept { return engine_; }
+                constexpr Engine const& engine() const& noexcept { return engine_; }
+                constexpr Engine&& engine() && noexcept { return std::move(*this).engine_; }
             };
 
-            template <class T>
-                requires requires { typename T::decay_type; }
-            struct get_decay_type_impl<T> {
-                using type = typename T::decay_type;
-            };
+            template <class Mixin, class Engine>
+            class tracking_data_wrapper {
+                using tracking_data_type = tracking_data_of<Mixin, Engine>;
+                tracking_data_type data_;
 
-            template <class T>
-            using get_decay_type = typename get_decay_type_impl<T>::type;
+            public:
+                constexpr tracking_data_wrapper(Engine const& engine) : data_{engine} {}
+
+                constexpr tracking_data_type& get() & noexcept { return data_; }
+                constexpr tracking_data_type const& get() const& noexcept { return data_; }
+                constexpr tracking_data_type&& get() && noexcept { return std::move(*this).data_; }
+            };
 
             // The actual implementation of the generator class.
-            template <class Impl, template <class, class> class... Mixins>
-            class generator_impl : public Mixins<Impl, generator_impl<Impl, Mixins...>>... {
-            public:
-                using impl_type = Impl;
-                using decay_type = generator_impl<get_decay_type<Impl>, Mixins...>;
-                using partial_fraction_type =
-                    typename std::remove_cvref_t<Impl>::partial_fraction_type;
-                using convergent_type = typename std::remove_cvref_t<Impl>::convergent_type;
-                using interval_type = typename std::remove_cvref_t<Impl>::interval_type;
-
-                struct callback_type {
-                private:
-                    generator_impl& gen_;
-                    bool got_new_partial_fraction_ = false;
-
-                    friend generator_impl;
-                    explicit constexpr callback_type(generator_impl& gen) noexcept : gen_{gen} {}
-
-                public:
-                    constexpr generator_impl const& get_generator() const noexcept { return gen_; }
-
-                    // Cannot copy/move.
-                    callback_type(callback_type const&) = delete;
-                    callback_type(callback_type&&) = delete;
-                    callback_type& operator=(callback_type const&) = delete;
-                    callback_type& operator=(callback_type&&) = delete;
-
-                    constexpr void
-                    on_next_partial_fraction(partial_fraction_type const& next_partial_fraction) {
-                        if (!got_new_partial_fraction_) {
-                            gen_.call_on_next_partial_fraction(next_partial_fraction);
-                        }
-                        got_new_partial_fraction_ = true;
-                    }
-
-                    constexpr void on_next_interval(interval_type const& next_interval) {
-                        gen_.call_on_next_interval(next_interval);
-                    }
-                };
-
-            private:
-                Impl impl_;
+            template <class Engine, class... Mixins>
+                requires(std::is_object_v<Engine>)
+            class generator_impl
+                : private generator_base<Engine>,
+                  private tracking_data_wrapper<Mixins, Engine>...,
+                  public generator_mixin_of<Mixins, Engine, generator_impl<Engine, Mixins...>>... {
                 bool terminated_ = false;
 
-                template <class Functor>
-                constexpr bool update_impl(Functor&& functor) {
-                    if (!terminated_) {
-                        callback_type callback{*this};
-                        functor(callback);
-                        if (!callback.got_new_partial_fraction_) {
-                            terminated_ = true;
+                template <class Mixin>
+                using tracking_data_type = tracking_data_of<Mixin, Engine>;
 
-                            auto invoke_final_update = [this](auto&& mixin) {
-                                if constexpr (requires { mixin.final_update(impl_); }) {
-                                    mixin.final_update(impl_);
-                                }
-                            };
-                            (invoke_final_update(static_cast<Mixins<Impl, generator_impl>&>(*this)),
-                             ...);
+            public:
+                using engine_type = Engine;
+                using included_mixins = tmp::typelist<Mixins...>;
+                using decay_type = generator_impl<decay_type_of<Engine>, Mixins...>;
+                using partial_fraction_type = typename Engine::partial_fraction_type;
+
+                template <class... Callbacks>
+                explicit constexpr generator_impl(Engine engine_in, Callbacks&&... callbacks)
+                    : generator_base<Engine>{static_cast<Engine&&>(engine_in)},
+                      tracking_data_wrapper<Mixins, Engine>{engine()}... {
+                    proceed_to_zeroth_partial_fraction(callbacks...);
+                }
+
+                template <class OtherEngine, class... OtherMixins>
+                explicit constexpr generator_impl(
+                    generator_impl<OtherEngine, OtherMixins...> const& other)
+                    : generator_base<Engine>{other.engine()},
+                      tracking_data_wrapper<Mixins, Engine>{engine()}... {}
+
+                // Copy/move constructor/assignements are allowed only for value-like generators.
+                constexpr generator_impl(generator_impl const&)
+                    requires(std::is_same_v<generator_impl, decay_type>)
+                = default;
+                constexpr generator_impl(generator_impl&&)
+                    requires(std::is_same_v<generator_impl, decay_type>)
+                = default;
+                constexpr generator_impl& operator=(generator_impl const&)
+                    requires(std::is_same_v<generator_impl, decay_type>)
+                = default;
+                constexpr generator_impl& operator=(generator_impl&&)
+                    requires(std::is_same_v<generator_impl, decay_type>)
+                = default;
+
+                constexpr generator_impl(generator_impl const&)
+                    requires(!std::is_same_v<generator_impl, decay_type>)
+                = delete;
+                constexpr generator_impl(generator_impl&&)
+                    requires(!std::is_same_v<generator_impl, decay_type>)
+                = delete;
+                constexpr generator_impl& operator=(generator_impl const&)
+                    requires(!std::is_same_v<generator_impl, decay_type>)
+                = delete;
+                constexpr generator_impl& operator=(generator_impl&&)
+                    requires(!std::is_same_v<generator_impl, decay_type>)
+                = delete;
+
+                // Make a copy of the generator. The internal continued fraction engine is copied in
+                // value even if it has a reference-like part.
+                constexpr decay_type copy() const { return decay_type{*this}; }
+
+                constexpr bool terminated() const noexcept { return terminated_; }
+
+                constexpr Engine const& engine() const noexcept {
+                    return generator_base<Engine>::engine();
+                }
+
+                // Returns true if succeeded obtaining a further partial fraction.
+                template <class... Callbacks>
+                constexpr bool proceed_to_next_partial_fraction(Callbacks&&... callbacks) {
+                    if (!terminated_) {
+                        callback_type<callback_type_tag_t::normal,
+                                      std::remove_reference_t<Callbacks>...>
+                            callback_arg_for_engine{
+                                *this, callback_ref_chain<std::remove_reference_t<Callbacks>...>{
+                                           callbacks...}};
+
+                        terminated_ = true;
+                        modifiable_engine().with_next_partial_fraction(callback_arg_for_engine);
+
+                        if (terminated_) {
+                            final_update(callback_ref_chain<Callbacks...>{callbacks...});
                         }
-                        return callback.got_new_partial_fraction_;
                     }
                     return !terminated_;
                 }
 
+                class iterator;
+                class sentinel;
+                class pointer;
+
+                class proxy_type final : util::noncopyable<proxy_type>,
+                                         util::nonmovable<proxy_type>,
+                                         public proxy_mixin_of<Mixins, Engine, proxy_type>... {
+                    generator_impl const& gen_;
+
+                    template <class Mixin>
+                    friend struct cntfrc::tracking_data_accessor;
+
+                    friend generator_accessor;
+                    friend generator_impl;
+                    friend iterator;
+                    friend pointer;
+
+                    explicit constexpr proxy_type(generator_impl const& gen) noexcept : gen_{gen} {}
+
+                    template <class Mixin>
+                    constexpr tracking_data_type<Mixin> const& tracking_data() const noexcept {
+                        return gen_.tracking_data<Mixin>();
+                    }
+
+                    constexpr generator_impl const& generator() const noexcept { return gen_; }
+
+                public:
+                    using engine_type = Engine;
+                    using included_mixins = tmp::typelist<Mixins...>;
+
+                    constexpr bool terminated() const noexcept { return gen_.terminated(); }
+                };
+
+                class sentinel final {
+                    friend generator_impl;
+
+                    constexpr sentinel() noexcept = default;
+                };
+
+                class iterator final {
+                    generator_impl* gen_ptr_; // non-null.
+
+                    friend generator_impl;
+                    friend sentinel;
+
+                    explicit constexpr iterator(generator_impl& gen) : gen_ptr_{&gen} {}
+
+                public:
+                    // std::weakly_incrementable.
+                    using difference_type = std::ptrdiff_t;
+                    constexpr iterator& operator++() {
+                        gen_ptr_->proceed_to_next_partial_fraction();
+                        return *this;
+                    }
+                    constexpr iterator operator++(int) {
+                        iterator ret_value = *this;
+                        ++*this;
+                        return ret_value;
+                    }
+
+                    // std::input_or_output_iterator.
+                    constexpr proxy_type operator*() const noexcept {
+                        return proxy_type{*gen_ptr_};
+                    }
+
+                    // std::indirectly_readable.
+                    using value_type = proxy_type;
+
+                    // std::input_iterator.
+                    using iterator_concept = std::input_iterator_tag;
+
+                    constexpr pointer operator->() const noexcept { return pointer{gen_ptr_}; }
+
+                    friend constexpr bool operator==(iterator const& it, sentinel) noexcept {
+                        return it.gen_ptr_->terminated();
+                    }
+                };
+
+                class pointer final : util::noncopyable<>, util::nonmovable<> {
+                    proxy_type proxy_;
+
+                    friend iterator;
+
+                    explicit constexpr pointer(generator_impl* gen_ptr) : proxy_{*gen_ptr} {}
+
+                public:
+                    constexpr proxy_type const* operator->() const noexcept { return &proxy_; }
+                };
+
+                constexpr iterator begin() noexcept { return iterator{*this}; }
+                constexpr sentinel end() const noexcept { return sentinel{}; }
+
+            private:
+                template <class Mixin>
+                friend struct cntfrc::tracking_data_accessor;
+
+                friend struct cntfrc::generator_accessor;
+
+                template <class Mixin>
+                constexpr tracking_data_type<Mixin>& tracking_data() noexcept {
+                    return static_cast<tracking_data_wrapper<Mixin, Engine>&>(*this).get();
+                }
+                template <class Mixin>
+                constexpr tracking_data_type<Mixin> const& tracking_data() const noexcept {
+                    return static_cast<tracking_data_wrapper<Mixin, Engine> const&>(*this).get();
+                }
+
+                constexpr engine_type& modifiable_engine() noexcept {
+                    return generator_base<Engine>::engine();
+                }
+
+                template <class Mixin>
+                constexpr decltype(auto) engine_facade() & {
+                    return facade_of<Mixin, Engine>{generator_base<Engine>::engine()};
+                }
+                template <class Mixin>
+                constexpr decltype(auto) engine_facade() const& {
+                    return facade_of<Mixin, Engine>{generator_base<Engine>::engine()};
+                }
+                template <class Mixin>
+                constexpr decltype(auto) engine_facade() && {
+                    return facade_of<Mixin, Engine>{
+                        static_cast<generator_base<Engine>&&>(*this).engine()};
+                }
+
+                constexpr generator_impl const& generator() const noexcept { return *this; }
+                constexpr proxy_type current_state() const noexcept { return proxy_type{*this}; }
+                constexpr void reset_termination_flag() noexcept { terminated_ = false; }
+
+                template <callback_type_tag_t callback_type_tag, class... ChainedCallbacks>
+                class callback_type
+                    : util::noncopyable<callback_type<callback_type_tag, ChainedCallbacks...>>,
+                      util::nonmovable<callback_type<callback_type_tag, ChainedCallbacks...>>,
+                      public callback_mixin_of<
+                          Mixins, Engine,
+                          callback_type<callback_type_tag, ChainedCallbacks...>>... {
+                private:
+                    generator_impl& gen_;
+                    callback_ref_chain<ChainedCallbacks...> chained_callbacks_;
+
+                    template <class Mixin>
+                    friend struct cntfrc::tracking_data_accessor;
+
+                    friend struct cntfrc::generator_accessor;
+
+                    friend generator_impl;
+
+                    template <callback_type_tag_t, class...>
+                    friend class callback_type;
+
+                    constexpr callback_type(
+                        generator_impl& gen,
+                        callback_ref_chain<ChainedCallbacks...> chained_callbacks) noexcept
+                        : gen_{gen}, chained_callbacks_{chained_callbacks} {}
+
+                    // Provides non-const access.
+                    template <class Mixin>
+                    constexpr tracking_data_type<Mixin>& tracking_data() const noexcept {
+                        return static_cast<tracking_data_wrapper<Mixin, Engine>&>(gen_).get();
+                    }
+
+                    constexpr generator_impl const& generator() const noexcept { return gen_; }
+
+                public:
+                    using engine_type = Engine;
+                    using included_mixins = tmp::typelist<Mixins...>;
+
+                    constexpr void
+                    on_next_partial_fraction(partial_fraction_type const& next_partial_fraction) {
+                        gen_.terminated_ = false;
+                        gen_.on_next_partial_fraction(chained_callbacks_, next_partial_fraction);
+                    }
+
+                    constexpr proxy_type current_state() const noexcept {
+                        return gen_.current_state();
+                    }
+
+                    template <class Callback>
+                    constexpr callback_type<callback_type_tag, std::remove_reference_t<Callback>,
+                                            ChainedCallbacks...>
+                    chain_front(Callback&& callback) noexcept {
+                        return {gen_, chained_callbacks_.chain_front(callback)};
+                    }
+
+                    constexpr void final_update()
+                        requires(callback_type_tag == callback_type_tag_t::advancer)
+                    {
+                        gen_.terminated_ = true;
+                        gen_.final_update(chained_callbacks_);
+                    }
+
+                    constexpr bool proceed_to_next_partial_fraction()
+                        requires(callback_type_tag == callback_type_tag_t::advancer)
+                    {
+                        return gen_.proceed_to_next_partial_fraction(chained_callbacks_);
+                    }
+                };
+
+                template <class... Callbacks>
+                constexpr callback_type<callback_type_tag_t::advancer,
+                                        std::remove_reference_t<Callbacks>...>
+                create_advancer(Callbacks&&... callbacks) {
+                    return {*this, callback_ref_chain<std::remove_reference_t<Callbacks>...>(
+                                       callbacks...)};
+                }
+
+                // Update the generator with a new partial fraction obtained.
+                template <class Callback>
                 constexpr void
-                call_on_next_partial_fraction(partial_fraction_type const& next_partial_fraction) {
-                    (static_cast<Mixins<Impl, generator_impl>&>(*this).on_next_partial_fraction(
-                         next_partial_fraction, impl_),
-                     ...);
+                on_next_partial_fraction(Callback&& callback,
+                                         partial_fraction_type const& next_partial_fraction) {
+                    auto invoke_on_next_partial_fraction =
+                        [this, &next_partial_fraction](auto&& mixin_tracking_data) {
+                            if constexpr (requires {
+                                              mixin_tracking_data.on_next_partial_fraction(
+                                                  generator(), next_partial_fraction);
+                                          }) {
+                                mixin_tracking_data.on_next_partial_fraction(generator(),
+                                                                             next_partial_fraction);
+                            }
+                        };
+                    (invoke_on_next_partial_fraction(tracking_data<Mixins>()), ...);
+
+                    callback.on_next_partial_fraction(next_partial_fraction);
                 }
 
-                constexpr void call_on_next_interval(interval_type const& next_interval) {
-                    auto caller = [this, &next_interval](auto&& mixin) {
-                        if constexpr (requires { mixin.on_next_interval(next_interval, impl_); })
-                            mixin.on_next_interval(next_interval, impl_);
+                // Finalize the generator when the continued fraction expansion reached the end.
+                template <class Callback>
+                constexpr void final_update(Callback&& callback) {
+                    auto invoke_final_update = [this](auto&& mixin_tracking_data) {
+                        if constexpr (requires { mixin_tracking_data.final_update(generator()); }) {
+                            mixin_tracking_data.final_update(generator());
+                        }
                     };
-                    (caller(static_cast<Mixins<Impl, generator_impl>&>(*this)), ...);
+                    (invoke_final_update(tracking_data<Mixins>()), ...);
+
+                    if constexpr (requires { callback.final_update(); }) {
+                        callback.final_update();
+                    }
                 }
 
-            public:
-                template <template <class, class> class... QueriedMixins>
-                static constexpr bool is_implementing_mixins() noexcept {
-                    using list = tmp::typelist<detail::mixin_type_wrapper<Mixins>...>;
-                    return (... && tmp::is_in<detail::mixin_type_wrapper<QueriedMixins>>(list{}));
+                // Proceed to the 0th partial fraction.
+                // If the engine provides a special routine for the 0th partial fraction, then
+                // call it. Otherwise, call with_next_partial_fraction().
+                template <class... Callbacks>
+                constexpr void proceed_to_zeroth_partial_fraction(Callbacks&&... callbacks) {
+                    callback_type<callback_type_tag_t::normal,
+                                  std::remove_reference_t<Callbacks>...>
+                        callback_arg_for_engine{
+                            *this, callback_ref_chain<std::remove_reference_t<Callbacks>...>{
+                                       callbacks...}};
+
+                    terminated_ = true;
+                    if constexpr (requires {
+                                      modifiable_engine().with_zeroth_partial_fraction(
+                                          callback_arg_for_engine);
+                                  }) {
+                        modifiable_engine().with_zeroth_partial_fraction(callback_arg_for_engine);
+                    }
+                    else {
+                        modifiable_engine().with_next_partial_fraction(callback_arg_for_engine);
+                    }
+                    if (terminated_) {
+                        final_update(callback_ref_chain<Callbacks...>{callbacks...});
+                    }
                 }
-
-                explicit constexpr generator_impl(Impl impl)
-                    : Mixins<Impl, generator_impl>{impl}..., impl_{static_cast<Impl&&>(impl)} {}
-
-                // Make a deep copy of the internal implementation with its current state.
-                constexpr get_decay_type<Impl> copy_internal_implementation() const {
-                    return impl_;
-                }
-
-                // Make a copy of the generator. The internal implementation is copied in value even
-                // if it were of a reference type.
-                constexpr decay_type copy() const { return decay_type{impl_}; }
-
-                // Returns true if succeeded obtaining a further partial fraction.
-                constexpr bool proceed_to_next_partial_fraction() {
-                    return update_impl([this](callback_type& callback) {
-                        impl_.with_next_partial_fraction(callback);
-                    });
-                }
-
-                // Refine the current interval estimate, with or without proceeding to the next
-                // partial fraction. Returns true if the generator has proceeded to the next partial
-                // fraction in order to refine the interval, and returns false otherwise.
-                constexpr bool refine_interval() {
-                    // Just call proceed_to_next_partial_fraction() if Impl does not have any
-                    // special support for refining the interval estimate.
-                    return update_impl([this](callback_type& callback) {
-                        if constexpr (requires(callback_type& callback_) {
-                                          impl_.refine_interval();
-                                      }) {
-                            impl_.with_next_interval(callback);
-                        }
-                        else {
-                            impl_.with_next_partial_fraction(callback);
-                        }
-                    });
-                }
-
-                constexpr bool terminated() const noexcept { return terminated_; }
             };
 
-            template <class Impl, class MixinList>
-            struct get_generator_type;
+            template <class Engine, class MixinList>
+            struct generator_type;
 
-            template <class Impl, template <class, class> class... Mixins>
-            struct get_generator_type<Impl, mixin_list<Mixins...>> {
-                using type = generator_impl<Impl, Mixins...>;
+            template <class Engine, class... Mixins>
+            struct generator_type<Engine, tmp::typelist<Mixins...>> {
+                using type = generator_impl<Engine, Mixins...>;
             };
         }
 
         // The main interface type.
-        // Automatically add all transitively required mixins into the list of mixins, and sort the
-        // list according to the imposed ordering constraints. Then generator derives from the
-        // resulting list of mixins.
-        template <class Impl, template <class, class> class... Mixins>
-        using generator = typename detail::get_generator_type<
-            Impl, decltype(detail::unwrap_mixin_list(
-                      detail::find_sorted_mixin_list<Impl, Mixins...>()))>::type;
+        // Automatically add all transitively required mixins into the list of mixins, and sort
+        // the list according to the imposed ordering constraints. Then generator derives from
+        // the resulting list of mixins.
+        // Engine must be a non-reference type, but it may be a reference-like type or may have a
+        // reference-like subobject. This is because a separate instance of Engine is never
+        // considered a "complete object", rather only when packaged into a generator it becomes
+        // such.
+        template <class Engine, class... Mixins>
+        using generator = typename detail::generator_type<
+            Engine, decltype(find_sorted_required_mixin_list<Engine, Mixins...>())>::type;
 
         // A convenient factory function.
-        template <template <class, class> class... Mixins, class Impl>
-        constexpr auto make_generator(Impl&& impl) {
-            return generator<std::remove_cvref_t<Impl>, Mixins...>{static_cast<Impl&&>(impl)};
+        template <class... Mixins, class Engine>
+        constexpr auto make_generator(Engine&& engine) {
+            return generator<std::remove_cvref_t<Engine>, Mixins...>{static_cast<Engine&&>(engine)};
         }
 
-        // Since variadic friend declaration is only possible since C++26, we use the following
-        // workaround.
-        template <class Mixin, auto member_function_ptr, class Generator>
-        constexpr decltype(auto) access_engine(Generator&& gen) {
-            using reference_removed = std::remove_reference_t<Generator>;
-            using cvref_removed = std::remove_cv_t<reference_removed>;
-            using engine_type = typename cvref_removed::engine_type;
-            using tracking_data = typename Mixin::template tracking_data<engine_type, cvref_removed>;
-            using cv_added = std::conditional_t<
-                std::is_const_v<reference_removed>,
-                std::conditional_t<std::is_volatile_v<reference_removed>,
-                                   tracking_data const volatile, tracking_data const>,
-                std::conditional_t<std::is_volatile_v<reference_removed>, tracking_data volatile,
-                                   tracking_data>>;
-            
-        }
-
-        // Mixin: stores the current index of the continued fraction expansion.
+        // Mixin: stores the current index of the continued fraction expansion. The index is
+        // retrievable from the proxy as well as the generator.
         struct index_tracker {
-            template <class Proxy>
-            struct proxy_mixin {
-                constexpr int current_index() const noexcept {
-                    return static_cast<Proxy const&>(*this)
-                        .template tracking_data<index_tracker>()
-                        .current_index();
+        private:
+            template <class Engine, class Derived>
+            struct mixin_impl {
+                constexpr int current_index() const {
+                    return tracking_data_accessor<index_tracker>::template tracking_data<Derived>(
+                               *this)
+                        .current_index(generator_accessor::generator<Derived>(*this));
                 }
             };
 
-            template <class Engine, class Generator>
-            class tracking_data {
-                using partial_fraction_type = typename Engine::partial_fraction_type;
+            class default_tracking_data_impl {
                 int current_index_ = -1;
 
-                friend Generator;
-                template <class Proxy>
-                friend struct proxy_mixin;
+            public:
+                template <class Engine>
+                constexpr default_tracking_data_impl(Engine const&) noexcept {}
 
-                explicit constexpr tracking_data(Engine const&) noexcept {}
-
-                constexpr void on_next_partial_fraction(partial_fraction_type const&,
-                                                        Engine const&) noexcept {
+                template <class Generator, class PartialFractionType>
+                constexpr void on_next_partial_fraction(Generator const&,
+                                                        PartialFractionType const&) noexcept {
                     ++current_index_;
                 }
 
-                constexpr int current_index() const noexcept { return current_index_; }
-            };
-        };
-
-        // Mixin: stores the current partial fraction of the continued fraction expansion.
-        struct partial_fraction_tracker {
-            template <class Proxy>
-            struct proxy_mixin {
-                constexpr int current_partial_fraction() const noexcept {
-                    return static_cast<Proxy const&>(*this)
-                        .template tracking_data<partial_fraction_tracker>()
-                        .current_partial_fraction();
+                template <class Generator>
+                constexpr int current_index(Generator const&) const noexcept {
+                    return current_index_;
                 }
             };
 
+        public:
+            template <class Engine, class Proxy>
+            using proxy_mixin = mixin_impl<Engine, Proxy>;
+
             template <class Engine, class Generator>
-            class tracking_data {
+            using generator_mixin = mixin_impl<Engine, Generator>;
+
+            template <class Engine>
+            using default_tracking_data = default_tracking_data_impl;
+        };
+
+        // Mixin: stores the current partial fraction of the continued fraction expansion. The
+        // stored partial fraction can be retrieved only from the proxy.
+        struct partial_fraction_tracker {
+        private:
+            template <class Engine, class Derived>
+            struct mixin_impl {
                 using partial_fraction_type = typename Engine::partial_fraction_type;
 
-                partial_fraction_type current_partial_fraction_;
+                constexpr partial_fraction_type current_partial_fraction() const {
+                    return tracking_data_accessor<partial_fraction_tracker>::template tracking_data<
+                               Derived>(*this)
+                        .current_partial_fraction(generator_accessor::generator<Derived>(*this));
+                }
+            };
 
-                friend Generator;
-                template <class Proxy>
-                friend struct proxy_mixin;
+            template <class PartialFractionType>
+            class default_tracking_data_impl {
+                PartialFractionType current_partial_fraction_{unity{}, zero{}};
 
-                explicit constexpr tracking_data(Engine const& engine)
-                    : current_partial_fraction_{engine.initial_partial_fraction()} {}
+            public:
+                template <class Engine>
+                constexpr default_tracking_data_impl(Engine const&) {}
 
+                template <class Generator>
                 constexpr void
-                on_next_partial_fraction(partial_fraction_type const& next_partial_fraction,
-                                         Engine const&) {
+                on_next_partial_fraction(Generator const&,
+                                         PartialFractionType const& next_partial_fraction) {
                     current_partial_fraction_ = next_partial_fraction;
                 }
 
-                constexpr partial_fraction_type const& current_partial_fraction() const noexcept {
+                template <class Generator>
+                constexpr PartialFractionType const&
+                current_partial_fraction(Generator const&) const noexcept {
                     return current_partial_fraction_;
                 }
             };
+
+        public:
+            template <class Engine, class Proxy>
+            using proxy_mixin = mixin_impl<Engine, Proxy>;
+
+            template <class Engine, class Generator>
+            using generator_mixin = mixin_impl<Engine, Generator>;
+
+            template <class Engine>
+            using default_tracking_data =
+                default_tracking_data_impl<typename Engine::partial_fraction_type>;
         };
 
         // Mixin: stores the previous and the current convergents of the continued fraction
-        // expansion.
+        // expansion. The stored convergents are retrievable from the proxy as well as the
+        // generator.
         struct convergent_tracker {
-            template <class Proxy>
-            struct proxy_mixin {
-                using convergent_type = typename Proxy::engine_type::convergent_type;
+        private:
+            template <class Engine, class Derived>
+            struct mixin_impl {
+                static_assert(
+                    requires {
+                        typename mixin_traits<convergent_tracker, Engine>::convergent_type;
+                    }, "the continued fraction engine should provide the type for storing "
+                       "convergents through mixin_traits");
+                using convergent_type =
+                    typename mixin_traits<convergent_tracker, Engine>::convergent_type;
 
                 constexpr convergent_type const& current_convergent() const noexcept {
-                    return static_cast<Proxy const&>(*this)
-                        .template tracking_data<convergent_tracker>()
-                        .current_convergent();
+                    return tracking_data_accessor<convergent_tracker>::template tracking_data<
+                               Derived>(*this)
+                        .current_convergent(generator_accessor::generator<Derived>(*this));
                 }
                 constexpr auto const& current_convergent_numerator() const noexcept {
                     return current_convergent().numerator;
@@ -756,9 +1327,9 @@ namespace jkj {
                 }
 
                 constexpr convergent_type const& previous_convergent() const noexcept {
-                    return static_cast<Proxy const&>(*this)
-                        .template tracking_data<convergent_tracker>()
-                        .previous_convergent();
+                    return tracking_data_accessor<convergent_tracker>::template tracking_data<
+                               Derived>(*this)
+                        .previous_convergent(generator_accessor::generator<Derived>(*this));
                 }
                 constexpr auto const& previous_convergent_numerator() const noexcept {
                     return previous_convergent().numerator;
@@ -768,56 +1339,76 @@ namespace jkj {
                 }
             };
 
-            template <class Engine, class Generator>
-            class tracking_data {
-                using partial_fraction_type = typename Engine::partial_fraction_type;
-                using convergent_type = typename Engine::convergent_type;
+            template <class ConvergentType>
+            class default_tracking_data_impl {
+                ConvergentType current_convergent_{unity{}, zero{}};
+                ConvergentType previous_convergent_{zero{}, unity{}};
 
-                convergent_type current_convergent_{1, 0u};
-                convergent_type previous_convergent_{0, 1u};
+            public:
+                template <class Engine>
+                constexpr default_tracking_data_impl(Engine const&) {}
 
-                friend Generator;
-                template <class Proxy>
-                friend struct proxy_mixin;
-
-                explicit constexpr tracking_data(Engine const&) noexcept {}
-
+                template <class Generator, class PartialFractionType>
                 constexpr void
-                on_next_partial_fraction(partial_fraction_type const& next_partial_fraction,
-                                         Engine const&) {
+                on_next_partial_fraction(Generator const&,
+                                         PartialFractionType const& next_partial_fraction) {
                     auto next_numerator =
-                        next_partial_fraction.denominator * current_convergent_numerator() +
-                        next_partial_fraction.numerator * previous_convergent_numerator();
+                        next_partial_fraction.denominator * current_convergent_.numerator +
+                        next_partial_fraction.numerator * previous_convergent_.numerator;
                     auto next_denominator =
-                        next_partial_fraction.denominator * current_convergent_denominator() +
-                        next_partial_fraction.numerator * previous_convergent_denominator();
+                        next_partial_fraction.denominator * current_convergent_.denominator +
+                        next_partial_fraction.numerator * previous_convergent_.denominator;
 
                     previous_convergent_ = std::move(current_convergent_);
-                    current_convergent_ = convergent_type{std::move(next_numerator),
-                                                          util::abs(std::move(next_denominator))};
+                    current_convergent_ = ConvergentType{std::move(next_numerator),
+                                                         util::abs(std::move(next_denominator))};
                 }
 
-                constexpr convergent_type const& current_convergent() const noexcept {
+                template <class Generator>
+                constexpr ConvergentType const&
+                current_convergent(Generator const&) const noexcept {
                     return current_convergent_;
                 }
-                constexpr convergent_type const& previous_convergent() const noexcept {
+                template <class Generator>
+                constexpr ConvergentType const&
+                previous_convergent(Generator const&) const noexcept {
                     return previous_convergent_;
                 }
             };
+
+        public:
+            template <class Engine, class Proxy>
+            using proxy_mixin = mixin_impl<Engine, Proxy>;
+
+            template <class Engine, class Generator>
+            using generator_mixin = mixin_impl<Engine, Generator>;
+
+            template <class Engine>
+            using default_tracking_data = default_tracking_data_impl<
+                typename mixin_traits<convergent_tracker, Engine>::convergent_type>;
+        };
+        template <class Engine>
+        struct mixin_traits<convergent_tracker, Engine> {
+            using convergent_type = typename Engine::convergent_type;
         };
 
         // Mixin: stores the previous previous convergent of the continued fraction expansion.
-        // Depends on convergent_tracker's presence, so including this mixin results in tracking the
-        // last three convergents.
+        // Depends on convergent_tracker's presence, so including this mixin results in tracking
+        // the last three convergents. The stored convergent is retrievable only from the proxy.
         struct previous_previous_convergent_tracker {
-            template <class Proxy>
-            struct proxy_mixin {
-                using convergent_type = typename Proxy::engine_type::convergent_type;
+        private:
+            template <class Engine, class Derived>
+            struct mixin_impl {
+            private:
+                using convergent_type =
+                    typename mixin_traits<convergent_tracker, Engine>::convergent_type;
 
+            public:
                 constexpr convergent_type const& previous_previous_convergent() const noexcept {
-                    return static_cast<Proxy const&>(*this)
-                        .template tracking_data<previous_previous_convergent_tracker>()
-                        .current_convergent();
+                    return tracking_data_accessor<previous_previous_convergent_tracker>::
+                        template tracking_data<Derived>(*this)
+                            .previous_previous_convergent(
+                                generator_accessor::generator<Derived>(*this));
                 }
                 constexpr auto const& previous_previous_convergent_numerator() const noexcept {
                     return previous_previous_convergent().numerator;
@@ -827,183 +1418,281 @@ namespace jkj {
                 }
             };
 
-            template <class Engine, class Generator>
-            class tracking_data {
-                using partial_fraction_type = typename Engine::partial_fraction_type;
-                using convergent_type = typename Engine::convergent_type;
+            template <class ConvergentType>
+            class default_tracking_data_impl {
+                ConvergentType previous_previous_convergent_{zero{}, zero{}};
 
-                convergent_type previous_previous_convergent_{1, 0u};
+            public:
+                template <class Engine>
+                constexpr default_tracking_data_impl(Engine const&) {}
 
-                friend Generator;
-                template <class Proxy>
-                friend struct proxy_mixin;
-
-                explicit constexpr tracking_data(Engine const&) noexcept {}
-
-                constexpr void on_next_partial_fraction(partial_fraction_type const&,
-                                                        Engine const&) {
-                    previous_previous_convergent_ =
-                        static_cast<Generator const&>(*this).current_state().previous_convergent();
+                template <class Generator, class PartialFractionType>
+                constexpr void on_next_partial_fraction(Generator const& gen,
+                                                        PartialFractionType const&) {
+                    previous_previous_convergent_ = gen.previous_convergent();
                 }
 
-                constexpr convergent_type const& previous_previous_convergent() const noexcept {
+                template <class Generator>
+                constexpr ConvergentType const&
+                previous_previous_convergent(Generator const&) const noexcept {
                     return previous_previous_convergent_;
                 }
             };
 
+        public:
+            template <class Engine, class Proxy>
+            using proxy_mixin = mixin_impl<Engine, Proxy>;
+
+            template <class Engine, class Generator>
+            using generator_mixin = mixin_impl<Engine, Generator>;
+
             template <class Engine>
-            struct traits {
-                using required_mixins = mixin_list<convergent_tracker>;
-                using before_than = mixin_list<convergent_tracker>;
-            };
+            using default_tracking_data = default_tracking_data_impl<
+                typename mixin_traits<convergent_tracker, Engine>::convergent_type>;
+        };
+        template <class Engine>
+        struct mixin_traits<previous_previous_convergent_tracker, Engine> {
+            using required_mixins = tmp::typelist<convergent_tracker>;
+            using before_than = tmp::typelist<convergent_tracker>;
         };
 
         // Mixin: provides interface to treat the generator as an interval estimate provider.
         struct interval_estimate_provider {
-            template <class Engine, class Generator>
-            class tracking_data {
-                using partial_fraction_type = typename Engine::partial_fraction_type;
-                using convergent_type = typename Engine::convergent_type;
-                using interval_type = typename Engine::interval_type;
-
-                interval_type current_interval_;
-
-                friend Generator;
-
-                explicit constexpr tracking_data(Engine const& engine)
-                    : current_interval_{engine.initial_interval()} {}
-
-                class callback_type : public Generator::callback_type {
-                    tracking_data& data_;
-
-                public:
-                    constexpr void on_next_interval(interval_type const& next_interval) {
-                        data_.current_interval_ = next_interval;
-                    }
-                };
+        private:
+            template <class IntervalType>
+            class default_tracking_data_impl {
+                IntervalType current_interval_;
 
             public:
-                constexpr void refine_interval() {
-                    if constexpr (requires(Engine engine, callback_type callback) {
-                                      engine.refine_interval(callback);
-                                  }) {
-                    }
+                template <class Engine>
+                constexpr default_tracking_data_impl(Engine const& engine)
+                    : current_interval_{engine.initial_interval()} {}
+
+                template <class Generator>
+                constexpr void on_next_interval(Generator const&, IntervalType next_interval) {
+                    current_interval_ = static_cast<IntervalType&&>(next_interval);
                 }
 
-                constexpr interval_type const& current_interval() const noexcept {
+                template <class Generator>
+                constexpr IntervalType const& current_interval(Generator const&) const noexcept {
                     return current_interval_;
                 }
             };
 
-            template <class Engine>
-            struct traits {
-                using required_mixins = mixin_list<index_tracker, convergent_tracker>;
-                using after_than = mixin_list<index_tracker, convergent_tracker>;
-            };
-        };
+            template <class PartialFractionType, class IntervalType>
+            class default_facade_impl {
+            public:
+                using required_mixins = tmp::typelist<index_tracker, convergent_tracker>;
 
-        template <class Impl, class Generator>
-        class interval_tracker {
-            using partial_fraction_type = typename Impl::partial_fraction_type;
-            using convergent_type = typename Impl::convergent_type;
-            using interval_type = typename Impl::interval_type;
+                static_assert(
+                    std::is_same_v<decltype(PartialFractionType::numerator), unity>,
+                    "inspecting the partial fraction type concludes that the continued "
+                    "fraction is not regular; the default facade for "
+                    "interval_estimate_provider only works for regular continued fractions");
 
-            interval_type current_interval_;
+                template <class Engine>
+                constexpr default_facade_impl(Engine&) noexcept {}
 
-            friend Generator;
-
-            explicit constexpr interval_tracker(Impl const& impl)
-                : current_interval_{impl.initial_interval()} {}
-
-            constexpr void on_next_partial_fraction(partial_fraction_type const&, Impl& impl) {
-                if constexpr (requires(typename Generator::callback_type callback) {
-                                  impl.with_next_interval(callback);
-                              }) {
-                    // on_next_interval() should be called whenever necessary, so nothing to do
-                    // here.
-                }
-                else {
-                    // Use convergents. Note that this is valid only for regular continued
-                    // fractions.
-                    static_assert(
-                        std::is_same_v<decltype(partial_fraction_type::numerator), unity>,
-                        "inspecting partial_fraction_type concludes that the continued fraction is "
-                        "not regular; interval_tracker requires generalized continued fraction "
-                        "implementations to provides with_next_interval() member function, but the "
-                        "given implementation does not have one.");
-
-                    auto const& self = static_cast<Generator const&>(*this);
-                    if (self.current_index() >= 1) {
-                        if (self.current_index() % 2 == 0) {
-                            current_interval_ =
-                                cyclic_interval<typename interval_type::value_type,
-                                                cyclic_interval_type_t::left_closed_right_open>{
-                                    self.current_convergent(), self.previous_convergent()};
-                        }
-                        else {
-                            current_interval_ =
-                                cyclic_interval<typename interval_type::value_type,
-                                                cyclic_interval_type_t::left_open_right_closed>{
-                                    self.previous_convergent(), self.current_convergent()};
-                        }
-                    }
-                }
-            }
-
-            constexpr void on_next_interval(interval_type const& new_interval, Impl&) {
-                current_interval_ = new_interval;
-            }
-
-            constexpr void final_update(Impl const&) {
-                if constexpr (interval_type::is_allowed_interval_type(
-                                  cyclic_interval_type_t::single_point)) {
-                    current_interval_ = cyclic_interval<typename interval_type::value_type,
-                                                        cyclic_interval_type_t::single_point>{
-                        static_cast<Generator const&>(*this).current_convergent()};
-                }
-            }
-
-        public:
-            interval_type const& current_interval() const noexcept { return current_interval_; }
-
-            // Refine the current value so that the maximum possible error is no more than the
-            // given bound.
-            template <class ErrorValue>
-            constexpr convergent_type const& refine_interval_until(ErrorValue const& error_bound) {
-                // Translate the lower bound by error_bound and see if it belongs to the interval.
-                while (current_interval().visit([&](auto&& itv) {
-                    static_assert(itv.interval_type() != cyclic_interval_type_t::empty);
-                    if constexpr (itv.interval_type() == cyclic_interval_type_t::single_point) {
-                        return false;
-                    }
-                    else if constexpr (itv.interval_type() == cyclic_interval_type_t::entire) {
-                        return true;
+                template <class Advancer>
+                constexpr void refine_interval(Advancer&& advancer) {
+                    if constexpr (IntervalType::allowed_interval_types() ==
+                                  util::array<cyclic_interval_type_t, 1>{
+                                      cyclic_interval_type_t::single_point}) {
+                        // Nothing to do if the only possible interval type is the single point.
                     }
                     else {
-                        auto translated = linear_fractional_translation(
-                            error_bound.numerator, error_bound.denominator)(itv.lower_bound());
-
-                        if (!itv.contains(translated)) {
-                            return false;
+                        auto&& state = advancer.current_state();
+                        if (state.terminated()) {
+                            // Nothing to do if there is no further continued fraction expansion.
                         }
-
-                        if (itv.interval_type() == cyclic_interval_type_t::closed &&
-                            translated == itv.upper_bound()) {
-                            return false;
+                        else if (advancer.proceed_to_next_partial_fraction()) {
+                            // Use convergents. Note that this is valid only for regular continued
+                            // fractions.
+                            if (state.current_index() >= 1) {
+                                if (state.current_index() % 2 == 0) {
+                                    advancer.on_next_interval(
+                                        cyclic_interval<
+                                            typename IntervalType::value_type,
+                                            cyclic_interval_type_t::left_closed_right_open>{
+                                            state.current_convergent(),
+                                            state.previous_convergent()});
+                                }
+                                else {
+                                    advancer.on_next_interval(
+                                        cyclic_interval<
+                                            typename IntervalType::value_type,
+                                            cyclic_interval_type_t::left_open_right_closed>{
+                                            state.previous_convergent(),
+                                            state.current_convergent()});
+                                }
+                            }
                         }
-
-                        return true;
+                        else {
+                            if constexpr (IntervalType::is_allowed_interval_type(
+                                              cyclic_interval_type_t::single_point)) {
+                                advancer.on_next_interval(
+                                    cyclic_interval<typename IntervalType::value_type,
+                                                    cyclic_interval_type_t::single_point>{
+                                        state.current_convergent()});
+                            }
+                        }
                     }
-                })) {
-                    static_cast<Generator&>(*this).proceed_to_next_partial_fraction();
                 }
-                return static_cast<Generator const&>(*this).current_convergent();
-            }
+            };
+
+        public:
+            template <class Engine, class Callback>
+            struct callback_mixin {
+                static_assert(
+                    requires {
+                        typename mixin_traits<interval_estimate_provider, Engine>::interval_type;
+                    }, "the continued fraction engine should provide the type for storing "
+                       "interval estimates");
+
+                using interval_type =
+                    typename mixin_traits<interval_estimate_provider, Engine>::interval_type;
+
+                constexpr void on_next_interval(interval_type next_interval) {
+                    tracking_data_accessor<interval_estimate_provider>::template tracking_data<
+                        Callback>(*this)
+                        .on_next_interval(generator_accessor::generator<Callback>(*this),
+                                          static_cast<interval_type&&>(next_interval));
+                }
+            };
+
+            template <class Engine, class Generator>
+            class generator_mixin {
+            public:
+                using interval_type =
+                    typename mixin_traits<interval_estimate_provider, Engine>::interval_type;
+
+                template <class... Callbacks>
+                constexpr void refine_interval(Callbacks&&... callbacks) {
+                    generator_accessor::engine_facade<interval_estimate_provider, Generator>(*this)
+                        .refine_interval(
+                            generator_accessor::create_advancer<Generator>(*this, callbacks...));
+                }
+
+                constexpr interval_type const& current_interval() const noexcept {
+                    return tracking_data_accessor<
+                               interval_estimate_provider>::template tracking_data<Generator>(*this)
+                        .current_interval(generator_accessor::generator<Generator>(*this));
+                }
+
+                // Refine the current value so that the maximum possible error is no more than
+                // the given bound.
+                template <class ErrorValue>
+                constexpr void refine_interval_until(ErrorValue const& error_bound) {
+                    // Translate the lower bound by error_bound and see if it belongs to the
+                    // interval.
+                    while (current_interval().visit([&](auto&& itv) {
+                        using itv_type = std::remove_cvref_t<decltype(itv)>;
+                        static_assert(itv_type::interval_type() != cyclic_interval_type_t::empty);
+                        if constexpr (itv_type::interval_type() ==
+                                      cyclic_interval_type_t::single_point) {
+                            return false;
+                        }
+                        else if constexpr (itv_type::interval_type() ==
+                                           cyclic_interval_type_t::entire) {
+                            return true;
+                        }
+                        else {
+                            auto translated = linear_fractional_translation(
+                                error_bound.numerator, error_bound.denominator)(itv.lower_bound());
+
+                            if (!itv.contains(translated)) {
+                                return false;
+                            }
+
+                            if (itv.interval_type() == cyclic_interval_type_t::closed &&
+                                translated == itv.upper_bound()) {
+                                return false;
+                            }
+
+                            return true;
+                        }
+                    })) {
+                        refine_interval();
+                    }
+                }
+            };
+
+            template <class Engine>
+            using default_tracking_data = default_tracking_data_impl<
+                typename mixin_traits<interval_estimate_provider, Engine>::interval_type>;
+
+            template <class Engine>
+            using default_facade = default_facade_impl<
+                typename Engine::partial_fraction_type,
+                typename mixin_traits<interval_estimate_provider, Engine>::interval_type>;
         };
-        template <>
-        struct mixin_traits<interval_tracker> {
-            using required_mixins = mixin_list<index_tracker, convergent_tracker>;
-            using after_than = mixin_list<index_tracker, convergent_tracker>;
+        template <class Engine>
+        struct mixin_traits<interval_estimate_provider, Engine> {
+            using interval_type = typename Engine::interval_type;
+            using facade = interval_estimate_provider::default_facade<Engine>;
+            using required_mixins = typename facade::required_mixins;
+        };
+
+        // Mixin: provides interface for rewinding the generator back to its initial partial
+        // fraction.
+        struct rewinder {
+            template <class Engine, class Generator>
+            class generator_mixin {
+            public:
+                constexpr void rewind() {
+                    // Since there is no way to call rewind() before returning from the
+                    // generator's constructor, current_index() == -1 means the number is equal
+                    // to infinity and there is no partial fraction. In such a case, rewind()
+                    // does nothing.
+                    if (generator_accessor::generator<Generator>(*this).current_index() != -1) {
+                        // Call rewind() for the engine.
+                        generator_accessor::engine_facade<rewinder, Generator>(*this).rewind(
+                            generator_accessor::generator<Generator>(*this));
+
+                        // Call rewind() for the tracking data associated to each of the
+                        // included mixins.
+                        call_rewind_for_tracking_data(typename Generator::included_mixins{});
+
+                        generator_accessor::reset_termination_flag<Generator>(*this);
+                    }
+                }
+
+            private:
+                constexpr void call_rewind_for_tracking_data(tmp::typelist<>) noexcept {}
+
+                template <class FirstMixin, class... RemainingMixins>
+                constexpr void
+                call_rewind_for_tracking_data(tmp::typelist<FirstMixin, RemainingMixins...>) {
+                    auto&& tracking_data =
+                        tracking_data_accessor<FirstMixin>::template tracking_data<Generator>(
+                            *this);
+                    auto&& generator = generator_accessor::generator<Generator>(*this);
+                    if constexpr (requires { tracking_data.rewind(generator); }) {
+                        tracking_data.rewind(generator);
+                    }
+                    call_rewind_for_tracking_data(tmp::typelist<RemainingMixins...>{});
+                }
+            };
+
+            template <class Engine>
+            class default_facade {
+            public:
+                static_assert(mixin_traits<rewinder, Engine>::is_engine_rewindable,
+                              "rewinder mixin requires the engine to provide the facade for it");
+
+                constexpr default_facade(Engine&) noexcept {}
+
+                template <class Generator>
+                constexpr void rewind(Generator const&) noexcept {}
+            };
+        };
+        template <class Engine>
+        struct mixin_traits<rewinder, Engine> {
+            static constexpr bool is_engine_rewindable = requires {
+                Engine::is_engine_rewindable;
+                requires(Engine::is_engine_rewindable == true);
+            };
+            using required_mixins = tmp::typelist<index_tracker>;
         };
     }
 }

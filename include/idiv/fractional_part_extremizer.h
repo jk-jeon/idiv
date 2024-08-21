@@ -15,10 +15,10 @@
 // is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 // KIND, either express or implied.
 
-#ifndef JKJ_HEADER_FRACTIONAL_PART_EXTREMIZER
-#define JKJ_HEADER_FRACTIONAL_PART_EXTREMIZER
+#ifndef JKJ_HEADER_IDIV_FRACTIONAL_PART_EXTREMIZER
+#define JKJ_HEADER_IDIV_FRACTIONAL_PART_EXTREMIZER
 
-#include "rational_continued_fraction.h"
+#include "continued_fraction/engine/rational.h"
 #include "simultaneous_floor.h"
 
 namespace jkj {
@@ -31,14 +31,16 @@ namespace jkj {
             ContinuedFractionGeneratorX&& xcf, ContinuedFractionGeneratorY&& ycf,
             interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
             static_assert(
-                std::remove_cvref_t<ContinuedFractionGeneratorX>::template is_implementing_mixins<
-                    cntfrc::convergent_tracker, cntfrc::interval_tracker>(),
-                "the first continued fraction generator must implement convergent_tracker and "
-                "interval_tracker");
+                cntfrc::has_mixins<ContinuedFractionGeneratorX, cntfrc::index_tracker,
+                                   cntfrc::convergent_tracker, cntfrc::interval_estimate_provider,
+                                   cntfrc::rewinder>(),
+                "the first continued fraction generator must include index_tracker, "
+                "convergent_tracker, interval_estimate_provider and rewinder");
             static_assert(
-                std::remove_cvref_t<ContinuedFractionGeneratorY>::template is_implementing_mixins<
-                    cntfrc::interval_tracker>(),
-                "the second continued fraction generator must implement interval_tracker");
+                cntfrc::has_mixins<ContinuedFractionGeneratorY, cntfrc::interval_estimate_provider,
+                                   cntfrc::rewinder>(),
+                "the second continued fraction generator must include interval_estimate_provider "
+                "and rewinder");
 
             extremizers_of_fractional_part<bigint::int_var> result{nrange.lower_bound(),
                                                                    nrange.lower_bound()};
@@ -51,11 +53,8 @@ namespace jkj {
             auto approx_info = find_simultaneous_multiply_add_shift(
                 std::forward<ContinuedFractionGeneratorX>(xcf),
                 std::forward<ContinuedFractionGeneratorY>(ycf), nrange);
-            auto xi_cf =
-                cntfrc::make_generator<cntfrc::index_tracker, cntfrc::partial_fraction_tracker,
-                                       cntfrc::previous_previous_convergent_tracker>(
-                    cntfrc::impl::rational{approx_info.multiplier,
-                                           bigint::uint_var::power_of_2(approx_info.shift_amount)});
+            auto xi_cf = cntfrc::make_rational_generator<cntfrc::convergent_tracker>(
+                approx_info.multiplier, bigint::uint_var::power_of_2(approx_info.shift_amount));
 
             // RHS times 2^k.
             auto compute_scaled_threshold_for_maximizer = [&] {
@@ -72,25 +71,28 @@ namespace jkj {
             };
             auto scaled_threshold_for_minimizer = compute_scaled_threshold_for_minimizer();
 
-            // qx - p or p - qx.
-            auto previous_scaled_lhs_for_convergent =
-                util::abs((xi_cf.current_convergent_numerator() << approx_info.shift_amount) -
-                          approx_info.multiplier * xi_cf.current_convergent_denominator());
-
             bool found_minimizer = false;
             bool found_maximizer = false;
-            while (!found_minimizer || !found_maximizer) {
+            auto itr = xi_cf.begin();
+
+            util::constexpr_assert(itr != xi_cf.end());
+
+            // qx - p or p - qx.
+            auto previous_scaled_lhs_for_convergent =
+                util::abs((itr->previous_convergent_numerator() << approx_info.shift_amount) -
+                          approx_info.multiplier * itr->previous_convergent_denominator());
+
+            while (true) {
                 // Maximizer.
                 // Find a new even convergent.
-                xi_cf.proceed_to_next_partial_fraction();
                 auto scaled_lhs_for_convergent =
-                    util::abs(approx_info.multiplier * xi_cf.current_convergent_denominator() -
-                              (xi_cf.current_convergent_numerator() << approx_info.shift_amount));
+                    util::abs(approx_info.multiplier * itr->current_convergent_denominator() -
+                              (itr->current_convergent_numerator() << approx_info.shift_amount));
 
                 if (!found_maximizer) {
-                    auto increment = xi_cf.current_convergent_denominator();
+                    auto increment = itr->current_convergent_denominator();
 
-                    if (!xi_cf.terminated()) {
+                    if (itr != xi_cf.end()) {
                         while (scaled_lhs_for_convergent < scaled_threshold_for_maximizer) {
                             auto scaled_lhs = scaled_lhs_for_convergent;
                             {
@@ -100,7 +102,7 @@ namespace jkj {
                                          1u;
 
                                 scaled_lhs += s * previous_scaled_lhs_for_convergent;
-                                increment -= std::move(s) * xi_cf.previous_convergent_denominator();
+                                increment -= std::move(s) * itr->previous_convergent_denominator();
                             }
 
                             if (!util::is_zero(scaled_lhs)) {
@@ -113,7 +115,7 @@ namespace jkj {
                                     result.largest_maximizer = std::move(new_estimate);
                                     scaled_threshold_for_maximizer =
                                         compute_scaled_threshold_for_maximizer();
-                                    increment = xi_cf.current_convergent_denominator();
+                                    increment = itr->current_convergent_denominator();
                                     continue;
                                 }
                             }
@@ -121,7 +123,7 @@ namespace jkj {
                             found_maximizer = true;
                             break;
                         } // while (scaled_lhs_for_convergent < scaled_threshold_for_maximizer)
-                    }     // if (!xi_cf.terminated())
+                    }     // if (itr != rg.end())
                     else {
                         found_maximizer = true;
                     }
@@ -137,23 +139,23 @@ namespace jkj {
 
                 // Minimizer.
                 // Find a new odd convergent.
-                xi_cf.proceed_to_next_partial_fraction();
+                ++itr;
                 scaled_lhs_for_convergent =
-                    util::abs((xi_cf.current_convergent_numerator() << approx_info.shift_amount) -
-                              approx_info.multiplier * xi_cf.current_convergent_denominator());
+                    util::abs((itr->current_convergent_numerator() << approx_info.shift_amount) -
+                              approx_info.multiplier * itr->current_convergent_denominator());
 
                 if (!found_minimizer) {
-                    if (!xi_cf.terminated()) {
+                    if (itr != xi_cf.end()) {
                         while (scaled_lhs_for_convergent <= scaled_threshold_for_minimizer) {
                             auto scaled_lhs = scaled_lhs_for_convergent;
-                            auto increment = xi_cf.current_convergent_denominator();
+                            auto increment = itr->current_convergent_denominator();
                             {
                                 auto s = util::div_floor(scaled_threshold_for_minimizer -
                                                              scaled_lhs_for_convergent,
                                                          previous_scaled_lhs_for_convergent);
 
                                 scaled_lhs += s * previous_scaled_lhs_for_convergent;
-                                increment -= std::move(s) * xi_cf.previous_convergent_denominator();
+                                increment -= std::move(s) * itr->previous_convergent_denominator();
                             }
 
                             if (!util::is_zero(scaled_lhs)) {
@@ -178,13 +180,19 @@ namespace jkj {
                             found_minimizer = true;
                             break;
                         } // while (scaled_lhs_for_convergent <= scaled_threshold_for_minimizer)
-                    }     // if (!xi_cf.terminated())
+                    }     // if (itr != rg.end())
                     else {
                         found_minimizer = true;
                     }
                 } // if (!found_minimizer)
                 previous_scaled_lhs_for_convergent = scaled_lhs_for_convergent;
-            } // while (!found_minimizer || !found_maximizer)
+
+                if (found_minimizer && found_maximizer) {
+                    break;
+                }
+
+                ++itr;
+            } // while (true)
 
             return result;
         }

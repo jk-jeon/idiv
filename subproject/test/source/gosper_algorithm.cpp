@@ -16,9 +16,12 @@
 // KIND, either express or implied.
 
 #include <idiv/bigint.h>
-#include <idiv/gosper_continued_fraction.h>
-#include <idiv/rational_continued_fraction.h>
+#include <idiv/continued_fraction/engine/gosper.h>
+#include <idiv/continued_fraction/engine/rational.h>
 #include <boost/ut.hpp>
+
+#include <vector>
+#include <variant>
 
 void gosper_algorithm_test() {
     using namespace boost::ut;
@@ -26,45 +29,43 @@ void gosper_algorithm_test() {
 
     "[Gosper's algorithms]"_test = [] {
         using rational_continued_fraction_t =
-            cntfrc::impl::rational<bigint::int_var, bigint::uint_var>;
+            cntfrc::engine::rational<bigint::int_var, bigint::uint_var>;
 
         should("unary_gosper") = [] {
             // 481/2245 = (-18*156 + 13*179)/(12*156 - 23*179)
-            auto cf1 = cntfrc::make_generator<cntfrc::convergent_tracker>(
-                cntfrc::make_unary_gosper_from_impl(rational_continued_fraction_t{156, 179u},
-                                                    {-18, 13, 12, -23}));
+            auto cf1 = cntfrc::make_unary_gosper_generator<cntfrc::convergent_tracker>(
+                rational_continued_fraction_t{156, 179u}, {-18, 13, 12, -23});
             auto cf2 = cntfrc::make_generator<cntfrc::convergent_tracker>(
                 rational_continued_fraction_t{481, 2245u});
 
-            while (!cf2.terminated()) {
-                expect(cf1.proceed_to_next_partial_fraction() ==
-                       cf2.proceed_to_next_partial_fraction());
-                expect(cf1.current_convergent() == cf2.current_convergent());
+            auto itr1 = cf1.begin();
+            auto itr2 = cf2.begin();
+            for (; itr2 != cf2.end(); ++itr1, ++itr2) {
+                expect(itr1 != cf1.end());
+                expect(itr1->current_convergent() == itr2->current_convergent());
             }
-            expect(cf1.proceed_to_next_partial_fraction() ==
-                   cf2.proceed_to_next_partial_fraction());
+            expect(itr1 == cf1.end());
         };
 
         should("binary_gosper") = [] {
             // Take x = 17/89, y = 31/125, and
             // z = (xy + 4x + 2y + 8)/(2x - 3y + 1) = 2655/182.
-            auto cf1 = cntfrc::make_generator<cntfrc::convergent_tracker>(
-                cntfrc::make_binary_gosper_from_impl(rational_continued_fraction_t{17, 89u},
-                                                     rational_continued_fraction_t{31, 125u},
-                                                     {// numerator
-                                                      1, 4, 2, 8,
-                                                      // denominator
-                                                      0, 2, -3, 1}));
+            auto cf1 = cntfrc::make_binary_gosper_generator<cntfrc::convergent_tracker>(
+                rational_continued_fraction_t{17, 89u}, rational_continued_fraction_t{31, 125u},
+                {// numerator
+                 1, 4, 2, 8,
+                 // denominator
+                 0, 2, -3, 1});
             auto cf2 = cntfrc::make_generator<cntfrc::convergent_tracker>(
                 rational_continued_fraction_t{2655, 182u});
 
-            while (!cf2.terminated()) {
-                expect(cf1.proceed_to_next_partial_fraction() ==
-                       cf2.proceed_to_next_partial_fraction());
-                expect(cf1.current_convergent() == cf2.current_convergent());
+            auto itr1 = cf1.begin();
+            auto itr2 = cf2.begin();
+            for (; itr2 != cf2.end(); ++itr1, ++itr2) {
+                expect(itr1 != cf1.end());
+                expect(itr1->current_convergent() == itr2->current_convergent());
             }
-            expect(cf1.proceed_to_next_partial_fraction() ==
-                   cf2.proceed_to_next_partial_fraction());
+            expect(itr1 == cf1.end());
         };
     };
 }

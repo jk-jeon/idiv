@@ -71,38 +71,43 @@ void continued_fraction_mixin_metaprogramming_test() {
         };
 
         should("get_transitive_required_mixin_list") = [] {
-            auto list = cntfrc::detail::get_transitive_required_mixin_list(
-                tmp::typelist<cntfrc::detail::mixin_type_wrapper<cntfrc::interval_tracker>,
-                              cntfrc::detail::mixin_type_wrapper<cntfrc::convergent_tracker>>{});
+            struct temp_engine {
+                using partial_fraction_type = cntfrc::projective_rational<cntfrc::unity, int>;
+                using convergent_type = cntfrc::projective_rational<int, unsigned int>;
+                using interval_type = variable_shape_cyclic_interval<convergent_type>;
+            };
+            auto list = cntfrc::detail::get_transitive_required_mixin_list<temp_engine>(
+                tmp::typelist<cntfrc::interval_estimate_provider, cntfrc::convergent_tracker>{});
 
-            expect(std::is_same_v<
-                   decltype(list),
-                   tmp::typelist<cntfrc::detail::mixin_type_wrapper<cntfrc::interval_tracker>,
-                                 cntfrc::detail::mixin_type_wrapper<cntfrc::convergent_tracker>,
-                                 cntfrc::detail::mixin_type_wrapper<cntfrc::index_tracker>>>);
+            expect(
+                std::is_same_v<decltype(list),
+                               tmp::typelist<cntfrc::interval_estimate_provider,
+                                             cntfrc::convergent_tracker, cntfrc::index_tracker>>);
         };
 
         should("find_sorted_mixin_list") = [] {
             struct dummy_type {
+                using partial_fraction_type = cntfrc::projective_rational<cntfrc::unity, int>;
+                using convergent_type = cntfrc::projective_rational<int, unsigned int>;
+                using interval_type = variable_shape_cyclic_interval<convergent_type>;
+
                 using required_mixins =
-                    cntfrc::mixin_list<cntfrc::index_tracker, cntfrc::partial_fraction_tracker,
-                                       cntfrc::convergent_tracker>;
+                    tmp::typelist<cntfrc::index_tracker, cntfrc::partial_fraction_tracker,
+                                  cntfrc::convergent_tracker>;
                 using mixin_ordering_constraints =
                     cntfrc::mixin_ordering_constraint::constraint_list<
-                        cntfrc::mixin_ordering_constraint::before_after<cntfrc::index_tracker,
-                                                                        cntfrc::interval_tracker>,
-                        cntfrc::mixin_ordering_constraint::before_after<cntfrc::convergent_tracker,
-                                                                        cntfrc::interval_tracker>>;
+                        cntfrc::mixin_ordering_constraint::before_after<
+                            cntfrc::index_tracker, cntfrc::interval_estimate_provider>,
+                        cntfrc::mixin_ordering_constraint::before_after<
+                            cntfrc::convergent_tracker, cntfrc::interval_estimate_provider>>;
             };
             auto sorted_wrapped_mixin_list =
-                cntfrc::detail::find_sorted_mixin_list<dummy_type, cntfrc::interval_tracker>();
+                cntfrc::find_sorted_required_mixin_list<dummy_type,
+                                                        cntfrc::interval_estimate_provider>();
             expect(std::is_same_v<
                    decltype(sorted_wrapped_mixin_list),
-                   tmp::typelist<
-                       cntfrc::detail::mixin_type_wrapper<cntfrc::convergent_tracker>,
-                       cntfrc::detail::mixin_type_wrapper<cntfrc::partial_fraction_tracker>,
-                       cntfrc::detail::mixin_type_wrapper<cntfrc::index_tracker>,
-                       cntfrc::detail::mixin_type_wrapper<cntfrc::interval_tracker>>>);
+                   tmp::typelist<cntfrc::convergent_tracker, cntfrc::partial_fraction_tracker,
+                                 cntfrc::index_tracker, cntfrc::interval_estimate_provider>>);
         };
     };
 }

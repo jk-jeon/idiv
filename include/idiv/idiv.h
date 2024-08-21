@@ -15,8 +15,8 @@
 // is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 // KIND, either express or implied.
 
-#ifndef JKJ_HEADER_IDIV
-#define JKJ_HEADER_IDIV
+#ifndef JKJ_HEADER_IDIV_IDIV
+#define JKJ_HEADER_IDIV_IDIV
 
 #include "optimal_multiply_shift.h"
 #include "xi_zeta_region.h"
@@ -33,20 +33,20 @@ namespace jkj {
             ContinuedFractionGeneratorZeta&& zetacf,
             interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
             static_assert(
-                std::remove_cvref_t<ContinuedFractionGeneratorX>::template is_implementing_mixins<
-                    cntfrc::convergent_tracker, cntfrc::interval_tracker>(),
-                "the first continued fraction generator must implement convergent_tracker and "
-                "interval_tracker");
+                cntfrc::has_mixins<ContinuedFractionGeneratorX, cntfrc::index_tracker,
+                                   cntfrc::convergent_tracker, cntfrc::interval_estimate_provider,
+                                   cntfrc::rewinder>(),
+                "the first continued fraction generator must include index_tracker, "
+                "convergent_tracker, interval_estimate_provider and rewinder");
             static_assert(
-                std::remove_cvref_t<ContinuedFractionGeneratorY>::template is_implementing_mixins<
-                    cntfrc::interval_tracker>(),
-                "the second continued fraction generator must implement interval_tracker");
-            static_assert(
-                std::remove_cvref_t<ContinuedFractionGeneratorZeta>::
-                    template is_implementing_mixins<cntfrc::index_tracker,
-                                                    cntfrc::previous_previous_convergent_tracker>(),
-                "the third continued fraction generator must implement index_tracker and "
-                "previous_previous_convergent_tracker");
+                cntfrc::has_mixins<ContinuedFractionGeneratorY, cntfrc::interval_estimate_provider,
+                                   cntfrc::rewinder>(),
+                "the second continued fraction generator must include interval_estimate_provider "
+                "and rewinder");
+            static_assert(cntfrc::has_mixins<ContinuedFractionGeneratorZeta, cntfrc::index_tracker,
+                                             cntfrc::convergent_tracker>(),
+                          "the third continued fraction generator must include index_tracker and "
+                          "convergent_tracker");
 
             util::constexpr_assert(util::is_strictly_positive(nrange.lower_bound()));
 
@@ -54,15 +54,15 @@ namespace jkj {
             auto approx_x_y_info = find_simultaneous_multiply_add_shift(
                 std::forward<ContinuedFractionGeneratorX>(xcf),
                 std::forward<ContinuedFractionGeneratorY>(ycf), nrange);
-            auto xcf_copy = cntfrc::make_caching_generator(
-                cntfrc::make_generator<cntfrc::convergent_tracker, cntfrc::interval_tracker>(
-                    cntfrc::impl::rational{
-                        approx_x_y_info.multiplier,
-                        bigint::uint_var::power_of_2(approx_x_y_info.shift_amount)}));
-            auto ycf_copy = cntfrc::make_caching_generator(
-                cntfrc::make_generator<cntfrc::interval_tracker>(cntfrc::impl::rational{
-                    approx_x_y_info.adder,
-                    bigint::uint_var::power_of_2(approx_x_y_info.shift_amount)}));
+            auto approx_xcf = cntfrc::make_caching_generator<
+                cntfrc::convergent_tracker, cntfrc::interval_estimate_provider, cntfrc::rewinder>(
+                cntfrc::engine::rational{
+                    approx_x_y_info.multiplier,
+                    bigint::uint_var::power_of_2(approx_x_y_info.shift_amount)});
+            auto approx_ycf = cntfrc::make_caching_generator<cntfrc::interval_estimate_provider,
+                                                             cntfrc::rewinder>(
+                cntfrc::engine::rational{approx_x_y_info.adder, bigint::uint_var::power_of_2(
+                                                                    approx_x_y_info.shift_amount)});
 
             // Find a good enough approximation of zeta.
             // Because of potential aliasing of zetacf with xcf/ycf, we make a copy here.
@@ -71,9 +71,9 @@ namespace jkj {
                 zetacf, util::abs(nrange.upper_bound() - nrange.lower_bound()) + 1u);
 
             // Find the smallest minimizer of the fractional part.
-            auto const n00 =
-                find_extremizers_of_fractional_part(xcf_copy, ycf_copy, nrange).smallest_minimizer;
-            xcf_copy.rewind();
+            auto const n00 = find_extremizers_of_fractional_part(approx_xcf, approx_ycf, nrange)
+                                 .smallest_minimizer;
+            approx_xcf.rewind();
 
             // Solve the maximization problem on the left.
             auto left_maximizer = n00;
@@ -83,8 +83,8 @@ namespace jkj {
                 auto const n1 = [&] {
                     auto const nmax = util::abs(left_maximizer - nrange.lower_bound());
                     auto smallest_minimizer =
-                        find_extremizers_of_fractional_part(xcf_copy, nmax).largest_maximizer;
-                    xcf_copy.rewind();
+                        find_extremizers_of_fractional_part(approx_xcf, nmax).largest_maximizer;
+                    approx_xcf.rewind();
                     return util::div_floor(nmax, smallest_minimizer) * smallest_minimizer;
                 }();
 
@@ -110,8 +110,8 @@ namespace jkj {
                 auto const n1 = [&] {
                     auto const nmax = util::abs(nrange.upper_bound() - right_maximizer);
                     auto smallest_maximizer =
-                        find_extremizers_of_fractional_part(xcf_copy, nmax).smallest_minimizer;
-                    xcf_copy.rewind();
+                        find_extremizers_of_fractional_part(approx_xcf, nmax).smallest_minimizer;
+                    approx_xcf.rewind();
                     return util::div_floor(nmax, smallest_maximizer) * smallest_maximizer;
                 }();
 
@@ -156,20 +156,20 @@ namespace jkj {
             ContinuedFractionGeneratorZeta&& zetacf,
             interval<bigint::int_var, interval_type_t::bounded_closed> const& nrange) {
             static_assert(
-                std::remove_cvref_t<ContinuedFractionGeneratorX>::template is_implementing_mixins<
-                    cntfrc::convergent_tracker, cntfrc::interval_tracker>(),
-                "the first continued fraction generator must implement convergent_tracker and "
-                "interval_tracker");
+                cntfrc::has_mixins<ContinuedFractionGeneratorX, cntfrc::index_tracker,
+                                   cntfrc::convergent_tracker, cntfrc::interval_estimate_provider,
+                                   cntfrc::rewinder>(),
+                "the first continued fraction generator must include index_tracker, "
+                "convergent_tracker, interval_estimate_provider and rewinder");
             static_assert(
-                std::remove_cvref_t<ContinuedFractionGeneratorY>::template is_implementing_mixins<
-                    cntfrc::interval_tracker>(),
-                "the second continued fraction generator must implement interval_tracker");
-            static_assert(
-                std::remove_cvref_t<ContinuedFractionGeneratorZeta>::
-                    template is_implementing_mixins<cntfrc::index_tracker,
-                                                    cntfrc::previous_previous_convergent_tracker>(),
-                "the third continued fraction generator must implement index_tracker and "
-                "previous_previous_convergent_tracker");
+                cntfrc::has_mixins<ContinuedFractionGeneratorY, cntfrc::interval_estimate_provider,
+                                   cntfrc::rewinder>(),
+                "the second continued fraction generator must include interval_estimate_provider "
+                "and rewinder");
+            static_assert(cntfrc::has_mixins<ContinuedFractionGeneratorZeta, cntfrc::index_tracker,
+                                             cntfrc::convergent_tracker>(),
+                          "the third continued fraction generator must include index_tracker and "
+                          "convergent_tracker");
 
             util::constexpr_assert(nrange.lower_bound() > 0);
 
@@ -178,15 +178,15 @@ namespace jkj {
             auto approx_x_y_info = find_simultaneous_multiply_add_shift(
                 std::forward<ContinuedFractionGeneratorX>(xcf),
                 std::forward<ContinuedFractionGeneratorY>(ycf), nrange);
-            auto xcf_copy = cntfrc::make_caching_generator(
-                cntfrc::make_generator<cntfrc::convergent_tracker, cntfrc::interval_tracker>(
-                    cntfrc::impl::rational{
-                        approx_x_y_info.multiplier,
-                        bigint::uint_var::power_of_2(approx_x_y_info.shift_amount)}));
-            auto ycf_copy = cntfrc::make_caching_generator(
-                cntfrc::make_generator<cntfrc::interval_tracker>(cntfrc::impl::rational{
-                    approx_x_y_info.adder,
-                    bigint::uint_var::power_of_2(approx_x_y_info.shift_amount)}));
+            auto approx_xcf = cntfrc::make_caching_generator<
+                cntfrc::convergent_tracker, cntfrc::interval_estimate_provider, cntfrc::rewinder>(
+                cntfrc::engine::rational{
+                    approx_x_y_info.multiplier,
+                    bigint::uint_var::power_of_2(approx_x_y_info.shift_amount)});
+            auto approx_ycf = cntfrc::make_caching_generator<cntfrc::interval_estimate_provider,
+                                                             cntfrc::rewinder>(
+                cntfrc::engine::rational{approx_x_y_info.adder, bigint::uint_var::power_of_2(
+                                                                    approx_x_y_info.shift_amount)});
 
             // Find a good enough approximation of zeta.
             // Because of potential aliasing of zetacf with xcf/ycf, we make a copy here.
@@ -195,9 +195,9 @@ namespace jkj {
                 zetacf, util::abs(nrange.upper_bound() - nrange.lower_bound()) + 1u);
 
             // Find the largest maximizer of the fractional part.
-            auto const n00 =
-                find_extremizers_of_fractional_part(xcf_copy, ycf_copy, nrange).largest_maximizer;
-            xcf_copy.rewind();
+            auto const n00 = find_extremizers_of_fractional_part(approx_xcf, approx_ycf, nrange)
+                                 .largest_maximizer;
+            approx_xcf.rewind();
 
             // Solve the minimization problem on the left.
             auto left_minimizer = n00;
@@ -207,8 +207,8 @@ namespace jkj {
                 auto const n1 = [&] {
                     auto const nmax = util::abs(left_minimizer - nrange.lower_bound());
                     auto smallest_maximizer =
-                        find_extremizers_of_fractional_part(xcf_copy, nmax).smallest_minimizer;
-                    xcf_copy.rewind();
+                        find_extremizers_of_fractional_part(approx_xcf, nmax).smallest_minimizer;
+                    approx_xcf.rewind();
                     return util::div_floor(nmax, smallest_maximizer) * smallest_maximizer;
                 }();
 
@@ -233,8 +233,8 @@ namespace jkj {
                 auto const n1 = [&] {
                     auto const nmax = util::abs(nrange.upper_bound() - right_minimizer);
                     auto smallest_minimizer =
-                        find_extremizers_of_fractional_part(xcf_copy, nmax).largest_maximizer;
-                    xcf_copy.rewind();
+                        find_extremizers_of_fractional_part(approx_xcf, nmax).largest_maximizer;
+                    approx_xcf.rewind();
                     return util::div_floor(nmax, smallest_minimizer) * smallest_minimizer;
                 }();
 

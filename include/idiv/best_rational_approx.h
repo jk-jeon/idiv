@@ -15,120 +15,114 @@
 // is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 // KIND, either express or implied.
 
-#ifndef JKJ_HEADER_BEST_RATIONAL_APPROX
-#define JKJ_HEADER_BEST_RATIONAL_APPROX
+#ifndef JKJ_HEADER_IDIV_BEST_RATIONAL_APPROX
+#define JKJ_HEADER_IDIV_BEST_RATIONAL_APPROX
 
-#include "continued_fraction.h"
-#include "interval.h"
-#include "projective_rational.h"
+#include "continued_fraction/generator.h"
 
 namespace jkj {
     namespace idiv {
         namespace detail {
             // Common framework for two functions below.
-            template <class ReturnType, class ContinuedFractionGenerator, class UInt,
-                      class AfterTerminate>
+            template <class SemiconvergentType, class ReturnType, class ContinuedFractionGenerator,
+                      class UInt, class AfterTerminate, class ConvergentWrapper>
             constexpr ReturnType find_best_rational_approx_impl(ContinuedFractionGenerator&& cf,
                                                                 UInt const& nmax,
-                                                                AfterTerminate&& after_terminate) {
-                util::constexpr_assert(util::is_strictly_positive(nmax));
-
-                using convergent_type =
-                    typename std::remove_cvref_t<ContinuedFractionGenerator>::convergent_type;
-                using rational_type =
-                    decltype(project_to_rational(std::declval<convergent_type>()));
-
+                                                                AfterTerminate&& after_terminate,
+                                                                ConvergentWrapper&& wrapper) {
                 auto get_last_semiconvergent = [&cf](auto const& denominator_bound) {
-                    auto semiconvergent_coeff =
-                        (denominator_bound - cf.previous_previous_convergent_denominator()) /
-                        cf.previous_convergent_denominator();
+                    auto inverted_semiconvergent_coeff =
+                        util::div_ceil(cf.current_convergent_denominator() - denominator_bound,
+                                       cf.previous_convergent_denominator());
 
-                    return rational_type{
-                        cf.previous_previous_convergent_numerator() +
-                            semiconvergent_coeff * cf.previous_convergent_numerator(),
-                        util::abs(cf.previous_previous_convergent_denominator() +
-                                  semiconvergent_coeff * cf.previous_convergent_denominator())};
+                    return SemiconvergentType{cf.current_convergent_numerator() -
+                                                  inverted_semiconvergent_coeff *
+                                                      cf.previous_convergent_numerator(),
+                                              util::abs(cf.current_convergent_denominator() -
+                                                        inverted_semiconvergent_coeff *
+                                                            cf.previous_convergent_denominator())};
                 };
 
                 // First, find the last convergent and the last semiconvergent whose denominator is
                 // bounded above by nmax.
-
-                while (cf.current_convergent_denominator() <= nmax) {
-                    if (!cf.proceed_to_next_partial_fraction()) {
-                        return after_terminate(get_last_semiconvergent);
+                for (auto const& state : cf) {
+                    if (state.current_convergent_denominator() > nmax) {
+                        // If there the last convergent is still not a perfect approximation, then
+                        // we return the last semiconvergent and the convergent as the bounds. Which
+                        // one is the lower bound and which one is the upper bound is determined by
+                        // the parity of state.current_index(). Note that state.current_index() is
+                        // the index of the first convergent with the denominator strictly larger
+                        // than nmax, so if this index is even, then the semiconvergent is the lower
+                        // bound and the convergent is the upepr bound, and if the index is odd,
+                        // then the other way around.
+                        if (state.current_index() % 2 == 0) {
+                            return ReturnType{get_last_semiconvergent(nmax),
+                                              wrapper(state.previous_convergent())};
+                        }
+                        else {
+                            return ReturnType{wrapper(state.previous_convergent()),
+                                              get_last_semiconvergent(nmax)};
+                        }
                     }
                 }
 
-                // If there the last convergent is still not a perfect approximation, then we return
-                // the last semiconvergent and the convergent as the bounds. Which one is the lower
-                // bound and which one is the upper bound is determined by the parity of
-                // cf.current_index(). Note that cf.current_index() is the index of the first
-                // convergent with the denominator strictly larger than nmax, so if this index is
-                // even, then the semiconvergent is the lower bound and the convergent is the upepr
-                // bound, and if the index is odd, then the other way around.
-
-                if (cf.current_index() % 2 == 0) {
-                    return ReturnType{get_last_semiconvergent(nmax),
-                                      project_to_rational(cf.previous_convergent())};
-                }
-                else {
-                    return ReturnType{project_to_rational(cf.previous_convergent()),
-                                      get_last_semiconvergent(nmax)};
-                }
+                return after_terminate(get_last_semiconvergent);
             }
         }
 
-        template <class Rational>
+        template <class ProjectiveRational>
         struct best_rational_approx_output {
-            Rational below;
-            Rational above;
+            ProjectiveRational below;
+            ProjectiveRational above;
         };
 
-        // For a given real number x and a positive integer nmax, find the best rational
+        // For a given real number x and a nonnegative integer nmax, find the best rational
         // approximation of it from below and from above whose denominators are no more than nmax.
         // The number x is specified in terms of a continued fraction generator giving its continued
-        // fraction expansion. The generator needs to have index_tracker and
-        // previous_previous_convergent_tracker within it, and it also needs to be at its initial
-        // stage, i.e., the call to current_index() without calling
-        // proceed_to_next_partial_fraction() should return -1. After the function returns, the
-        // generator is terminated if x is rational and its denominator is at most nmax.
+        // fraction expansion. The generator needs to have index_tracker and convergent_tracker
+        // within it, and it also needs to be at its initial stage, i.e., any iterator obtained from
+        // it has never been advanced. After the function returns, the generator is terminated if x
+        // is rational and its denominator is at most nmax.
         template <class ContinuedFractionGenerator, class UInt>
         constexpr auto find_best_rational_approx(ContinuedFractionGenerator&& cf,
                                                  UInt const& nmax) {
             static_assert(
-                std::remove_cvref_t<ContinuedFractionGenerator>::template is_implementing_mixins<
-                    cntfrc::index_tracker, cntfrc::previous_previous_convergent_tracker>(),
+                cntfrc::has_mixins<ContinuedFractionGenerator, cntfrc::index_tracker,
+                                   cntfrc::convergent_tracker>(),
                 "the passed continued fraction generator must implement index_tracker and "
-                "previous_previous_convergent_tracker");
+                "convergent_tracker");
 
             using convergent_type =
                 typename std::remove_cvref_t<ContinuedFractionGenerator>::convergent_type;
-            using rational_type = decltype(project_to_rational(std::declval<convergent_type>()));
-            using return_type = best_rational_approx_output<rational_type>;
+            using return_type = best_rational_approx_output<convergent_type>;
 
-            return detail::find_best_rational_approx_impl<return_type>(
-                cf, nmax, [&](auto&&) -> return_type {
-                    return {project_to_rational(cf.current_convergent()),
-                            project_to_rational(cf.current_convergent())};
+            return detail::find_best_rational_approx_impl<convergent_type, return_type>(
+                cf, nmax,
+                [&](auto&&) -> return_type {
+                    return {cf.current_convergent(), cf.current_convergent()};
+                },
+                [&](auto&& convergent) -> decltype(auto) {
+                    return static_cast<decltype(convergent)&&>(convergent);
                 });
         }
 
         // For a given real number x and a positive integer nmax, find the interval
-        // [max_n floor(nx)/n, min_n (floor(nx)+1)/n)], where n ranges from {1, ... , nmax}. The
+        // [max_n floor(nx)/n, min_n (floor(nx)+1)/n)), where n ranges from {1, ... , nmax}. The
         // number x is specified in terms of a continued fraction generator giving its continued
-        // fraction expansion. The generator needs to have index_tracker and
-        // previous_previous_convergent_tracker within it, and it also needs to be at its initial
-        // stage, i.e., the call to current_index() without calling
-        // proceed_to_next_partial_fraction() should return -1. After the function returns, the
-        // generator is terminated if x is rational and its denominator is at most nmax.
+        // fraction expansion. The generator needs to have index_tracker and convergent_tracker
+        // within it, and it also needs to be at its initial stage, i.e., any iterator obtained from
+        // it has never been advanced. After the function returns, the generator is terminated if x
+        // is rational and its denominator is at most nmax.
         template <class ContinuedFractionGenerator, class UInt>
         constexpr auto find_floor_quotient_range(ContinuedFractionGenerator&& cf,
                                                  UInt const& nmax) {
             static_assert(
-                std::remove_cvref_t<ContinuedFractionGenerator>::template is_implementing_mixins<
-                    cntfrc::index_tracker, cntfrc::previous_previous_convergent_tracker>(),
+                cntfrc::has_mixins<ContinuedFractionGenerator, cntfrc::index_tracker,
+                                   cntfrc::convergent_tracker>(),
                 "the passed continued fraction generator must implement index_tracker and "
-                "previous_previous_convergent_tracker");
+                "convergent_tracker");
+
+            util::constexpr_assert(util::is_strictly_positive(nmax));
 
             using convergent_type =
                 typename std::remove_cvref_t<ContinuedFractionGenerator>::convergent_type;
@@ -136,8 +130,9 @@ namespace jkj {
             using return_type =
                 interval<rational_type, interval_type_t::bounded_left_closed_right_open>;
 
-            return detail::find_best_rational_approx_impl<return_type>(
-                cf, nmax, [&](auto&& get_last_semiconvergent) -> return_type {
+            return detail::find_best_rational_approx_impl<rational_type, return_type>(
+                cf, nmax,
+                [&](auto&& get_last_semiconvergent) -> return_type {
                     // If we reach to the perfect approximation, then we have to find the largest
                     // positive integer v <= nmax such that vp == -1 (mod q), where x = p/q. Then
                     // the lower bound is p/q, while the upper bound is ((vp+1)/q) / v.
@@ -165,6 +160,9 @@ namespace jkj {
 
                     return return_type{project_to_rational(cf.current_convergent()),
                                        std::move(upper_bound)};
+                },
+                [&](auto&& convergent) -> rational_type {
+                    return project_to_rational(static_cast<decltype(convergent)&&>(convergent));
                 });
         }
 
@@ -177,19 +175,20 @@ namespace jkj {
         // For a given real number x and a positive integer nmax, find
         // min argmin_n (nx - floor(nx)) and max argmax_n (nx - floor(nx)). The number x is
         // specified in terms of a continued fraction generator giving its continued fraction
-        // expansion. The generator needs to have index_tracker and
-        // previous_previous_convergent_tracker within it, and it also needs to be at its initial
-        // stage, i.e., the call to current_index() without calling
-        // proceed_to_next_partial_fraction() should return -1. After the function returns, the
-        // generator is terminated if x is rational and its denominator is at most nmax.
+        // expansion. The generator needs to have index_tracker and convergent_tracker within it,
+        // and it also needs to be at its initial stage, i.e., any iterator obtained from it has
+        // never been advanced. After the function returns, the generator is terminated if x is
+        // rational and its denominator is at most nmax.
         template <class ContinuedFractionGenerator, class UInt>
         constexpr auto find_extremizers_of_fractional_part(ContinuedFractionGenerator&& cf,
                                                            UInt const& nmax) {
             static_assert(
-                std::remove_cvref_t<ContinuedFractionGenerator>::template is_implementing_mixins<
-                    cntfrc::index_tracker, cntfrc::previous_previous_convergent_tracker>(),
+                cntfrc::has_mixins<ContinuedFractionGenerator, cntfrc::index_tracker,
+                                   cntfrc::convergent_tracker>(),
                 "the passed continued fraction generator must implement index_tracker and "
-                "previous_previous_convergent_tracker");
+                "convergent_tracker");
+
+            util::constexpr_assert(util::is_strictly_positive(nmax));
 
             using convergent_type =
                 typename std::remove_cvref_t<ContinuedFractionGenerator>::convergent_type;

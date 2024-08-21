@@ -15,15 +15,15 @@
 // is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 // KIND, either express or implied.
 
-#ifndef JKJ_HEADER_LOG_CONTINUED_FRACTION
-#define JKJ_HEADER_LOG_CONTINUED_FRACTION
+#ifndef JKJ_HEADER_IDIV_CONTINUED_FRACTION_ENGINE_LOG
+#define JKJ_HEADER_IDIV_CONTINUED_FRACTION_ENGINE_LOG
 
-#include "rational_continued_fraction.h"
-#include "gosper_continued_fraction.h"
+#include "rational.h"
+#include "gosper.h"
 
 namespace jkj {
     namespace cntfrc {
-        namespace impl {
+        namespace engine {
             // Computes an arbitrary-precision rational approximation of ln(a/b) for positive
             // integers
             // a, b using the continued fraction expansion of 2atanh(z) = ln((1+z)/(1-z)):
@@ -44,9 +44,10 @@ namespace jkj {
             //
             // Then it can be shown that the denominators q_n's are always positive and the sequence
             // (p_n/q_n)_n of convergents converges to 2atanh(z).
+            // Naturally, we consider 2atanh(z) = infinity when z = +1 or -1.
 
             template <class Int, class UInt>
-            class natural_log_calculator {
+            class gauss_natural_log {
             public:
                 using partial_fraction_type = projective_rational<Int, Int>;
                 using convergent_type = projective_rational<Int, UInt>;
@@ -55,7 +56,7 @@ namespace jkj {
                     cyclic_interval_type_t::open, cyclic_interval_type_t::entire>;
 
                 using required_mixins =
-                    mixin_list<index_tracker, partial_fraction_tracker, convergent_tracker>;
+                    tmp::typelist<index_tracker, partial_fraction_tracker, convergent_tracker>;
 
             private:
                 // Used as a temporary storage for the quantity |p|/q for initial indices.
@@ -64,33 +65,22 @@ namespace jkj {
                 UInt two_q_ = 0u;
                 UInt previous_denominator = 0u;
                 bool is_z_negative_ = false;
+                bool is_infinity = false;
 
             public:
-                static constexpr auto initial_partial_fraction() {
-                    return partial_fraction_type{Int{1}, Int{0}};
-                }
-                static constexpr auto initial_interval() {
-                    return cyclic_interval<convergent_type, cyclic_interval_type_t::entire>{};
-                }
+                explicit constexpr gauss_natural_log(projective_rational<UInt, UInt> const& x) {
+                    util::constexpr_assert(!util::is_zero(x.denominator) ||
+                                           !util::is_zero(x.numerator));
 
-                explicit constexpr natural_log_calculator(
-                    frac<UInt, UInt> const& positive_rational) {
-                    util::constexpr_assert(!util::is_zero(positive_rational.denominator) &&
-                                           !util::is_zero(positive_rational.numerator));
+                    if (util::is_zero(x.denominator) || util::is_zero(x.numerator)) {
+                        is_infinity = true;
+                        return;
+                    }
 
                     // For given input x, we find the reduced form of z s.t. x = (1+z)/(1-z), i.e.,
                     // z = (x-1)/(x+1). Note that z always lies in (-1,1) for x in (0,infty).
-                    auto z = [&] {
-                        auto cf = make_generator<convergent_tracker>(cntfrc::impl::rational{
-                            util::to_signed(positive_rational.numerator) -
-                                positive_rational.denominator,
-                            positive_rational.numerator + positive_rational.denominator});
-
-                        while (!cf.terminated()) {
-                            cf.proceed_to_next_partial_fraction();
-                        }
-                        return cf.current_convergent();
-                    }();
+                    auto z = reduce_fraction(util::to_signed(x.numerator) - x.denominator,
+                                             x.numerator + x.denominator);
 
                     is_z_negative_ = util::is_strictly_negative(z.numerator);
                     current_error_bound_.numerator = util::abs(z.numerator);
@@ -101,37 +91,24 @@ namespace jkj {
                 }
 
                 template <class Callback>
-                constexpr void with_next_partial_fraction(Callback&& callback) {
-                    auto const& gen = callback.get_generator();
-                    if (gen.current_index() == -1) {
-                        callback.on_next_partial_fraction(partial_fraction_type{1, 0u});
-                    }
-                    else if (gen.current_index() == 0) {
-                        current_error_bound_.numerator <<= 1;
-                        callback.on_next_partial_fraction(partial_fraction_type{
-                            is_z_negative_
-                                ? util::to_negative(std::move(current_error_bound_.numerator))
-                                : util::to_signed(std::move(current_error_bound_.numerator)),
-                            Int{std::move(current_error_bound_.denominator)}});
-                    }
-                    else {
-                        auto result = gen.current_partial_fraction();
-                        result.numerator = (-gen.current_index() * gen.current_index()) * p_square_;
-                        result.denominator += two_q_;
-                        callback.on_next_partial_fraction(std::move(result));
-                    }
-
-                    // Update interval estimate.
-
-                    // When p = 0.
-                    if (util::is_zero(p_square_)) {
-                        callback.on_next_interval(
-                            cyclic_interval<convergent_type, cyclic_interval_type_t::single_point>{
-                                convergent_type{0, 1u}});
+                constexpr void with_zeroth_partial_fraction(Callback&& callback) {
+                    if (is_infinity) {
                         return;
                     }
 
-                    if (gen.current_index() == 0) {
+                    callback.on_next_partial_fraction(partial_fraction_type{1, 0u});
+
+                    // Update interval estimate.
+                    if constexpr (has_mixins<Callback, interval_estimate_provider>()) {
+                        // When p = 0.
+                        if (util::is_zero(p_square_)) {
+                            callback.on_next_interval(
+                                cyclic_interval<convergent_type,
+                                                cyclic_interval_type_t::single_point>{
+                                    convergent_type{0, 1u}});
+                            return;
+                        }
+
                         // |p|/q -> 2|p|q/(q^2 - p^2)
                         auto error_bound = current_error_bound_;
                         error_bound.numerator *= error_bound.denominator;
@@ -158,61 +135,125 @@ namespace jkj {
                             return;
                         }
                     }
-                    else if (gen.current_index() == 1) {
-                        // 2|p|/q -> 2|p|^3/(2q(q^2 - p^2))
-                        previous_denominator = gen.current_convergent_denominator();
-                        current_error_bound_.numerator =
-                            abs(gen.current_convergent_numerator()) * p_square_;
-                        current_error_bound_.denominator = gen.current_convergent_denominator();
-                        current_error_bound_.denominator *= current_error_bound_.denominator;
-                        current_error_bound_.denominator -= p_square_;
-                        current_error_bound_.denominator *= two_q_;
-                    }
-                    else if (gen.current_index() >= 2) {
-                        current_error_bound_.numerator *=
-                            (unsigned(gen.current_index() - 1) * unsigned(gen.current_index()));
-                        current_error_bound_.numerator *= p_square_;
-                        current_error_bound_.denominator /=
-                            (unsigned(gen.current_index()) * previous_denominator);
-                        current_error_bound_.denominator *= (unsigned(gen.current_index() + 1) *
-                                                             gen.current_convergent_denominator());
-                        previous_denominator = gen.previous_convergent_denominator();
-                    }
-
-                    if (is_z_negative_) {
-                        auto lower_bound = linear_fractional_translation(
-                            util::to_negative(current_error_bound_.numerator),
-                            current_error_bound_.denominator)(gen.current_convergent());
-                        callback.on_next_interval(
-                            cyclic_interval<convergent_type, cyclic_interval_type_t::open>{
-                                convergent_type{
-                                    util::is_strictly_negative(lower_bound.denominator)
-                                        ? util::invert_sign(std::move(lower_bound.numerator))
-                                        : std::move(lower_bound.numerator),
-                                    std::move(lower_bound.denominator)},
-                                gen.current_convergent()});
-                    }
-                    else {
-                        callback.on_next_interval(
-                            cyclic_interval<convergent_type, cyclic_interval_type_t::open>{
-                                gen.current_convergent(),
-                                linear_fractional_translation(current_error_bound_.numerator,
-                                                              current_error_bound_.denominator)(
-                                    gen.current_convergent())});
-                    }
                 }
 
                 template <class Callback>
-                constexpr void with_next_interval(Callback&& callback) {
-                    with_next_partial_fraction(static_cast<Callback&&>(callback));
+                constexpr void with_next_partial_fraction(Callback&& callback) {
+                    if (is_infinity) {
+                        return;
+                    }
+
+                    auto const& state = callback.current_state();
+                    util::constexpr_assert(state.current_index() >= 0);
+                    if (state.current_index() == 0) {
+                        current_error_bound_.numerator <<= 1;
+                        callback.on_next_partial_fraction(partial_fraction_type{
+                            is_z_negative_
+                                ? util::to_negative(std::move(current_error_bound_.numerator))
+                                : util::to_signed(std::move(current_error_bound_.numerator)),
+                            Int{std::move(current_error_bound_.denominator)}});
+                    }
+                    else {
+                        auto result = state.current_partial_fraction();
+                        result.numerator =
+                            (-state.current_index() * state.current_index()) * p_square_;
+                        result.denominator += two_q_;
+                        callback.on_next_partial_fraction(std::move(result));
+                    }
+
+                    // Update interval estimate.
+                    if constexpr (has_mixins<Callback, interval_estimate_provider>()) {
+                        if (util::is_zero(p_square_)) {
+                            return;
+                        }
+
+                        if (state.current_index() == 1) {
+                            // 2|p|/q -> 2|p|^3/(2q(q^2 - p^2))
+                            previous_denominator = state.current_convergent_denominator();
+                            current_error_bound_.numerator =
+                                abs(state.current_convergent_numerator()) * p_square_;
+                            current_error_bound_.denominator =
+                                state.current_convergent_denominator();
+                            current_error_bound_.denominator *= current_error_bound_.denominator;
+                            current_error_bound_.denominator -= p_square_;
+                            current_error_bound_.denominator *= two_q_;
+                        }
+                        else if (state.current_index() >= 2) {
+                            current_error_bound_.numerator *= (unsigned(state.current_index() - 1) *
+                                                               unsigned(state.current_index()));
+                            current_error_bound_.numerator *= p_square_;
+                            current_error_bound_.denominator /=
+                                (unsigned(state.current_index()) * previous_denominator);
+                            current_error_bound_.denominator *=
+                                (unsigned(state.current_index() + 1) *
+                                 state.current_convergent_denominator());
+                            previous_denominator = state.previous_convergent_denominator();
+                        }
+
+                        if (is_z_negative_) {
+                            auto lower_bound = linear_fractional_translation(
+                                util::to_negative(current_error_bound_.numerator),
+                                current_error_bound_.denominator)(state.current_convergent());
+                            callback.on_next_interval(
+                                cyclic_interval<convergent_type, cyclic_interval_type_t::open>{
+                                    convergent_type{
+                                        util::is_strictly_negative(lower_bound.denominator)
+                                            ? util::invert_sign(std::move(lower_bound.numerator))
+                                            : std::move(lower_bound.numerator),
+                                        std::move(lower_bound.denominator)},
+                                    state.current_convergent()});
+                        }
+                        else {
+                            callback.on_next_interval(
+                                cyclic_interval<convergent_type, cyclic_interval_type_t::open>{
+                                    state.current_convergent(),
+                                    linear_fractional_translation(current_error_bound_.numerator,
+                                                                  current_error_bound_.denominator)(
+                                        state.current_convergent())});
+                        }
+                    }
+                }
+
+                constexpr interval_type initial_interval() const {
+                    if (is_infinity) {
+                        return cyclic_interval<convergent_type,
+                                               cyclic_interval_type_t::single_point>{
+                            convergent_type{unity{}, zero{}}};
+                    }
+                    else {
+                        return cyclic_interval<convergent_type, cyclic_interval_type_t::entire>{};
+                    }
                 }
             };
+        }
 
-            template <class Int, class UInt, class Unity = unity>
+        template <class Int, class UInt>
+        struct mixin_traits<interval_estimate_provider, engine::gauss_natural_log<Int, UInt>> {
+            using interval_type = typename engine::gauss_natural_log<Int, UInt>::interval_type;
+
+            using tracking_data = interval_estimate_provider::default_tracking_data<
+                engine::gauss_natural_log<Int, UInt>>;
+
+            class facade : util::noncopyable<>, util::nonmovable<> {
+                using engine_type = engine::gauss_natural_log<Int, UInt>;
+                engine_type& engine_;
+
+            public:
+                explicit constexpr facade(engine_type& engine) noexcept : engine_{engine} {}
+
+                template <class Advancer>
+                constexpr void refine_interval(Advancer&& advancer) {
+                    advancer.proceed_to_next_partial_fraction();
+                }
+            };
+        };
+
+        namespace engine {
+            template <class Int, class UInt>
             class natural_log {
-                using internal_impl_type = natural_log_calculator<Int, UInt>;
+                using internal_engine_type = gauss_natural_log<Int, UInt>;
                 using impl_type =
-                    unary_gosper<generator<internal_impl_type, interval_tracker>, Unity>;
+                    unary_gosper<generator<internal_engine_type, interval_estimate_provider>>;
 
                 impl_type impl_;
 
@@ -221,15 +262,12 @@ namespace jkj {
                 using convergent_type = typename impl_type::convergent_type;
                 using interval_type = typename impl_type::interval_type;
 
-                static constexpr partial_fraction_type initial_partial_fraction() {
-                    return partial_fraction_type{Unity{unity{}}, Int{0}};
-                }
-                static constexpr interval_type initial_interval() {
-                    return cyclic_interval<convergent_type, cyclic_interval_type_t::entire>{};
+                constexpr decltype(auto) initial_interval() const {
+                    return impl_.initial_interval();
                 }
 
-                explicit constexpr natural_log(frac<UInt, UInt> const& positive_rational)
-                    : impl_{make_generator<interval_tracker>(internal_impl_type{positive_rational}),
+                explicit constexpr natural_log(projective_rational<UInt, UInt> const& x)
+                    : impl_{make_generator<interval_estimate_provider>(internal_engine_type{x}),
                             {1, 0, 0, 1}} {}
 
                 template <class Callback>
@@ -238,42 +276,37 @@ namespace jkj {
                 }
             };
 
-            template <class Int, class UInt, class Unity = unity>
+            template <class Int, class UInt>
             class general_log {
-                using rational_impl_type = rational<Int, UInt, Unity>;
-                using irrational_internal_impl_type = natural_log_calculator<Int, UInt>;
-                using irrational_impl_type =
-                    binary_gosper<generator<irrational_internal_impl_type, interval_tracker>,
-                                  generator<irrational_internal_impl_type, interval_tracker>,
-                                  Unity>;
+                using internal_engine_type = gauss_natural_log<Int, UInt>;
+                using impl_type =
+                    binary_gosper<generator<internal_engine_type, interval_estimate_provider>,
+                                  generator<internal_engine_type, interval_estimate_provider>>;
 
             public:
-                using partial_fraction_type = typename rational_impl_type::partial_fraction_type;
-                using convergent_type = typename rational_impl_type::convergent_type;
-                using interval_type = typename rational_impl_type::interval_type;
-
-                static_assert(std::is_same_v<partial_fraction_type,
-                                             typename irrational_impl_type::partial_fraction_type>);
-                static_assert(std::is_same_v<convergent_type,
-                                             typename irrational_impl_type::convergent_type>);
-                static_assert(
-                    std::is_same_v<interval_type, typename irrational_impl_type::interval_type>);
+                using partial_fraction_type = typename impl_type::partial_fraction_type;
+                using convergent_type = typename impl_type::convergent_type;
+                using interval_type = typename impl_type::interval_type;
 
             private:
-                rational_impl_type rational_impl_;
-                irrational_impl_type irrational_impl_;
-                bool is_rational_;
+                impl_type impl_;
 
                 struct check_rational_return {
                     bool is_rational = false;
-                    projective_rational<Int, UInt> result{1, 0u};
+                    projective_rational<Int, UInt> result{Int{unity{}}, UInt{zero{}}};
                 };
 
-                static constexpr check_rational_return check_rational(frac<UInt, UInt> const& base,
-                                                                      frac<UInt, UInt> const& x) {
-                    // Both base and x must lie in the interval (0, infinity).
-                    util::constexpr_assert(!util::is_zero(base.numerator) &&
-                                           !util::is_zero(base.denominator));
+                static constexpr check_rational_return
+                check_rational(projective_rational<UInt, UInt> const& base,
+                               projective_rational<UInt, UInt> const& x) {
+                    // Should not be of the form 0/0.
+                    util::constexpr_assert(base.numerator != base.denominator ||
+                                           x.numerator != x.denominator);
+
+                    // Should not be of the form infinity/infinity.
+                    util::constexpr_assert(
+                        (!util::is_zero(base.numerator) && !util::is_zero(base.denominator)) ||
+                        (!util::is_zero(x.numerator) && !util::is_zero(x.denominator)));
                     util::constexpr_assert(!util::is_zero(x.numerator) &&
                                            !util::is_zero(x.denominator));
 
@@ -400,37 +433,35 @@ namespace jkj {
                                 static_cast<UInt&&>(convergent.denominator)}};
                 }
 
-                explicit constexpr general_log(frac<UInt, UInt> const& base,
-                                               frac<UInt, UInt> const& x,
+                explicit constexpr general_log(projective_rational<UInt, UInt> const& base,
+                                               projective_rational<UInt, UInt> const& x,
                                                check_rational_return rational_check)
-                    : rational_impl_{rational_check.result},
-                      irrational_impl_{
-                          make_generator<interval_tracker>(irrational_internal_impl_type{x}),
-                          make_generator<interval_tracker>(irrational_internal_impl_type{base}),
-                          // (0xy + 1x + 0y + 0) / (0xy + 0x + 1y + 0)
-                          {0, 1, 0, 0, 0, 0, 1, 0}},
-                      is_rational_{rational_check.is_rational} {}
+                    : impl_{make_generator<interval_estimate_provider>(internal_engine_type{x}),
+                            make_generator<interval_estimate_provider>(internal_engine_type{base}),
+                            rational_check.is_rational ?
+                                                       // (pxy + 0x + 0y + 0) / (qxy + 0x + 0y + 0)
+                                bilinear_fractional_mapping<Int>{
+                                    rational_check.result.numerator, Int{zero{}}, Int{zero{}},
+                                    Int{zero{}}, rational_check.result.denominator, Int{zero{}},
+                                    Int{zero{}}, Int{zero{}}}
+                                                       :
+                                                       // (0xy + 1x + 0y + 0) / (0xy + 0x + 1y + 0)
+                                bilinear_fractional_mapping<Int>{
+                                    Int{zero{}}, Int{unity{}}, Int{zero{}}, Int{zero{}},
+                                    Int{zero{}}, Int{zero{}}, Int{unity{}}, Int{zero{}}}} {}
 
             public:
-                static constexpr partial_fraction_type initial_partial_fraction() {
-                    return partial_fraction_type{Unity{unity{}}, Int{0}};
-                }
-                static constexpr interval_type initial_interval() {
-                    return cyclic_interval<convergent_type, cyclic_interval_type_t::entire>{};
+                constexpr decltype(auto) initial_interval() const {
+                    return impl_.initial_interval();
                 }
 
-                explicit constexpr general_log(frac<UInt, UInt> const& base,
-                                               frac<UInt, UInt> const& x)
+                explicit constexpr general_log(projective_rational<UInt, UInt> const& base,
+                                               projective_rational<UInt, UInt> const& x)
                     : general_log{base, x, check_rational(base, x)} {}
 
                 template <class Callback>
                 constexpr void with_next_partial_fraction(Callback&& callback) {
-                    if (is_rational_) {
-                        rational_impl_.with_next_partial_fraction(callback);
-                    }
-                    else {
-                        irrational_impl_.with_next_partial_fraction(callback);
-                    }
+                    impl_.with_next_partial_fraction(callback);
                 }
             };
         }

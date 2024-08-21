@@ -15,8 +15,8 @@
 // is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 // KIND, either express or implied.
 
-#ifndef JKJ_HEADER_OPTIMAL_MULTIPLY_SHIFT
-#define JKJ_HEADER_OPTIMAL_MULTIPLY_SHIFT
+#ifndef JKJ_HEADER_IDIV_OPTIMAL_MULTIPLY_SHIFT
+#define JKJ_HEADER_IDIV_OPTIMAL_MULTIPLY_SHIFT
 
 #include "best_rational_approx.h"
 
@@ -137,7 +137,7 @@ namespace jkj {
 
                     if (k > 0) {
                         auto factor_out_power_of_2_limited = [&] {
-                            auto pow2_factors = factor_out_power_of_2(numerator);
+                            auto pow2_factors = util::factor_out_power_of_2(numerator);
                             if (pow2_factors > k) {
                                 numerator <<= (pow2_factors - k);
                                 k = 0;
@@ -206,11 +206,10 @@ namespace jkj {
                                    .denominator)>>
         constexpr multiply_shift_info<Int>
         find_optimal_multiply_shift(ContinuedFractionGenerator&& cf, UInt const& nmax) {
-            static_assert(
-                std::remove_cvref_t<ContinuedFractionGenerator>::template is_implementing_mixins<
-                    cntfrc::index_tracker, cntfrc::previous_previous_convergent_tracker>(),
-                "the passed continued fraction generator must implement index_tracker and "
-                "previous_previous_convergent_tracker");
+            static_assert(cntfrc::has_mixins<ContinuedFractionGenerator, cntfrc::index_tracker,
+                                             cntfrc::convergent_tracker>(),
+                          "the passed continued fraction generator must include index_tracker and "
+                          "convergent_tracker");
 
             auto result = find_optimal_binary_lattice_point(
                 find_floor_quotient_range(std::forward<ContinuedFractionGenerator>(cf), nmax));

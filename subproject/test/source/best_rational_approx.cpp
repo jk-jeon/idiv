@@ -16,8 +16,8 @@
 // KIND, either express or implied.
 
 #include <idiv/best_rational_approx.h>
+#include <idiv/continued_fraction/engine/rational.h>
 #include <idiv/bigint.h>
-#include <idiv/rational_continued_fraction.h>
 #include <boost/ut.hpp>
 
 void best_rational_approx_test() {
@@ -26,27 +26,34 @@ void best_rational_approx_test() {
 
     "[Best rational approximation]"_test = [] {
         using rational_t = frac<bigint::int_var, bigint::uint_var>;
+        using projective_rational_t =
+            cntfrc::projective_rational<bigint::int_var, bigint::uint_var>;
 
         should("best_rational_approx") = [] {
             auto perform_test = [](bigint::int_var const& numerator,
                                    bigint::uint_var const& denominator, std::size_t nmax) {
-                auto cf = cntfrc::make_generator<cntfrc::index_tracker,
-                                                 cntfrc::previous_previous_convergent_tracker>(
-                    cntfrc::impl::rational{numerator, denominator});
+                auto cf = cntfrc::make_generator<cntfrc::index_tracker, cntfrc::convergent_tracker>(
+                    cntfrc::engine::rational{numerator, denominator});
 
                 auto result = idiv::find_best_rational_approx(cf, nmax);
 
-                auto from_below = rational_t{util::div_floor(numerator, denominator), 1u};
-                auto from_above = rational_t{util::div_ceil(numerator, denominator), 1u};
-                for (std::size_t i = 1; i <= nmax; ++i) {
-                    auto low = rational_t{util::div_floor(i * numerator, denominator), unsigned(i)};
-                    auto high = rational_t{util::div_ceil(i * numerator, denominator), unsigned(i)};
+                constexpr auto infinity =
+                    cntfrc::projective_rational{cntfrc::unity{}, cntfrc::zero{}};
 
-                    if (from_below < low) {
-                        from_below = low;
+                auto from_below =
+                    projective_rational_t{util::div_floor(numerator, denominator), 1u};
+                auto from_above = projective_rational_t{util::div_ceil(numerator, denominator), 1u};
+                for (std::size_t i = 1; i <= nmax; ++i) {
+                    auto low = projective_rational_t{util::div_floor(i * numerator, denominator),
+                                                     unsigned(i)};
+                    auto high = projective_rational_t{util::div_ceil(i * numerator, denominator),
+                                                      unsigned(i)};
+
+                    if (cyclic_order(from_below, low, infinity)) {
+                        from_below = std::move(low);
                     }
-                    if (high < from_above) {
-                        from_above = high;
+                    if (cyclic_order(high, from_above, infinity)) {
+                        from_above = std::move(high);
                     }
                 }
 
@@ -62,9 +69,8 @@ void best_rational_approx_test() {
         should("find_floor_quotient_range") = [] {
             auto perform_test = [](bigint::int_var const& numerator,
                                    bigint::uint_var const& denominator, std::size_t nmax) {
-                auto cf = cntfrc::make_generator<cntfrc::index_tracker,
-                                                 cntfrc::previous_previous_convergent_tracker>(
-                    cntfrc::impl::rational{numerator, denominator});
+                auto cf = cntfrc::make_generator<cntfrc::index_tracker, cntfrc::convergent_tracker>(
+                    cntfrc::engine::rational{numerator, denominator});
 
                 auto result = idiv::find_floor_quotient_range(cf, nmax);
 
@@ -95,9 +101,8 @@ void best_rational_approx_test() {
         should("find_extremizers_of_fractional_part") = [] {
             auto perform_test = [](bigint::int_var const& numerator,
                                    bigint::uint_var const& denominator, std::size_t nmax) {
-                auto cf = cntfrc::make_generator<cntfrc::index_tracker,
-                                                 cntfrc::previous_previous_convergent_tracker>(
-                    cntfrc::impl::rational{numerator, denominator});
+                auto cf = cntfrc::make_generator<cntfrc::index_tracker, cntfrc::convergent_tracker>(
+                    cntfrc::engine::rational{numerator, denominator});
 
                 auto result = idiv::find_extremizers_of_fractional_part(cf, nmax);
                 expect(result.smallest_minimizer >= 1 && result.smallest_minimizer <= nmax);

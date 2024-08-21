@@ -15,10 +15,10 @@
 // is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 // KIND, either express or implied.
 
-#ifndef JKJ_HEADER_XI_ZETA_REGION
-#define JKJ_HEADER_XI_ZETA_REGION
+#ifndef JKJ_HEADER_IDIV_XI_ZETA_REGION
+#define JKJ_HEADER_IDIV_XI_ZETA_REGION
 
-#include "caching_generator.h"
+#include "continued_fraction/engine/caching.h"
 #include "fractional_part_extremizer.h"
 #include <algorithm>
 #include <ranges>
@@ -32,16 +32,16 @@ namespace jkj {
         // n in [nmin:nmax] where (x',y') = T(x,y) and (xi',zeta') = T(xi,zeta). The returned set is
         // one of the following kinds:
         //
-        // 1. Entire plane R2,
-        // 2. A single point in R2,
-        // 3. A line segment represented as {base_point + t * direction_vector | t in [0,1]},
-        // 4. An infinite parallelogram represented as {(xi,zeta) | <normal, (xi,zeta)> in I} for
+        // 1. A single point in R2,
+        // 2. A line segment represented as {base_point + t * direction_vector | t in [0,1]},
+        // 3. An infinite parallelogram represented as {(xi,zeta) | <normal, (xi,zeta)> in I} for
         //    some bounded interval I (which can be a single point, in which case the parallelogram
         //    degenerates into a line), or
-        // 5. A bounded polygon (with nonempty interior) represented as a union of vertically
+        // 4. A bounded polygon (with nonempty interior) represented as a union of vertically
         //    parallel trapezoids (which are in fact further divided into vertical boundary lines
         //    and horizontally-open trapezoids). A vertically parallel trapezoid is represented by a
         //    pair of affine functions of xi so that zeta is in between those two.
+        // 5. Entire plane R2,
         //
 
         struct floor_constraint_spec {
@@ -65,19 +65,15 @@ namespace jkj {
         };
 
         namespace xi_zeta_region {
+            // TODO: add empty and infinite_cone.
             enum class region_type_t {
-                entire_plane,
                 single_point,
                 line_segment,
+                bounded_polygon,
                 infinite_parallelogram,
-                bounded_polygon
+                entire_plane,
             };
             using frac_t = frac<bigint::int_var, bigint::uint_var>;
-
-            class entire_plane {
-            public:
-                static constexpr region_type_t region_type = region_type_t::entire_plane;
-            };
 
             class single_point {
             public:
@@ -98,22 +94,6 @@ namespace jkj {
                 frac_t direction_vector_zeta;
                 boundary_type_t left_boundary_type;
                 boundary_type_t right_boundary_type;
-            };
-
-            // Can be an infinite line when value_range is a single point.
-            class infinite_parallelogram {
-            public:
-                static constexpr region_type_t region_type = region_type_t::infinite_parallelogram;
-
-                // Inward normal vector.
-                bigint::int_var xi_coeff;
-                bigint::uint_var zeta_coeff;
-
-                variable_shape_interval<bigint::int_var, interval_type_t::bounded_open,
-                                        interval_type_t::bounded_left_open_right_closed,
-                                        interval_type_t::bounded_left_closed_right_open,
-                                        interval_type_t::bounded_closed>
-                    value_range;
             };
 
             class bounded_polygon {
@@ -293,8 +273,30 @@ namespace jkj {
                 boundary_type_t right_boundary_type_;
             };
 
-            using variable_shape_region = std::variant<entire_plane, single_point, line_segment,
-                                                       infinite_parallelogram, bounded_polygon>;
+            // Can be an infinite line when value_range is a single point.
+            class infinite_parallelogram {
+            public:
+                static constexpr region_type_t region_type = region_type_t::infinite_parallelogram;
+
+                // Inward normal vector.
+                bigint::int_var xi_coeff;
+                bigint::uint_var zeta_coeff;
+
+                variable_shape_interval<bigint::int_var, interval_type_t::bounded_open,
+                                        interval_type_t::bounded_left_open_right_closed,
+                                        interval_type_t::bounded_left_closed_right_open,
+                                        interval_type_t::bounded_closed>
+                    value_range;
+            };
+
+            class entire_plane {
+            public:
+                static constexpr region_type_t region_type = region_type_t::entire_plane;
+            };
+
+            using variable_shape_region =
+                std::variant<single_point, line_segment, infinite_parallelogram, bounded_polygon,
+                             entire_plane>;
         }
 
         template <class ContinuedFractionGeneratorX, class ContinuedFractionGeneratorY,
@@ -302,23 +304,13 @@ namespace jkj {
         xi_zeta_region::variable_shape_region
         find_xi_zeta_region(ContinuedFractionGeneratorX&& xcf, ContinuedFractionGeneratorY&& ycf,
                             RangeOfConstraintSpec&& range_of_constraint_specs) {
-            static_assert(
-                std::remove_cvref_t<ContinuedFractionGeneratorX>::template is_implementing_mixins<
-                    cntfrc::previous_previous_convergent_tracker, cntfrc::interval_tracker>(),
-                "the first continued fraction generator must implement "
-                "previous_previous_convergent_tracker and "
-                "interval_tracker");
-            static_assert(
-                std::remove_cvref_t<ContinuedFractionGeneratorY>::template is_implementing_mixins<
-                    cntfrc::interval_tracker>(),
-                "the second continued fraction generator must implement interval_tracker");
 
             using frac_t = frac<bigint::int_var, bigint::uint_var>;
             using nrange_t = interval<bigint::int_var, interval_type_t::bounded_closed>;
 
             auto gcd = [](auto const& a, auto const& b) {
                 auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
-                    cntfrc::impl::rational{a, b});
+                    cntfrc::engine::rational{a, b});
                 while (!cf.terminated()) {
                     cf.proceed_to_next_partial_fraction();
                 }
@@ -328,29 +320,15 @@ namespace jkj {
 
             // Reduce a fraction.
             auto reduce_fraction = [](auto&& fr) {
-                auto cf = cntfrc::make_generator<cntfrc::convergent_tracker>(
-                    cntfrc::impl::rational{static_cast<decltype(fr)&&>(fr).numerator,
-                                           static_cast<decltype(fr)&&>(fr).denominator});
-                while (!cf.terminated()) {
-                    cf.proceed_to_next_partial_fraction();
-                }
-                return project_to_rational(cf.current_convergent());
+                return project_to_rational(
+                    cntfrc::reduce_fraction(static_cast<decltype(fr)&&>(fr).numerator,
+                                            static_cast<decltype(fr)&&>(fr).denominator));
             };
 
             // Get the reduced form of the number num/den, where num and den are rationals.
             auto reduced_division = [](auto const& num, auto const& den) {
-                auto num_int = num.numerator * den.denominator;
-                auto den_int = num.denominator * den.numerator;
-                if (util::is_strictly_negative(den_int)) {
-                    num_int = -std::move(num_int);
-                    den_int = -std::move(den_int);
-                }
-                auto cf = cntfrc::make_generator<cntfrc::convergent_tracker>(
-                    cntfrc::impl::rational{num_int, util::abs(den_int)});
-                while (!cf.terminated()) {
-                    cf.proceed_to_next_partial_fraction();
-                }
-                return project_to_rational(cf.current_convergent());
+                return project_to_rational(cntfrc::reduce_fraction(
+                    num.numerator * den.denominator, num.denominator * den.numerator));
             };
 
 
@@ -374,12 +352,10 @@ namespace jkj {
             std::vector<vertical_boundary_info> left_half_planes;  // Upper bounds on xi.
 
             {
-                auto caching_xcf_for_xp = cntfrc::make_caching_generator(xcf.copy());
-                auto caching_ycf_for_xp = cntfrc::make_caching_generator(ycf.copy());
-                auto caching_xcf_for_yp =
-                    cntfrc::caching_generator<ContinuedFractionGeneratorX&>{xcf};
-                auto caching_ycf_for_yp =
-                    cntfrc::caching_generator<ContinuedFractionGeneratorY&>{ycf};
+                auto& xcf_for_xp = xcf;
+                auto& ycf_for_xp = ycf;
+                auto xcf_for_yp = xcf.copy();
+                auto ycf_for_yp = ycf.copy();
 
                 // Generate a continued fraction implementation for ax + by + c.
                 auto affine_combination = [&](auto& xcf, auto& ycf, frac_t const& coeff_x,
@@ -387,7 +363,7 @@ namespace jkj {
                     auto denominator = lcm(coeff_x.denominator, coeff_y.denominator);
                     denominator *= (constant.denominator / gcd(denominator, constant.denominator));
 
-                    return cntfrc::impl::binary_gosper<decltype(xcf), decltype(ycf)>{
+                    return cntfrc::engine::binary_gosper<decltype(xcf), decltype(ycf)>{
                         xcf,
                         ycf,
                         {// numerator
@@ -583,16 +559,19 @@ namespace jkj {
                     [&](util::sign_t sign, multiply_add_shift_info const& approx_xp_yp_info,
                         nrange_t const& nrange,
                         floor_constraint_spec::affine_transform const& affine_coeff) {
-                        auto approx_xpcf = cntfrc::make_caching_generator(
-                            cntfrc::make_generator<cntfrc::previous_previous_convergent_tracker,
-                                                   cntfrc::interval_tracker>(cntfrc::impl::rational{
+                        auto approx_xpcf = cntfrc::make_caching_generator<
+                            cntfrc::index_tracker, cntfrc::convergent_tracker,
+                            cntfrc::interval_estimate_provider, cntfrc::rewinder>(
+                            cntfrc::engine::rational{
                                 approx_xp_yp_info.multiplier,
-                                bigint::uint_var::power_of_2(approx_xp_yp_info.shift_amount)}));
+                                bigint::uint_var::power_of_2(approx_xp_yp_info.shift_amount)});
 
                         auto approx_ypcf =
-                            cntfrc::make_generator<cntfrc::interval_tracker>(cntfrc::impl::rational{
-                                approx_xp_yp_info.adder,
-                                bigint::uint_var::power_of_2(approx_xp_yp_info.shift_amount)});
+                            cntfrc::make_caching_generator<cntfrc::interval_estimate_provider,
+                                                           cntfrc::rewinder>(
+                                cntfrc::engine::rational{
+                                    approx_xp_yp_info.adder,
+                                    bigint::uint_var::power_of_2(approx_xp_yp_info.shift_amount)});
 
                         auto base_points =
                             find_extremizers_of_fractional_part(approx_xpcf, approx_ypcf, nrange);
@@ -631,23 +610,25 @@ namespace jkj {
                         // future computations; we only need to care about numbers of the form
                         // floor(nx') and floor(nx' + y').
                         auto const approx_xp_yp_info = find_simultaneous_multiply_add_shift(
-                            cntfrc::make_generator<cntfrc::previous_previous_convergent_tracker,
-                                                   cntfrc::interval_tracker>(
-                                affine_combination(caching_xcf_for_xp, caching_ycf_for_xp,
+                            cntfrc::make_caching_generator<
+                                cntfrc::index_tracker, cntfrc::convergent_tracker,
+                                cntfrc::interval_estimate_provider, cntfrc::rewinder>(
+                                affine_combination(xcf_for_xp, ycf_for_xp,
                                                    constraint_spec.affine_coeff.linear_coeff.xx,
                                                    constraint_spec.affine_coeff.linear_coeff.xy,
                                                    constraint_spec.affine_coeff.constant_coeff_x)),
-                            cntfrc::make_generator<cntfrc::interval_tracker>(
-                                affine_combination(caching_xcf_for_yp, caching_ycf_for_yp,
+                            cntfrc::make_caching_generator<cntfrc::interval_estimate_provider,
+                                                           cntfrc::rewinder>(
+                                affine_combination(xcf_for_yp, ycf_for_yp,
                                                    constraint_spec.affine_coeff.linear_coeff.yx,
                                                    constraint_spec.affine_coeff.linear_coeff.yy,
                                                    constraint_spec.affine_coeff.constant_coeff_y)),
                             nrange);
 
-                        caching_xcf_for_xp.rewind();
-                        caching_ycf_for_xp.rewind();
-                        caching_xcf_for_yp.rewind();
-                        caching_ycf_for_yp.rewind();
+                        xcf_for_xp.rewind();
+                        ycf_for_xp.rewind();
+                        xcf_for_yp.rewind();
+                        ycf_for_yp.rewind();
 
                         process_single_sign_interval(util::sign_t::positive, approx_xp_yp_info,
                                                      nrange, constraint_spec.affine_coeff);
@@ -666,23 +647,25 @@ namespace jkj {
                         // future computations; we only need to care about numbers of the form
                         // floor(n(-x')) and floor(n(-x') + y').
                         auto const approx_xp_yp_info = find_simultaneous_multiply_add_shift(
-                            cntfrc::make_generator<cntfrc::previous_previous_convergent_tracker,
-                                                   cntfrc::interval_tracker>(
-                                affine_combination(caching_xcf_for_xp, caching_ycf_for_xp,
+                            cntfrc::make_caching_generator<
+                                cntfrc::index_tracker, cntfrc::convergent_tracker,
+                                cntfrc::interval_estimate_provider, cntfrc::rewinder>(
+                                affine_combination(xcf_for_xp, ycf_for_xp,
                                                    -constraint_spec.affine_coeff.linear_coeff.xx,
                                                    -constraint_spec.affine_coeff.linear_coeff.xy,
                                                    -constraint_spec.affine_coeff.constant_coeff_x)),
-                            cntfrc::make_generator<cntfrc::interval_tracker>(
-                                affine_combination(caching_xcf_for_yp, caching_ycf_for_yp,
+                            cntfrc::make_caching_generator<cntfrc::interval_estimate_provider,
+                                                           cntfrc::rewinder>(
+                                affine_combination(xcf_for_yp, ycf_for_yp,
                                                    constraint_spec.affine_coeff.linear_coeff.yx,
                                                    constraint_spec.affine_coeff.linear_coeff.yy,
                                                    constraint_spec.affine_coeff.constant_coeff_y)),
                             nrange);
 
-                        caching_xcf_for_xp.rewind();
-                        caching_ycf_for_xp.rewind();
-                        caching_xcf_for_yp.rewind();
-                        caching_ycf_for_yp.rewind();
+                        xcf_for_xp.rewind();
+                        ycf_for_xp.rewind();
+                        xcf_for_yp.rewind();
+                        ycf_for_yp.rewind();
 
                         process_single_sign_interval(util::sign_t::negative, approx_xp_yp_info,
                                                      nrange, constraint_spec.affine_coeff);
@@ -692,13 +675,12 @@ namespace jkj {
                     if (constraint_spec.nrange.contains(0)) {
                         auto const floor_yp = [&] {
                             auto cf = cntfrc::make_generator<cntfrc::partial_fraction_tracker>(
-                                affine_combination(caching_xcf_for_yp, caching_ycf_for_yp,
+                                affine_combination(xcf_for_yp, ycf_for_yp,
                                                    constraint_spec.affine_coeff.linear_coeff.yx,
                                                    constraint_spec.affine_coeff.linear_coeff.yy,
                                                    constraint_spec.affine_coeff.constant_coeff_y));
-                            cf.proceed_to_next_partial_fraction();
-                            caching_xcf_for_yp.rewind();
-                            caching_ycf_for_yp.rewind();
+                            xcf_for_yp.rewind();
+                            ycf_for_yp.rewind();
                             return cf.current_partial_fraction().denominator;
                         }();
 

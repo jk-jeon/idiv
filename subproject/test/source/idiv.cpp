@@ -15,6 +15,7 @@
 // is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 // KIND, either express or implied.
 
+#include <idiv/continued_fraction/engine/caching.h>
 #include <idiv/idiv.h>
 #include <boost/ut.hpp>
 #include <format>
@@ -61,9 +62,8 @@ void idiv_test() {
         should("find_optimal_multiply_shift") = [] {
             auto perform_test = [](bigint::int_var const& numerator,
                                    bigint::uint_var const& denominator, std::size_t nmax) {
-                auto cf = cntfrc::make_generator<cntfrc::index_tracker,
-                                                 cntfrc::previous_previous_convergent_tracker>(
-                    cntfrc::impl::rational{numerator, denominator});
+                auto cf = cntfrc::make_generator<cntfrc::index_tracker, cntfrc::convergent_tracker>(
+                    cntfrc::engine::rational{numerator, denominator});
 
                 auto result = idiv::find_optimal_multiply_shift(cf, nmax);
 
@@ -98,11 +98,13 @@ void idiv_test() {
         should("find_simultaneous_multiply_add_shift") = [] {
             auto perform_test = [](projective_rational_t const& x, projective_rational_t const& y,
                                    nrange_t const& nrange) {
-                auto xcf =
-                    cntfrc::make_generator<cntfrc::convergent_tracker, cntfrc::interval_tracker>(
-                        cntfrc::impl::rational{x});
+                auto xcf = cntfrc::make_caching_generator<
+                    cntfrc::index_tracker, cntfrc::convergent_tracker,
+                    cntfrc::interval_estimate_provider, cntfrc::rewinder>(
+                    cntfrc::engine::rational{x});
                 auto ycf =
-                    cntfrc::make_generator<cntfrc::interval_tracker>(cntfrc::impl::rational{y});
+                    cntfrc::make_caching_generator<cntfrc::interval_estimate_provider,
+                                                   cntfrc::rewinder>(cntfrc::engine::rational{y});
 
                 auto result = idiv::find_simultaneous_multiply_add_shift(xcf, ycf, nrange);
 
@@ -128,11 +130,13 @@ void idiv_test() {
         should("find_extremizers_of_fractional_part (two unknowns)") = [] {
             auto perform_test = [](projective_rational_t const& x, projective_rational_t const& y,
                                    nrange_t const& nrange) {
-                auto xcf =
-                    cntfrc::make_generator<cntfrc::convergent_tracker, cntfrc::interval_tracker>(
-                        cntfrc::impl::rational{x});
+                auto xcf = cntfrc::make_caching_generator<
+                    cntfrc::index_tracker, cntfrc::convergent_tracker,
+                    cntfrc::interval_estimate_provider, cntfrc::rewinder>(
+                    cntfrc::engine::rational{x});
                 auto ycf =
-                    cntfrc::make_generator<cntfrc::interval_tracker>(cntfrc::impl::rational{y});
+                    cntfrc::make_caching_generator<cntfrc::interval_estimate_provider,
+                                                   cntfrc::rewinder>(cntfrc::engine::rational{y});
 
                 auto result = idiv::find_extremizers_of_fractional_part(xcf, ycf, nrange);
                 expect(result.smallest_minimizer >= nrange.lower_bound() &&
@@ -175,14 +179,16 @@ void idiv_test() {
         should("find_maximizer/minimizer_of_floor_subtract_quotient_positive_range") = [] {
             auto perform_test = [](projective_rational_t const& x, projective_rational_t const& y,
                                    projective_rational_t const& zeta, nrange_t const& nrange) {
-                auto xcf =
-                    cntfrc::make_generator<cntfrc::convergent_tracker, cntfrc::interval_tracker>(
-                        cntfrc::impl::rational{x});
+                auto xcf = cntfrc::make_caching_generator<
+                    cntfrc::index_tracker, cntfrc::convergent_tracker,
+                    cntfrc::interval_estimate_provider, cntfrc::rewinder>(
+                    cntfrc::engine::rational{x});
                 auto ycf =
-                    cntfrc::make_generator<cntfrc::interval_tracker>(cntfrc::impl::rational{y});
-                auto zetacf = cntfrc::make_generator<cntfrc::index_tracker,
-                                                     cntfrc::previous_previous_convergent_tracker>(
-                    cntfrc::impl::rational{zeta});
+                    cntfrc::make_caching_generator<cntfrc::interval_estimate_provider,
+                                                   cntfrc::rewinder>(cntfrc::engine::rational{y});
+                auto zetacf =
+                    cntfrc::make_generator<cntfrc::index_tracker, cntfrc::convergent_tracker>(
+                        cntfrc::engine::rational{zeta});
 
                 auto const maximizer_computed =
                     idiv::find_maximizer_of_floor_subtract_quotient_positive_range(

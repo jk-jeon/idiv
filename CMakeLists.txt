@@ -17,11 +17,11 @@ include(cmake/variables.cmake)
 # ---- Declare library ----
 
 add_library(idiv_idiv INTERFACE
+	include/idiv/continued_fraction/engine/caching.h
 	include/idiv/continued_fraction/engine/gosper.h
 	include/idiv/continued_fraction/engine/log.h
 	include/idiv/continued_fraction/engine/rational.h
 	include/idiv/continued_fraction/engine/type_erased.h
-	include/idiv/continued_fraction/caching_generator.h
 	include/idiv/continued_fraction/extended_linear_fractional_mapping.h
 	include/idiv/continued_fraction/generator.h
 	include/idiv/continued_fraction/projective_rational.h
@@ -34,8 +34,8 @@ add_library(idiv_idiv INTERFACE
 	include/idiv/optimal_multiply_shift.h
 	include/idiv/simultaneous_floor.h
 	include/idiv/tmp.h
+	include/idiv/unique_ptr.h
 	include/idiv/util.h
-	include/idiv/variant_storage.h
 	include/idiv/wuint.h
 	include/idiv/xi_zeta_region.h)
 add_library(idiv::idiv ALIAS idiv_idiv)
