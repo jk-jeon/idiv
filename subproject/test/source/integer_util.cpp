@@ -18,6 +18,9 @@
 #include <idiv/util.h>
 #include <boost/ut.hpp>
 
+#include <variant>
+#include <vector>
+
 void integer_util_test() {
     using namespace boost::ut;
     using namespace jkj;
@@ -151,6 +154,50 @@ void integer_util_test() {
                div_ceil_int_int_negative == -7);
         expect(std::is_same_v<decltype(div_ceil_int_int_negative_divisible), int> &&
                div_ceil_int_int_negative_divisible == -8);
+
+        // max(floor(log2(x / y)), 0).
+        expect(util::trunc_floor_log2_div(7u, 1u) == 2);
+        expect(util::trunc_floor_log2_div(7u, 2u) == 1);
+        expect(util::trunc_floor_log2_div(7u, 3u) == 1);
+        expect(util::trunc_floor_log2_div(7u, 4u) == 0);
+        expect(util::trunc_floor_log2_div(7u, 5u) == 0);
+        expect(util::trunc_floor_log2_div(7u, 6u) == 0);
+        expect(util::trunc_floor_log2_div(7u, 7u) == 0);
+        expect(util::trunc_floor_log2_div(7u, 8u) == 0);
+        expect(util::trunc_floor_log2_div(7u, 9u) == 0);
+        expect(util::trunc_floor_log2_div(7u, 10u) == 0);
+        expect(util::trunc_floor_log2_div(16u, 1u) == 4);
+        expect(util::trunc_floor_log2_div(16u, 2u) == 3);
+        expect(util::trunc_floor_log2_div(16u, 3u) == 2);
+        expect(util::trunc_floor_log2_div(16u, 4u) == 2);
+        expect(util::trunc_floor_log2_div(16u, 5u) == 1);
+        expect(util::trunc_floor_log2_div(16u, 6u) == 1);
+        expect(util::trunc_floor_log2_div(16u, 7u) == 1);
+        expect(util::trunc_floor_log2_div(16u, 8u) == 1);
+        expect(util::trunc_floor_log2_div(16u, 9u) == 0);
+        expect(util::trunc_floor_log2_div(16u, 10u) == 0);
+
+        // max(ceil(log2(x / y)), 0)
+        expect(util::trunc_ceil_log2_div(7u, 1u) == 3);
+        expect(util::trunc_ceil_log2_div(7u, 2u) == 2);
+        expect(util::trunc_ceil_log2_div(7u, 3u) == 2);
+        expect(util::trunc_ceil_log2_div(7u, 4u) == 1);
+        expect(util::trunc_ceil_log2_div(7u, 5u) == 1);
+        expect(util::trunc_ceil_log2_div(7u, 6u) == 1);
+        expect(util::trunc_ceil_log2_div(7u, 7u) == 0);
+        expect(util::trunc_ceil_log2_div(7u, 8u) == 0);
+        expect(util::trunc_ceil_log2_div(7u, 9u) == 0);
+        expect(util::trunc_ceil_log2_div(7u, 10u) == 0);
+        expect(util::trunc_ceil_log2_div(16u, 1u) == 4);
+        expect(util::trunc_ceil_log2_div(16u, 2u) == 3);
+        expect(util::trunc_ceil_log2_div(16u, 3u) == 3);
+        expect(util::trunc_ceil_log2_div(16u, 4u) == 2);
+        expect(util::trunc_ceil_log2_div(16u, 5u) == 2);
+        expect(util::trunc_ceil_log2_div(16u, 6u) == 2);
+        expect(util::trunc_ceil_log2_div(16u, 7u) == 2);
+        expect(util::trunc_ceil_log2_div(16u, 8u) == 1);
+        expect(util::trunc_ceil_log2_div(16u, 9u) == 1);
+        expect(util::trunc_ceil_log2_div(16u, 10u) == 1);
 
         expect(util::pow_uint(10, 0u) == 1);
         expect(util::pow_uint(10, 1u) == 10);

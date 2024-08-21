@@ -106,6 +106,23 @@ namespace jkj {
             }
         }
 
+        // Noncopyable / nonmovable.
+        // The template parameter T is used to distinguish multiple different instantiations so that
+        // EBO can still kick in under multiple inheritance. Whatever type can be specified to T,
+        // but the default choice would be the noncopyable/nonmovable class deriving from these.
+        template <class T = void>
+        struct noncopyable {
+            noncopyable() = default;
+            noncopyable(noncopyable&&) = default;
+            noncopyable& operator=(noncopyable&&) = default;
+        };
+        template <class T = void>
+        struct nonmovable {
+            nonmovable() = default;
+            nonmovable(nonmovable const&) = delete;
+            nonmovable& operator=(nonmovable const&) = delete;
+        };
+
         // A minimal implementation of std::array.
         template <class T, std::size_t N>
         struct array {
@@ -135,6 +152,23 @@ namespace jkj {
             constexpr value_type const& operator[](std::size_t idx) const& noexcept {
                 constexpr_assert<error_msgs::index_out_of_range>(idx < N);
                 return data_[idx];
+            }
+
+            template <class U, std::size_t M>
+                requires(N != M)
+            constexpr bool operator==(array<U, M> const&) const noexcept {
+                return false;
+            }
+
+            template <class U>
+            constexpr bool operator==(array<U, N> const& other) const
+                noexcept(noexcept(data_[0] == other[0])) {
+                for (std::size_t idx = 0; idx < N; ++idx) {
+                    if (data_[idx] != other[idx]) {
+                        return false;
+                    }
+                }
+                return true;
             }
 
             static constexpr std::size_t size() noexcept { return N; }
@@ -478,7 +512,7 @@ namespace jkj {
                     return 0;
                 }
 
-                auto const shift = x_leading_one_pos - y_leading_one_pos;
+                auto const shift = std::size_t(x_leading_one_pos - y_leading_one_pos);
                 if ((y << shift) <= x) {
                     return shift;
                 }
@@ -506,7 +540,7 @@ namespace jkj {
                     return 0;
                 }
 
-                auto const shift = x_leading_one_pos - y_leading_one_pos;
+                auto const shift = std::size_t(x_leading_one_pos - y_leading_one_pos);
                 if ((y << shift) < x) {
                     return shift + 1;
                 }
@@ -518,6 +552,20 @@ namespace jkj {
                 constexpr decltype(auto) operator()(auto&& x, auto&& y) const {
                     return trunc_ceil_log2_div(static_cast<decltype(x)&&>(x),
                                                static_cast<decltype(y)&&>(y));
+                }
+            };
+
+            // Find the largest k such that x is divisible by 2^k, and replace x by x/2^k.
+            template <std::integral Int>
+            constexpr std::size_t factor_out_power_of_2(Int& x) noexcept {
+                // In C++20, right-shift is guaranteed to perform floor even for signed integers.
+                auto tz = std::countr_zero(static_cast<std::make_unsigned<Int>>(x));
+                x >>= tz;
+                return tz;
+            }
+            struct factor_out_power_of_2_impl {
+                constexpr decltype(auto) operator()(auto&& x) const {
+                    return factor_out_power_of_2(static_cast<decltype(x)&&>(x));
                 }
             };
         }
@@ -537,6 +585,7 @@ namespace jkj {
         inline constexpr auto div_ceil = detail::div_ceil_impl{};
         inline constexpr auto trunc_floor_log2_div = detail::trunc_floor_log2_div_impl{};
         inline constexpr auto trunc_ceil_log2_div = detail::trunc_ceil_log2_div_impl{};
+        inline constexpr auto factor_out_power_of_2 = detail::factor_out_power_of_2_impl{};
 
         // Fast nonnegative integer power.
         template <class T, class UInt>
