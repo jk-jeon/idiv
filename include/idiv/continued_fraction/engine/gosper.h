@@ -109,16 +109,56 @@ namespace jkj {
                 extended_linear_fractional_mapping<int_type> coeff_;
                 interval_type complete_fraction_itv_;
 
-            public:
-                constexpr interval_type initial_interval() const {
-                    return coeff_.map_cyclic_interval(itv_provider_.current_interval());
-                }
+                template <class>
+                friend class unary_gosper;
 
+            public:
                 constexpr unary_gosper(IntervalEstimateProvider itv_provider,
                                        linear_fractional_mapping<int_type> coeff)
                     : itv_provider_{static_cast<IntervalEstimateProvider&&>(itv_provider)},
                       coeff_{std::move(coeff)}, complete_fraction_itv_{coeff_.map_cyclic_interval(
                                                     itv_provider_.current_interval())} {}
+
+                template <class OtherIntervalEstimateProvider>
+                    requires(std::is_same_v<unary_gosper, decay_type> &&
+                             !std::is_same_v<IntervalEstimateProvider,
+                                             OtherIntervalEstimateProvider> &&
+                             std::is_constructible_v<IntervalEstimateProvider,
+                                                     OtherIntervalEstimateProvider>)
+                explicit constexpr unary_gosper(
+                    unary_gosper<OtherIntervalEstimateProvider> const& other)
+                    : itv_provider_{other.itv_provider_}, coeff_{other.coeff_},
+                      complete_fraction_itv_{other.complete_fraction_itv_} {}
+
+                // Copy/move constructor/assignements are allowed only for value-like generators.
+                constexpr unary_gosper(unary_gosper const&)
+                    requires(std::is_same_v<unary_gosper, decay_type>)
+                = default;
+                constexpr unary_gosper(unary_gosper&&)
+                    requires(std::is_same_v<unary_gosper, decay_type>)
+                = default;
+                constexpr unary_gosper& operator=(unary_gosper const&)
+                    requires(std::is_same_v<unary_gosper, decay_type>)
+                = default;
+                constexpr unary_gosper& operator=(unary_gosper&&)
+                    requires(std::is_same_v<unary_gosper, decay_type>)
+                = default;
+
+                constexpr unary_gosper(unary_gosper const&)
+                    requires(!std::is_same_v<unary_gosper, decay_type>)
+                = delete;
+                constexpr unary_gosper(unary_gosper&&)
+                    requires(!std::is_same_v<unary_gosper, decay_type>)
+                = delete;
+                constexpr unary_gosper& operator=(unary_gosper const&)
+                    requires(!std::is_same_v<unary_gosper, decay_type>)
+                = delete;
+                constexpr unary_gosper& operator=(unary_gosper&&)
+                    requires(!std::is_same_v<unary_gosper, decay_type>)
+                = delete;
+
+                // Make a deep copy.
+                constexpr decay_type copy() const { return decay_type{*this}; }
 
                 template <class Callback>
                 constexpr void with_next_partial_fraction(Callback&& callback) {
@@ -140,6 +180,10 @@ namespace jkj {
                     while (!detail::gosper_core(complete_fraction_itv_, update_and_callback,
                                                 refine_interval)) {
                     }
+                }
+
+                constexpr interval_type initial_interval() const {
+                    return coeff_.map_cyclic_interval(itv_provider_.current_interval());
                 }
             };
 
@@ -186,6 +230,9 @@ namespace jkj {
                 extended_bilinear_fractional_mapping<int_type> coeff_;
                 interval_type complete_fraction_itv_;
 
+                template <class, class>
+                friend class binary_gosper;
+
                 constexpr interval_type compute_initial_interval_for_complete_fraction() {
                     // Get away from the indeterminacy locus.
                     // This loop will never finish if (x,y) is located inside the indeterminacy
@@ -200,11 +247,6 @@ namespace jkj {
                 }
 
             public:
-                constexpr interval_type initial_interval() const {
-                    return coeff_.template map_cyclic_rectangle<true>(
-                        itv_provider_x_.current_interval(), itv_provider_y_.current_interval());
-                }
-
                 constexpr binary_gosper(IntervalEstimateProviderX itv_provider_x,
                                         IntervalEstimateProviderY itv_provider_y,
                                         bilinear_fractional_mapping<int_type> coeff)
@@ -212,6 +254,27 @@ namespace jkj {
                       itv_provider_y_{static_cast<IntervalEstimateProviderY&&>(itv_provider_y)},
                       coeff_{std::move(coeff)},
                       complete_fraction_itv_{compute_initial_interval_for_complete_fraction()} {}
+
+                template <class OtherIntervalEstimateProviderX,
+                          class OtherIntervalEstimateProviderY>
+                    requires(std::is_same_v<binary_gosper, decay_type> &&
+                             !(std::is_same_v<IntervalEstimateProviderX,
+                                              OtherIntervalEstimateProviderX> &&
+                               !std::is_same_v<IntervalEstimateProviderY,
+                                               OtherIntervalEstimateProviderY>) &&
+                             std::is_constructible_v<IntervalEstimateProviderX,
+                                                     OtherIntervalEstimateProviderX> &&
+                             std::is_constructible_v<IntervalEstimateProviderY,
+                                                     OtherIntervalEstimateProviderY>)
+                explicit constexpr binary_gosper(
+                    binary_gosper<OtherIntervalEstimateProviderX,
+                                  OtherIntervalEstimateProviderY> const& other)
+                    : itv_provider_x_{other.itv_provider_x_},
+                      itv_provider_y_{other.itv_provider_y_}, coeff_{other.coeff_},
+                      complete_fraction_itv_{other.complete_fraction_itv_} {}
+
+                // Make a deep copy.
+                constexpr decay_type copy() const { return decay_type{*this}; }
 
                 template <class Callback>
                 constexpr void with_next_partial_fraction(Callback&& callback) {
@@ -234,6 +297,11 @@ namespace jkj {
                     while (!detail::gosper_core(complete_fraction_itv_, update_and_callback,
                                                 refine_interval)) {
                     }
+                }
+
+                constexpr interval_type initial_interval() const {
+                    return coeff_.template map_cyclic_rectangle<true>(
+                        itv_provider_x_.current_interval(), itv_provider_y_.current_interval());
                 }
             };
 

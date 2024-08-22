@@ -264,7 +264,9 @@ namespace jkj {
                     }
 
                     constexpr util::unique_ptr<engine_wrapper_base> clone() const override {
-                        return util::make_unique<engine_wrapper>(*this);
+                        using decay_type = decay_type_of<Engine>;
+                        return util::make_unique<engine_wrapper<decay_type>>(
+                            decay_type{mixin_base_type::implementation()});
                     }
                 };
 

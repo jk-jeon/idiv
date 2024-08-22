@@ -816,8 +816,16 @@ namespace jkj {
                 using tracking_data_type = tracking_data_of<Mixin, Engine>;
                 tracking_data_type data_;
 
+                template <class, class>
+                friend class tracking_data_wrapper;
+
             public:
                 constexpr tracking_data_wrapper(Engine const& engine) : data_{engine} {}
+
+                template <class OtherEngine>
+                constexpr tracking_data_wrapper(
+                    tracking_data_wrapper<Mixin, OtherEngine> const& other)
+                    : data_{other.data_} {}
 
                 constexpr tracking_data_type& get() & noexcept { return data_; }
                 constexpr tracking_data_type const& get() const& noexcept { return data_; }
@@ -849,11 +857,16 @@ namespace jkj {
                     proceed_to_zeroth_partial_fraction(callbacks...);
                 }
 
-                template <class OtherEngine, class... OtherMixins>
+                template <class OtherEngine>
+                    requires(std::is_same_v<generator_impl, decay_type> &&
+                             !std::is_same_v<Engine, OtherEngine> &&
+                             std::is_constructible_v<Engine, OtherEngine>)
                 explicit constexpr generator_impl(
-                    generator_impl<OtherEngine, OtherMixins...> const& other)
+                    generator_impl<OtherEngine, Mixins...> const& other)
                     : generator_base<Engine>{other.engine()},
-                      tracking_data_wrapper<Mixins, Engine>{engine()}... {}
+                      tracking_data_wrapper<Mixins, Engine>{
+                          static_cast<tracking_data_wrapper<Mixins, OtherEngine> const&>(
+                              other)}... {}
 
                 // Copy/move constructor/assignements are allowed only for value-like generators.
                 constexpr generator_impl(generator_impl const&)
