@@ -1531,8 +1531,8 @@ namespace jkj {
                                             (det_form1_.d - det_form1_.a) *
                                                 itv_y.upper_bound().numerator *
                                                 itv_y.upper_bound().denominator)
-                                            ? -1
-                                            : 1;
+                                            ? 1
+                                            : -1;
                                 }
                                 else {
                                     auto vertical_sign = util::is_nonnegative(evaluate_det_form1(
