@@ -1132,13 +1132,19 @@ namespace jkj {
                                 detail::sign_normalize(std::move(edge_union).upper_bound())};
                         }
                         else {
-                            // When both of the intervals are half-open,
-                            // then the resulting interval can be closed
-                            // only if the rectangle touches the
-                            // indeterminacy locus at its boundary.
-                            if constexpr (away_from_indeterminacy_locus &&
-                                          itv_x_type::interval_type() != closed &&
-                                          itv_y_type::interval_type() != closed) {
+                            // When both of the intervals are not closed, then the resulting
+                            // interval can be closed only if the rectangle touches the
+                            // indeterminacy locus at its boundary (in fact, at corners, as here we
+                            // assume edge_union is not RP1). Also, when one of the intervals is
+                            // open and the other is half-open, the resulting interval cannot be
+                            // closed.
+                            if constexpr ((away_from_indeterminacy_locus &&
+                                           itv_x_type::interval_type() != closed &&
+                                           itv_y_type::interval_type() != closed) ||
+                                          (itv_x_type::interval_type() == open &&
+                                           itv_y_type::interval_type() != closed) ||
+                                          (itv_y_type::interval_type() == open &&
+                                           itv_x_type::interval_type() != closed)) {
                                 return cyclic_interval<value_type, left_closed_right_open>{
                                     detail::sign_normalize(std::move(edge_union).lower_bound()),
                                     detail::sign_normalize(std::move(edge_union).upper_bound())};
@@ -1189,7 +1195,7 @@ namespace jkj {
                     }
                     else {
                         if (specialized.determinant_sign() != 0) {
-                            specialized.map_cyclic_interval(itv_x);
+                            return specialized.map_cyclic_interval(itv_x);
                         }
                         else {
                             auto constant_value =
@@ -1212,8 +1218,7 @@ namespace jkj {
                     }
                 }
 
-                // First interval is a point and the second interval is not empty nor a
-                // point.
+                // First interval is a point and the second interval is not empty nor a point.
                 else if constexpr (itv_x_type::interval_type() == single_point) {
                     return extended_linear_fractional_mapping<Int>{
                         base_type::specialize_x(itv_x.lower_bound())}
@@ -1226,8 +1231,8 @@ namespace jkj {
                     return cyclic_interval<value_type, entire>{};
                 }
 
-                // Second interval is the complemenet of a point, first interval is not
-                // empty nor a point nor RP1.
+                // Second interval is the complemenet of a point, first interval is not empty nor a
+                // point nor RP1.
                 else if constexpr (itv_y_type::interval_type() == single_complement) {
                     if (!util::is_zero(evaluate_det_form1(itv_y.lower_bound()))) {
                         return cyclic_interval<value_type, entire>{};
@@ -1256,8 +1261,8 @@ namespace jkj {
                     }
                 }
 
-                // First interval is the complemenet of a point, second interval is a
-                // nontrivial bounded interval.
+                // First interval is the complemenet of a point, second interval is a nontrivial
+                // bounded interval.
                 else if constexpr (itv_x_type::interval_type() == single_complement) {
                     if (!util::is_zero(evaluate_det_form2(itv_x.lower_bound()))) {
                         return cyclic_interval<value_type, entire>{};
@@ -1331,8 +1336,8 @@ namespace jkj {
                         }
                     };
 
-                    // Compute the union of the images of the four edges in
-                    // continuation-passing style.
+                    // Compute the union of the images of the four edges in continuation-passing
+                    // style.
                     auto append_bottom_edge =
                         [&](auto const& append_right_edge, auto const& append_top_edge,
                             auto const& append_left_edge) -> closed_cyclic_interval {
