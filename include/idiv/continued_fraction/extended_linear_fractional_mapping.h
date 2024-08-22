@@ -765,11 +765,13 @@ namespace jkj {
                     evaluate_det_form1(static_cast<LowerBound&&>(u)) <=> 0);
                 auto const Lvv = util::strong_order_to_int(
                     evaluate_det_form1(static_cast<UpperBound&&>(v)) <=> 0);
-                auto const Luv =
-                    util::strong_order_to_int((det_form1_.a * u.numerator * v.numerator +
-                                               det_form1_.b * u.numerator * v.denominator +
-                                               det_form1_.b * u.denominator * v.numerator +
-                                               det_form1_.d * u.denominator * v.denominator) <=> 0);
+                auto const Luv = util::strong_order_to_int(
+                                     (det_form1_.a * u.numerator * v.numerator +
+                                      det_form1_.b * u.numerator * v.denominator +
+                                      det_form1_.b * u.denominator * v.numerator +
+                                      det_form1_.d * u.denominator * v.denominator) <=> 0) *
+                                 util::strong_order_to_int(u.denominator * v.numerator <=>
+                                                           u.numerator * v.denominator);
 
                 // If y exists in the open interval, then always return true.
                 if (Luu * Lvv < 0 || Luu * Luv < 0 || Lvv * Luv < 0) {
