@@ -1096,7 +1096,7 @@ namespace jkj {
                         bool remove_lower_bound = false;
                         bool remove_upper_bound = false;
                         for (corner_index_t corner_idx = corner_index_t::bottom_left;
-                             corner_idx != corner_index_t::top_left;
+                             std::size_t(corner_idx) <= std::size_t(corner_index_t::top_left);
                              corner_idx = corner_index_t(std::size_t(corner_idx) + 1)) {
                             auto const& corner_info = corner_info_arr[std::size_t(corner_idx)];
 
