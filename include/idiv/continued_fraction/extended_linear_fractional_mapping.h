@@ -1027,6 +1027,10 @@ namespace jkj {
                     if (cyclic_order(itv_y.lower_bound(), endpoint_img, itv_y.upper_bound())) {
                         return false;
                     }
+                    else if (corner_info.horizontal_bdy_type == boundary_type_t::closed &&
+                             corner_info.vertical_bdy_type == boundary_type_t::closed) {
+                        return false;
+                    }
                     else if (endpoint_img == corner_info.other_vertical_coord) {
                         return corner_info.other_horizontal_bdy_type == boundary_type_t::open ||
                                corner_info.other_vertical_bdy_type == boundary_type_t::open;
@@ -1620,21 +1624,21 @@ namespace jkj {
                                       typename itv_y_type::value_type>
                             corner_info_arr[4] = {
                                 {itv_x.lower_bound(), itv_x.upper_bound(), itv_y.lower_bound(),
-                                 itv_y.upper_bound(), itv_x.left_boundary_type(),
-                                 itv_x.right_boundary_type(), itv_y.left_boundary_type(),
-                                 itv_y.right_boundary_type()},
+                                 itv_y.upper_bound(), itv_y.left_boundary_type(),
+                                 itv_y.right_boundary_type(), itv_x.left_boundary_type(),
+                                 itv_x.right_boundary_type()},
                                 {itv_x.upper_bound(), itv_x.lower_bound(), itv_y.lower_bound(),
-                                 itv_y.upper_bound(), itv_x.right_boundary_type(),
-                                 itv_x.left_boundary_type(), itv_y.left_boundary_type(),
-                                 itv_y.right_boundary_type()},
+                                 itv_y.upper_bound(), itv_y.left_boundary_type(),
+                                 itv_y.right_boundary_type(), itv_x.right_boundary_type(),
+                                 itv_x.left_boundary_type()},
                                 {itv_x.upper_bound(), itv_x.lower_bound(), itv_y.upper_bound(),
-                                 itv_y.lower_bound(), itv_x.right_boundary_type(),
-                                 itv_x.left_boundary_type(), itv_y.right_boundary_type(),
-                                 itv_y.left_boundary_type()},
+                                 itv_y.lower_bound(), itv_y.right_boundary_type(),
+                                 itv_y.left_boundary_type(), itv_x.right_boundary_type(),
+                                 itv_x.left_boundary_type()},
                                 {itv_x.lower_bound(), itv_x.upper_bound(), itv_y.upper_bound(),
-                                 itv_y.lower_bound(), itv_x.left_boundary_type(),
-                                 itv_x.right_boundary_type(), itv_y.right_boundary_type(),
-                                 itv_y.left_boundary_type()}};
+                                 itv_y.lower_bound(), itv_y.right_boundary_type(),
+                                 itv_y.left_boundary_type(), itv_x.left_boundary_type(),
+                                 itv_x.right_boundary_type()}};
 
                         return std::move(edge_union).visit([&](auto&& edge_union_) -> ReturnType {
                             return map_cyclic_rectangle_remove_corner_impl<
