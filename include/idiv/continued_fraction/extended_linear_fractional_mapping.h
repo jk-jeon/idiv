@@ -976,7 +976,7 @@ namespace jkj {
             template <class StaticShapeCyclicIntervalX, class StaticShapeCyclicIntervalY,
                       class CornerValue>
             constexpr bool
-            should_remove_corner(StaticShapeCyclicIntervalX const&,
+            should_remove_corner(StaticShapeCyclicIntervalX const& itv_x,
                                  StaticShapeCyclicIntervalY const& itv_y,
                                  corner_info_t<typename StaticShapeCyclicIntervalX::value_type,
                                                typename StaticShapeCyclicIntervalY::value_type> (
@@ -995,16 +995,14 @@ namespace jkj {
 
                 auto const& corner_info = corner_info_arr[std::size_t(corner_idx)];
                 if (determinant_sign == 0) {
-                    if ((corner_info.horizontal_bdy_type == boundary_type_t::closed &&
-                         a * corner_info.horizontal_coord.numerator ==
-                             minus_c * corner_info.horizontal_coord.denominator &&
-                         d * corner_info.horizontal_coord.denominator ==
-                             minus_b * corner_info.horizontal_coord.numerator) ||
-                        (corner_info.vertical_bdy_type == boundary_type_t::closed &&
-                         a * corner_info.vertical_coord.numerator ==
-                             minus_b * corner_info.vertical_coord.denominator &&
-                         d * corner_info.vertical_coord.denominator ==
-                             minus_c * corner_info.vertical_coord.numerator)) {
+                    auto const x0 = util::is_zero(a) && util::is_zero(minus_c)
+                                        ? projective_rational<Int, Int>{d, minus_b}
+                                        : projective_rational<Int, Int>{minus_c, a};
+                    auto const y0 = util::is_zero(a) && util::is_zero(minus_b)
+                                        ? projective_rational<Int, Int>{d, minus_c}
+                                        : projective_rational<Int, Int>{minus_b, a};
+
+                    if (itv_x.contains(x0) || itv_y.contains(y0)) {
                         return false;
                     }
                     else {
@@ -1035,7 +1033,9 @@ namespace jkj {
                     }
                     else if (endpoint_img == corner_info.other_vertical_coord) {
                         return corner_info.other_horizontal_bdy_type == boundary_type_t::open ||
-                               corner_info.other_vertical_bdy_type == boundary_type_t::open;
+                               corner_info.other_vertical_bdy_type == boundary_type_t::open ||
+                               is_indeterminacy_locus(corner_info.other_horizontal_coord,
+                                                      corner_info.other_vertical_coord);
                     }
                     else {
                         return true;
@@ -1064,7 +1064,7 @@ namespace jkj {
                 }
                 else if constexpr (itv_type::interval_type() == entire) {
                     for (corner_index_t corner_idx = corner_index_t::bottom_left;
-                         corner_idx != corner_index_t::top_left;
+                         std::size_t(corner_idx) <= std::size_t(corner_index_t::top_left);
                          corner_idx = corner_index_t(std::size_t(corner_idx) + 1)) {
                         auto const& corner_info = corner_info_arr[std::size_t(corner_idx)];
 
