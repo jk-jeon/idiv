@@ -118,6 +118,8 @@ void idiv_test() {
                     expect(answer == true_answer) << "n = " << n;
                 }
             };
+            perform_test(projective_rational_t{1, 10u}, projective_rational_t{0, 1u},
+                         nrange_t{100, 324});
             perform_test(projective_rational_t{17, 129u}, projective_rational_t{39, 176u},
                          nrange_t{-150, 150});
             perform_test(projective_rational_t{1'936'274, 6'432'163u},
@@ -168,6 +170,8 @@ void idiv_test() {
                 expect(result.smallest_minimizer == smallest_minimizer);
                 expect(result.largest_maximizer == largest_maximizer);
             };
+            perform_test(projective_rational_t{1, 10u}, projective_rational_t{0, 1u},
+                         nrange_t{100, 324});
             perform_test(projective_rational_t{17, 129u}, projective_rational_t{39, 176u},
                          nrange_t{-150, 150});
             perform_test(projective_rational_t{614, 36899u}, projective_rational_t{685105, 313003u},

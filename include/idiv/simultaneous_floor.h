@@ -113,11 +113,7 @@ namespace jkj {
                     // L is empty.
                     return xi_zeta_trapezoid{xi_range, rhs + 1u,
                                              xi_range.lower_bound().denominator + nmin,
-                                             util::div_floor(xi_range.upper_bound().denominator *
-                                                                 xi_range.lower_bound().numerator,
-                                                             xi_range.lower_bound().denominator) +
-                                                 floor_nmin_x_plus_y + 2u,
-                                             xi_range.upper_bound().denominator + nmin};
+                                             floor_nmin_x_plus_y + 1u, nmin};
                 }
             }
 
@@ -142,8 +138,7 @@ namespace jkj {
                     if (util::is_zero(floor_qstar_yprime)) {
                         // R is empty.
                         return xi_zeta_trapezoid{
-                            xi_range, xi_range.lower_bound().numerator + floor_nmin_x_plus_y,
-                            xi_range.lower_bound().denominator + nmin,
+                            xi_range, floor_nmin_x_plus_y, nmin,
                             util::div_floor(xi_range.upper_bound().denominator *
                                                 xi_range.lower_bound().numerator,
                                             xi_range.lower_bound().denominator) +
