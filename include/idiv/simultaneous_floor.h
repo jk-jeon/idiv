@@ -164,8 +164,7 @@ namespace jkj {
                     if (lhs < rhs) {
                         // R is empty.
                         return xi_zeta_trapezoid{
-                            xi_range, xi_range.lower_bound().numerator + floor_nmin_x_plus_y,
-                            xi_range.lower_bound().denominator + nmin,
+                            xi_range, floor_nmin_x_plus_y, nmin,
                             util::div_floor(xi_range.upper_bound().denominator *
                                                 xi_range.lower_bound().numerator,
                                             xi_range.lower_bound().denominator) +
