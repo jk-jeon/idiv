@@ -65,7 +65,6 @@ namespace jkj {
                                                                     approx_x_y_info.shift_amount)});
 
             // Find a good enough approximation of zeta.
-            // Because of potential aliasing of zetacf with xcf/ycf, we make a copy here.
             // "+ 1u" is just to make the case nmin == nmax work correctly.
             auto approx_zeta_info = find_best_rational_approx(
                 zetacf, util::abs(nrange.upper_bound() - nrange.lower_bound()) + 1u);
@@ -174,7 +173,6 @@ namespace jkj {
             util::constexpr_assert(nrange.lower_bound() > 0);
 
             // Find good enough approximations of x and y.
-            // Find good enough approximations of x and y.
             auto approx_x_y_info = find_simultaneous_multiply_add_shift(
                 std::forward<ContinuedFractionGeneratorX>(xcf),
                 std::forward<ContinuedFractionGeneratorY>(ycf), nrange);
@@ -189,7 +187,6 @@ namespace jkj {
                                                                     approx_x_y_info.shift_amount)});
 
             // Find a good enough approximation of zeta.
-            // Because of potential aliasing of zetacf with xcf/ycf, we make a copy here.
             // "+ 1u" is just to make the case nmin == nmax work correctly.
             auto approx_zeta_info = find_best_rational_approx(
                 zetacf, util::abs(nrange.upper_bound() - nrange.lower_bound()) + 1u);
