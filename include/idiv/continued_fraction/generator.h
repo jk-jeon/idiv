@@ -438,7 +438,7 @@ namespace jkj {
                     tmp::is_in<std::remove_cvref_t<GeneratorMixin>>(
                         tmp::map<typename Generator::included_mixins, generator_mixin_of,
                                  typename Generator::engine_type, Generator>{}),
-                    "the type trying to access the engine facade is not the "
+                    "the type trying to create an advancer is not the "
                     "generator_mixin associated to one of the mixins included in Generator");
 
                 return static_cast<Generator&>(base).create_advancer(
@@ -451,7 +451,7 @@ namespace jkj {
                     tmp::is_in<std::remove_cvref_t<GeneratorMixin>>(
                         tmp::map<typename Generator::included_mixins, generator_mixin_of,
                                  typename Generator::engine_type, Generator>{}),
-                    "the type trying to access the engine facade is not the "
+                    "the type trying reset the termination flag is not the "
                     "generator_mixin associated to one of the mixins included in Generator");
 
                 return static_cast<Generator&>(base).reset_termination_flag();
