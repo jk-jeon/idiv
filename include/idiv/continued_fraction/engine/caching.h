@@ -89,12 +89,6 @@ namespace jkj {
                     }
                 }
 
-                constexpr decltype(auto) initial_interval()
-                    requires requires { impl_.initial_interval(); }
-                {
-                    return impl_.initial_interval();
-                }
-
                 constexpr util::span<partial_fraction_type const> records() const noexcept {
                     return {records_.data(), records_.size()};
                 }
