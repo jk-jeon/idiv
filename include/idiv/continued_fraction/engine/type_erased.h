@@ -49,8 +49,8 @@ namespace jkj {
                 using required_mixins = typename TypeErasedEngineTraits::required_mixins;
 
                 template <class Mixin>
-                using tracking_data_type = typename Mixin::template traits<
-                    engine::type_erased<TypeErasedEngineTraits>>::tracking_data;
+                using tracking_data_type =
+                    tracking_data_of<Mixin, engine::type_erased<TypeErasedEngineTraits>>;
 
                 template <class Mixin>
                 struct proxy_mixin_wrapper_base {
