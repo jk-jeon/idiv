@@ -140,6 +140,32 @@ namespace jkj {
                     boundary_type_t const upper_boundary_type;
                 };
 
+                struct turning_point_info {
+                    frac_t xi;
+                    frac_t lower_zeta;
+                    frac_t upper_zeta;
+
+                    boundary_type_t lower_boundary_type;
+                    boundary_type_t upper_boundary_type;
+                };
+
+                struct boundary_line_pair_info {
+                    frac_t lower_boundary_linear_coeff;
+                    frac_t lower_boundary_constant_coeff;
+                    frac_t upper_boundary_linear_coeff;
+                    frac_t upper_boundary_constant_coeff;
+
+                    boundary_type_t lower_boundary_type;
+                    boundary_type_t upper_boundary_type;
+                };
+
+                auto const& turning_points() const noexcept { return turning_points_; }
+                auto const& boundary_line_pairs() const noexcept { return boundary_line_pairs_; }
+                boundary_type_t left_boundary_type() const noexcept { return left_boundary_type_; }
+                boundary_type_t right_boundary_type() const noexcept {
+                    return right_boundary_type_;
+                }
+
                 template <class Functor>
                 void for_each_vertical_slice(Functor&& f) const {
                     util::constexpr_assert(!turning_points_.empty());
@@ -226,33 +252,6 @@ namespace jkj {
                         }
                     }
                 }
-
-                struct turning_point_info {
-                    frac_t xi;
-                    frac_t lower_zeta;
-                    frac_t upper_zeta;
-
-                    boundary_type_t lower_boundary_type;
-                    boundary_type_t upper_boundary_type;
-                };
-
-                struct boundary_line_pair_info {
-                    frac_t lower_boundary_linear_coeff;
-                    frac_t lower_boundary_constant_coeff;
-                    frac_t upper_boundary_linear_coeff;
-                    frac_t upper_boundary_constant_coeff;
-
-                    boundary_type_t lower_boundary_type;
-                    boundary_type_t upper_boundary_type;
-                };
-
-                auto const& turning_points() const noexcept { return turning_points_; }
-                auto const& boundary_line_pairs() const noexcept { return boundary_line_pairs_; }
-                boundary_type_t left_boundary_type() const noexcept { return left_boundary_type_; }
-                boundary_type_t right_boundary_type() const noexcept {
-                    return right_boundary_type_;
-                }
-
 
                 template <std::ranges::common_range TurningPoints,
                           std::ranges::common_range BoundaryLinePairs>
