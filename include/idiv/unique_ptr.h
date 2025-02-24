@@ -30,8 +30,8 @@ namespace jkj {
         class unique_ptr {
             T* ptr_;
 
-            template <class>
-                requires(!std::is_array_v<T>)
+            template <class U>
+                requires(!std::is_array_v<U>)
             friend class unique_ptr;
 
         public:
