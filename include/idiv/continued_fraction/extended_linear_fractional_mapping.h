@@ -366,16 +366,18 @@ namespace jkj {
             }
         };
 
+        enum class extended_bilinear_fractional_mapping_kind_t {
+            generic,
+            nonconstant_unary_function_of_x,
+            nonconstant_unary_function_of_y,
+            constant
+        };
+
         template <class Int>
             requires(std::is_object_v<Int>)
         class extended_bilinear_fractional_mapping : private bilinear_fractional_mapping<Int> {
         public:
-            enum class kind_t {
-                generic,
-                nonconstant_unary_function_of_x,
-                nonconstant_unary_function_of_y,
-                constant
-            };
+            using kind_t = extended_bilinear_fractional_mapping_kind_t;
 
         private:
             using base_type = bilinear_fractional_mapping<Int>;
@@ -408,8 +410,11 @@ namespace jkj {
                         projective_rational<int_type, uint_type>>::allowed_interval_types()
                         .size();
 
-                constexpr auto pack = [](cyclic_interval_type_t first,
-                                         cyclic_interval_type_t second) {
+                // `static` is to workaround GCC rejecting the code without it:
+                // usages of `pack` inside `flags` below is considered non-constexpr by GCC,
+                // if `pack` is declared non-static and then captured by `flag`.
+                static constexpr auto pack = [](cyclic_interval_type_t first,
+                                                cyclic_interval_type_t second) {
                     struct index_pair {
                         std::size_t larger;
                         std::size_t smaller;
@@ -423,7 +428,7 @@ namespace jkj {
                     return idx_pair.smaller + (idx_pair.larger * (idx_pair.larger + 1)) / 2;
                 };
 
-                constexpr auto allowed_combinations = [pack] {
+                constexpr auto allowed_combinations = [] {
                     struct allowed_combination_flags_t {
                         util::array<bool, (total_possible_allowed_interval_types *
                                            (total_possible_allowed_interval_types + 1)) /
@@ -432,7 +437,7 @@ namespace jkj {
                         std::size_t number_of_set;
                     };
 
-                    constexpr auto allowed_combination_flags = [pack] {
+                    constexpr auto allowed_combination_flags = [] {
                         allowed_combination_flags_t ret_value{};
                         for (std::size_t idx_x = 0; idx_x < allowed_interval_types_x.size();
                              ++idx_x) {
@@ -461,7 +466,7 @@ namespace jkj {
                     return ret_value;
                 }();
 
-                constexpr auto flags = [pack, allowed_combinations] {
+                constexpr auto flags = [allowed_combinations] {
                     util::array<bool, variable_shape_cyclic_interval<projective_rational<
                                           int_type, uint_type>>::allowed_interval_types()
                                           .size()>
