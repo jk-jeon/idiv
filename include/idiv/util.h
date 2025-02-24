@@ -127,6 +127,7 @@ namespace jkj {
         template <class T, std::size_t N>
         struct array {
             using value_type = T;
+            value_type data_[N];
 
             constexpr value_type* data() noexcept { return data_; }
             constexpr value_type const* data() const noexcept { return data_; }
@@ -172,8 +173,6 @@ namespace jkj {
             }
 
             static constexpr std::size_t size() noexcept { return N; }
-
-            value_type data_[N];
         };
 
         // Zero-sized arrays.
