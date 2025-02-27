@@ -410,11 +410,9 @@ namespace jkj {
                         projective_rational<int_type, uint_type>>::allowed_interval_types()
                         .size();
 
-                // `static` is to workaround GCC rejecting the code without it:
-                // usages of `pack` inside `flags` below is considered non-constexpr by GCC,
-                // if `pack` is declared non-static and then captured by `flag`.
-                static constexpr auto pack = [](cyclic_interval_type_t first,
-                                                cyclic_interval_type_t second) {
+                // Take a pair of cyclic interval type enums and pack them into a unique identifer.
+                constexpr auto pack_cyclic_interval_types = [](cyclic_interval_type_t first,
+                                                               cyclic_interval_type_t second) {
                     struct index_pair {
                         std::size_t larger;
                         std::size_t smaller;
@@ -438,6 +436,7 @@ namespace jkj {
                     };
 
                     constexpr auto allowed_combination_flags = [] {
+                        constexpr auto pack = decltype(pack_cyclic_interval_types)();
                         allowed_combination_flags_t ret_value{};
                         for (std::size_t idx_x = 0; idx_x < allowed_interval_types_x.size();
                              ++idx_x) {
@@ -467,6 +466,7 @@ namespace jkj {
                 }();
 
                 constexpr auto flags = [allowed_combinations] {
+                    constexpr auto pack = decltype(pack_cyclic_interval_types)();
                     util::array<bool, variable_shape_cyclic_interval<projective_rational<
                                           int_type, uint_type>>::allowed_interval_types()
                                           .size()>
