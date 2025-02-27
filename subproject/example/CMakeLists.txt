@@ -10,7 +10,7 @@ if (NOT TARGET daw_json_link)
   FetchContent_Declare(
           daw_json_link
           GIT_REPOSITORY https://github.com/beached/daw_json_link.git
-          GIT_TAG        v3.28.1
+          GIT_TAG        v3.30.2
           GIT_SHALLOW    1
   )
   FetchContent_MakeAvailable(daw_json_link)
@@ -34,6 +34,7 @@ endfunction()
 
 add_example(empty_example)
 add_example(jeaiii_analysis)
+add_example(jeaiii_64bit_experiment)
 add_example(xi_zeta_region_json daw::daw-json-link)
 
 add_folders(Example)
