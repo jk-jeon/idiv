@@ -34,7 +34,6 @@ endfunction()
 
 add_example(empty_example)
 add_example(jeaiii_analysis)
-add_example(jeaiii_64bit_experiment)
 add_example(xi_zeta_region_json daw::daw-json-link)
 
 add_folders(Example)
