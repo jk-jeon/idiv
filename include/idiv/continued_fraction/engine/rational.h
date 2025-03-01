@@ -71,7 +71,8 @@ namespace jkj {
         struct mixin_traits<interval_estimate_provider, engine::rational<Int, UInt>> {
             using interval_type = typename engine::rational<Int, UInt>::interval_type;
 
-            using tracking_data = interval_estimate_provider::default_tracking_data<engine::rational<Int, UInt>>;
+            using tracking_data =
+                interval_estimate_provider::default_tracking_data<engine::rational<Int, UInt>>;
 
             class facade : util::noncopyable<>, util::nonmovable<> {
             public:

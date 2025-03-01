@@ -15,12 +15,6 @@
 // is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 // KIND, either express or implied.
 
-#include <idiv/idiv.h>
-#include <idiv/continued_fraction/engine/log.h>
-#include <idiv/continued_fraction/engine/type_erased.h>
-#include <daw/json/daw_json_link.h>
-#include <stdexcept>
-
 /////////////////////////////////////////////////////////////////////////////////
 // [Example input JSON file]
 //
@@ -198,6 +192,44 @@
 // When -614 / 36899 < xi < -2789 / 167608,
 //   (91515 / 1) xi + (1525 / 1) <= zeta < (-76093 / 1) xi + (-1264 / 1)
 //
+
+#include <idiv/idiv.h>
+#include <idiv/continued_fraction/engine/log.h>
+#include <idiv/continued_fraction/engine/type_erased.h>
+#include <daw/json/daw_json_link.h>
+#include <format>
+#include <fstream>
+#include <sstream>
+#include <stdexcept>
+
+namespace jkj {
+    namespace bigint {
+        static std::ostream& operator<<(std::ostream& out, jkj::bigint::uint_var const& n) {
+            auto digits = n.to_decimal();
+            if (digits.empty()) {
+                out << "0";
+            }
+            else {
+                auto itr = digits.cbegin();
+                out << std::format("{}", *itr);
+
+                for (++itr; itr != digits.cend(); ++itr) {
+                    out << std::format("{:019d}", *itr);
+                }
+            }
+
+            return out;
+        }
+
+        static std::ostream& operator<<(std::ostream& out, jkj::bigint::int_var const& n) {
+            if (n.is_strictly_negative()) {
+                out << "-";
+            }
+            out << n.abs();
+            return out;
+        }
+    }
+}
 
 struct type_erased_caching_engine_traits {
     using partial_fraction_type =
@@ -404,38 +436,6 @@ struct daw::json::json_data_contract<input_params> {
                                   json_class<"y", continued_fraction_generator>,
                                   json_array<"constraints", ::jkj::idiv::floor_constraint_spec>>;
 };
-
-#include <fstream>
-#include <sstream>
-
-namespace jkj {
-    namespace bigint {
-        static std::ostream& operator<<(std::ostream& out, jkj::bigint::uint_var const& n) {
-            auto digits = n.to_decimal();
-            if (digits.empty()) {
-                out << "0";
-            }
-            else {
-                auto itr = digits.cbegin();
-                out << std::format("{}", *itr);
-
-                for (++itr; itr != digits.cend(); ++itr) {
-                    out << std::format("{:019d}", *itr);
-                }
-            }
-
-            return out;
-        }
-
-        static std::ostream& operator<<(std::ostream& out, jkj::bigint::int_var const& n) {
-            if (n.is_strictly_negative()) {
-                out << "-";
-            }
-            out << n.abs();
-            return out;
-        }
-    }
-}
 
 int main() {
     auto params = [] {
