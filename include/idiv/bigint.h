@@ -964,6 +964,29 @@ namespace jkj {
             }
             constexpr uint_var(uint_const_t<>) {}
 
+            constexpr uint_var& operator=(uint_var const&) = default;
+            constexpr uint_var& operator=(uint_var&&) = default;
+
+            constexpr uint_var& operator=(block_type n) {
+                if (n == 0) {
+                    blocks_.clear();
+                }
+                else {
+                    blocks_.resize(1);
+                    blocks_[0] = n;
+                }
+                return *this;
+            }
+
+            constexpr uint_var& operator=(uint_view n) {
+                blocks_.assign(n.blocks().cbegin(), n.blocks().cend());
+                return *this;
+            }
+            constexpr uint_var& operator=(uint_const_t<>) {
+                blocks_.clear();
+                return *this;
+            }
+
             constexpr util::span<block_type const> blocks() const noexcept {
                 return {blocks_.data(), blocks_.size()};
             }
