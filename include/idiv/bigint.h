@@ -925,6 +925,9 @@ namespace jkj {
         public:
             friend class int_var;
 
+            constexpr uint_var(uint_var const&) = default;
+            constexpr uint_var(uint_var&& n) : blocks_{std::move(n.blocks_)} { n.blocks_.clear(); }
+
             // blocks_ is empty if and only if it represents 0.
             uint_var() = default;
             constexpr uint_var(block_type n) {
@@ -965,7 +968,10 @@ namespace jkj {
             constexpr uint_var(uint_const_t<>) {}
 
             constexpr uint_var& operator=(uint_var const&) = default;
-            constexpr uint_var& operator=(uint_var&&) = default;
+            constexpr uint_var& operator=(uint_var&& n) {
+                std::swap(blocks_, n.blocks_);
+                return *this;
+            }
 
             constexpr uint_var& operator=(block_type n) {
                 if (n == 0) {
